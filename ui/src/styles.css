@@ -1,0 +1,223 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  background: #0f1115;
+  color: #e6e6e6;
+}
+
+.app {
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: #171a22;
+  border-bottom: 1px solid #272b36;
+}
+
+.brand {
+  font-weight: 600;
+}
+
+.nav button {
+  margin-left: 8px;
+  padding: 6px 10px;
+  border: none;
+  background: #2a3140;
+  color: #e6e6e6;
+  cursor: pointer;
+}
+
+.page {
+  padding: 20px;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.panel {
+  background: #171a22;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #272b36;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+input,
+select,
+button {
+  background: #1f2330;
+  color: #e6e6e6;
+  border: 1px solid #2a3140;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+button {
+  cursor: pointer;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+}
+
+.layout.decrypto {
+  grid-template-columns: 1fr 2fr 1fr;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.card {
+  background: #1c2030;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #2a3140;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.card-word {
+  font-weight: 600;
+}
+
+.card-type {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.card.red {
+  color: #ff7b7b;
+}
+
+.card.blue {
+  color: #7bb7ff;
+}
+
+.card.neutral {
+  color: #b4b4b4;
+}
+
+.card.assassin {
+  color: #ff4b4b;
+}
+
+.card.revealed.red {
+  background: rgba(255, 70, 70, 0.2);
+}
+
+.card.revealed.blue {
+  background: rgba(70, 130, 255, 0.2);
+}
+
+.card.revealed.neutral {
+  background: rgba(180, 180, 180, 0.15);
+}
+
+.card.revealed.assassin {
+  background: rgba(255, 40, 40, 0.3);
+}
+
+.chat-log {
+  max-height: 420px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-entry {
+  background: #1c2030;
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.muted {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.analysis {
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.round-result {
+  padding: 8px;
+  border-top: 1px solid #2a3140;
+}
+
+.decrypto-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.key-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 8px;
+  align-items: center;
+}
+
+.key-label {
+  grid-column: span 4;
+  font-weight: 600;
+}
+
+.key-card {
+  background: #1c2030;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #2a3140;
+}
+
+.key-row.red .key-card {
+  color: #ff7b7b;
+}
+
+.key-row.blue .key-card {
+  color: #7bb7ff;
+}
+
+.error {
+  background: #4b1d1d;
+  padding: 8px 16px;
+}
+
+.pool {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 6px;
+}
+
+.pool-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}

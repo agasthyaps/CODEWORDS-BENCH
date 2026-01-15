@@ -30,3 +30,6 @@ benchmark_results/
 
 # OS
 .DS_Store
+
+ui/node_modules/
+ui/dist/

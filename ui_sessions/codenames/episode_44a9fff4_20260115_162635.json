@@ -1,0 +1,574 @@
+{
+  "episode_id": "44a9fff4",
+  "timestamp": "2026-01-15T16:26:35.031030",
+  "config": {
+    "words_per_board": 25,
+    "red_count": 9,
+    "blue_count": 8,
+    "neutral_count": 7,
+    "assassin_count": 1,
+    "starting_team": "RED",
+    "allow_unlimited_clue": true,
+    "max_clue_number": 9,
+    "seed": null,
+    "mode": "STANDARD"
+  },
+  "board_seed": 1148703356,
+  "board": {
+    "words": [
+      "GREECE",
+      "CRANE",
+      "THUMB",
+      "STRIKE",
+      "BOX",
+      "SCREEN",
+      "BELL",
+      "BAT",
+      "JACK",
+      "STREAM",
+      "CLOAK",
+      "PALM",
+      "EAGLE",
+      "BOOM",
+      "KNIGHT",
+      "APPLE",
+      "BAND",
+      "COOK",
+      "ORGAN",
+      "ANTARCTICA",
+      "SWITCH",
+      "SHOP",
+      "LIFE",
+      "IRON",
+      "SMUGGLER"
+    ],
+    "key_by_category": {
+      "red": [
+        "ANTARCTICA",
+        "BOX",
+        "EAGLE",
+        "GREECE",
+        "JACK",
+        "KNIGHT",
+        "ORGAN",
+        "STRIKE",
+        "SWITCH"
+      ],
+      "blue": [
+        "APPLE",
+        "BAND",
+        "BELL",
+        "BOOM",
+        "CLOAK",
+        "IRON",
+        "PALM",
+        "SCREEN"
+      ],
+      "neutral": [
+        "BAT",
+        "COOK",
+        "CRANE",
+        "LIFE",
+        "SHOP",
+        "SMUGGLER",
+        "STREAM"
+      ],
+      "assassin": [
+        "THUMB"
+      ]
+    },
+    "key_by_word": {
+      "GREECE": "RED",
+      "CRANE": "NEUTRAL",
+      "THUMB": "ASSASSIN",
+      "STRIKE": "RED",
+      "BOX": "RED",
+      "SCREEN": "BLUE",
+      "BELL": "BLUE",
+      "BAT": "NEUTRAL",
+      "JACK": "RED",
+      "STREAM": "NEUTRAL",
+      "CLOAK": "BLUE",
+      "PALM": "BLUE",
+      "EAGLE": "RED",
+      "BOOM": "BLUE",
+      "KNIGHT": "RED",
+      "APPLE": "BLUE",
+      "BAND": "BLUE",
+      "COOK": "NEUTRAL",
+      "ORGAN": "RED",
+      "ANTARCTICA": "RED",
+      "SWITCH": "RED",
+      "SHOP": "NEUTRAL",
+      "LIFE": "NEUTRAL",
+      "IRON": "BLUE",
+      "SMUGGLER": "NEUTRAL"
+    }
+  },
+  "public_transcript": [
+    {
+      "event_type": "clue",
+      "turn_number": 1,
+      "event_index": 1,
+      "team": "RED",
+      "word": "MEDIEVAL",
+      "number": 2
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 1,
+      "event_index": 2,
+      "team": "RED",
+      "agent_id": "red_guesser_1",
+      "content": "Looking at MEDIEVAL (2), I'm thinking KNIGHT is almost certain - that's directly from the medieval period. CLOAK could work too since cloaks were common medieval garments. IRON might connect through medieval armor and weapons, but that feels like more of a stretch to me.\n\nWhat's your take on KNIGHT and CLOAK as our top two?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 1,
+      "event_index": 3,
+      "team": "RED",
+      "agent_id": "red_guesser_2",
+      "content": "I'm with you on KNIGHT - that's a lock. CLOAK makes sense too, very medieval. I'd skip IRON since it's more of a material connection and we have two strong direct hits already.\n\nCONSENSUS: YES\nTOP: KNIGHT, CLOAK"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 1,
+      "event_index": 4,
+      "team": "RED",
+      "agent_id": "red_guesser_1",
+      "content": "I agree - KNIGHT and CLOAK are solid connections to the medieval theme. Let's go with those two and save our bonus guess.\n\nCONSENSUS: YES\nTOP: KNIGHT, CLOAK"
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 1,
+      "event_index": 5,
+      "team": "RED",
+      "word": "KNIGHT",
+      "result": "RED",
+      "correct": true
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 1,
+      "event_index": 6,
+      "team": "RED",
+      "word": "CLOAK",
+      "result": "BLUE",
+      "correct": false
+    },
+    {
+      "event_type": "clue",
+      "turn_number": 2,
+      "event_index": 7,
+      "team": "BLUE",
+      "word": "AUDIO",
+      "number": 3
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 2,
+      "event_index": 8,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_1",
+      "content": "Looking at AUDIO (3), I'm thinking BELL and BAND are strong connections - bells make sound and bands play music. BOOM could work as a loud audio effect. ORGAN might fit too (the musical instrument), but that could be a stretch.\n\nWhat are your thoughts on BELL, BAND, and BOOM as our three?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 2,
+      "event_index": 9,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_2",
+      "content": "I like BELL and BAND - those are solid audio connections. BOOM works too as a sound effect. ORGAN is tempting as the instrument, but let's stick with the three strongest.\n\nCONSENSUS: YES\nTOP: BELL, BAND, BOOM"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 2,
+      "event_index": 10,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_1",
+      "content": "Agreed - BELL, BAND, and BOOM are our strongest audio connections. Let's go with those three.\n\nCONSENSUS: YES\nTOP: BELL, BAND, BOOM"
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 2,
+      "event_index": 11,
+      "team": "BLUE",
+      "word": "BELL",
+      "result": "BLUE",
+      "correct": true
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 2,
+      "event_index": 12,
+      "team": "BLUE",
+      "word": "BAND",
+      "result": "BLUE",
+      "correct": true
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 2,
+      "event_index": 13,
+      "team": "BLUE",
+      "word": "BOOM",
+      "result": "BLUE",
+      "correct": true
+    },
+    {
+      "event_type": "pass",
+      "turn_number": 2,
+      "event_index": 14,
+      "team": "BLUE"
+    },
+    {
+      "event_type": "clue",
+      "turn_number": 3,
+      "event_index": 15,
+      "team": "RED",
+      "word": "CONTINENT",
+      "number": 1
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 3,
+      "event_index": 16,
+      "team": "RED",
+      "agent_id": "red_guesser_1",
+      "content": "Looking at CONTINENT (1), ANTARCTICA jumps out immediately - it's literally a continent. GREECE could work since it's a country on a continent, but that feels like a weaker connection. I'm pretty confident ANTARCTICA is the target here.\n\nWhat do you think - should we just go with ANTARCTICA as our one guess?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 3,
+      "event_index": 17,
+      "team": "RED",
+      "agent_id": "red_guesser_2",
+      "content": "ANTARCTICA is definitely the one - it's the most direct connection to CONTINENT. I'd go with just that single guess rather than risk the bonus guess on something weaker like GREECE.\n\nCONSENSUS: YES\nTOP: ANTARCTICA"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 3,
+      "event_index": 18,
+      "team": "RED",
+      "agent_id": "red_guesser_1",
+      "content": "Agreed - ANTARCTICA is the clear choice here. Let's lock it in and not risk the bonus guess.\n\nCONSENSUS: YES\nTOP: ANTARCTICA"
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 3,
+      "event_index": 19,
+      "team": "RED",
+      "word": "ANTARCTICA",
+      "result": "RED",
+      "correct": true
+    },
+    {
+      "event_type": "pass",
+      "turn_number": 3,
+      "event_index": 20,
+      "team": "RED"
+    },
+    {
+      "event_type": "clue",
+      "turn_number": 4,
+      "event_index": 21,
+      "team": "BLUE",
+      "word": "TREES",
+      "number": 2
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 4,
+      "event_index": 22,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_1",
+      "content": "Looking at TREES (2), PALM is a strong connection - it's literally a type of tree. APPLE also works since apples grow on trees. \n\nI'm less certain about the third bonus guess. CRANE could work (the bird that nests in trees), or EAGLE (similar reasoning), but those feel like stretches. What do you think about PALM and APPLE as our solid two?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 4,
+      "event_index": 23,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_2",
+      "content": "I'm completely on board with PALM and APPLE - those are both direct tree connections. For the bonus guess, I'd lean toward skipping it since CRANE and EAGLE feel risky. Let's lock in our two strong ones.\n\nCONSENSUS: YES\nTOP: PALM, APPLE"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 4,
+      "event_index": 24,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_1",
+      "content": "Agreed - PALM and APPLE are both solid tree connections. Let's play it safe and skip the bonus guess rather than risk hitting something wrong.\n\nCONSENSUS: YES\nTOP: PALM, APPLE"
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 4,
+      "event_index": 25,
+      "team": "BLUE",
+      "word": "PALM",
+      "result": "BLUE",
+      "correct": true
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 4,
+      "event_index": 26,
+      "team": "BLUE",
+      "word": "APPLE",
+      "result": "BLUE",
+      "correct": true
+    },
+    {
+      "event_type": "pass",
+      "turn_number": 4,
+      "event_index": 27,
+      "team": "BLUE"
+    },
+    {
+      "event_type": "clue",
+      "turn_number": 5,
+      "event_index": 28,
+      "team": "RED",
+      "word": "UNION",
+      "number": 4
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 5,
+      "event_index": 29,
+      "team": "RED",
+      "agent_id": "red_guesser_1",
+      "content": "Looking at UNION (4), I'm thinking JACK (union jack - the British flag), STRIKE (labor union strikes), and IRON (the act of ironing creates a union of fabric layers). STATES could work if it's still on the board (United States), but I don't see it listed.\n\nJACK feels strongest to me, STRIKE is solid, and IRON is more of a stretch. What's your read on these connections?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 5,
+      "event_index": 30,
+      "team": "RED",
+      "agent_id": "red_guesser_2",
+      "content": "I like JACK - that's a direct hit with Union Jack. STRIKE makes sense too with labor unions. IRON feels weaker to me - that's a pretty loose connection. \n\nShould we look for a fourth word? STATES isn't available, but maybe there's something else we're missing?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 5,
+      "event_index": 31,
+      "team": "RED",
+      "agent_id": "red_guesser_1",
+      "content": "I agree JACK and STRIKE are our strongest two. For the third and fourth, I'm struggling to find clear connections. IRON feels like a stretch, and I'm not seeing other obvious unions on the board.\n\nMaybe we should stick with JACK and STRIKE as confident picks, then consider if we want to risk a third guess. What do you think about playing it safer with just those two?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 5,
+      "event_index": 32,
+      "team": "RED",
+      "agent_id": "red_guesser_2",
+      "content": "I think you're right to be cautious. JACK and STRIKE are solid connections, but I'm not confident about a third word. Let's lock in those two and save ourselves from a potential wrong guess.\n\nCONSENSUS: YES\nTOP: JACK, STRIKE"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 5,
+      "event_index": 33,
+      "team": "RED",
+      "agent_id": "red_guesser_1",
+      "content": "I'm good with JACK and STRIKE - those are strong, direct connections to UNION. Let's go with those two and not push our luck on a weaker third guess.\n\nCONSENSUS: YES\nTOP: JACK, STRIKE"
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 5,
+      "event_index": 34,
+      "team": "RED",
+      "word": "JACK",
+      "result": "RED",
+      "correct": true
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 5,
+      "event_index": 35,
+      "team": "RED",
+      "word": "STRIKE",
+      "result": "RED",
+      "correct": true
+    },
+    {
+      "event_type": "pass",
+      "turn_number": 5,
+      "event_index": 36,
+      "team": "RED"
+    },
+    {
+      "event_type": "clue",
+      "turn_number": 6,
+      "event_index": 37,
+      "team": "BLUE",
+      "word": "WIRE",
+      "number": 2
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 6,
+      "event_index": 38,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_1",
+      "content": "Looking at WIRE (2), I'm thinking SCREEN (wire screen/mesh) and SWITCH (electrical wiring) are the strongest connections. IRON could work as wire material, but that feels weaker than our first two.\n\nWhat do you think about SCREEN and SWITCH as our main guesses?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 6,
+      "event_index": 39,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_2",
+      "content": "I agree with SCREEN and SWITCH - both have strong wire connections. IRON as a material feels like a stretch compared to those two. Let's go with SCREEN and SWITCH and skip the bonus guess.\n\nCONSENSUS: YES\nTOP: SCREEN, SWITCH"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 6,
+      "event_index": 40,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_1",
+      "content": "I'm on board with SCREEN and SWITCH - those are both solid wire connections. Let's lock those in and play it safe.\n\nCONSENSUS: YES\nTOP: SCREEN, SWITCH"
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 6,
+      "event_index": 41,
+      "team": "BLUE",
+      "word": "SCREEN",
+      "result": "BLUE",
+      "correct": true
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 6,
+      "event_index": 42,
+      "team": "BLUE",
+      "word": "SWITCH",
+      "result": "RED",
+      "correct": false
+    },
+    {
+      "event_type": "clue",
+      "turn_number": 7,
+      "event_index": 43,
+      "team": "RED",
+      "word": "MYTHOLOGY",
+      "number": 4
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 7,
+      "event_index": 44,
+      "team": "RED",
+      "agent_id": "red_guesser_1",
+      "content": "Looking at MYTHOLOGY (4), I'm thinking GREECE is almost certain - Greek mythology is foundational. EAGLE could work (Zeus's sacred bird), and CRANE might connect through various mythological bird transformations. THUMB feels like a stretch unless there's a specific myth I'm missing.\n\nWhat's your take on GREECE and EAGLE as strong picks, with CRANE as a possible third?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 7,
+      "event_index": 45,
+      "team": "RED",
+      "agent_id": "red_guesser_2",
+      "content": "I'm completely with you on GREECE - that's a lock for mythology. EAGLE makes sense with Zeus. CRANE is interesting - there are definitely bird transformation myths. \n\nFor the fourth, what about ORGAN? In Greek mythology, Orpheus played the lyre, and organs are musical instruments. Though that might be stretching it. Should we stick with GREECE, EAGLE, CRANE as our three strongest?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 7,
+      "event_index": 46,
+      "team": "RED",
+      "agent_id": "red_guesser_1",
+      "content": "ORGAN feels like a stretch to me - the lyre connection is pretty indirect. I think GREECE, EAGLE, and CRANE are our strongest three. Let's go with those and skip the fourth guess to avoid risk.\n\nCONSENSUS: YES\nTOP: GREECE, EAGLE, CRANE"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 7,
+      "event_index": 47,
+      "team": "RED",
+      "agent_id": "red_guesser_2",
+      "content": "I agree with your reasoning. GREECE is a lock, EAGLE is solid with the Zeus connection, and CRANE works with the transformation myths. Those three are strong enough that we don't need to risk a fourth guess.\n\nCONSENSUS: YES\nTOP: GREECE, EAGLE, CRANE"
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 7,
+      "event_index": 48,
+      "team": "RED",
+      "word": "GREECE",
+      "result": "RED",
+      "correct": true
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 7,
+      "event_index": 49,
+      "team": "RED",
+      "word": "EAGLE",
+      "result": "RED",
+      "correct": true
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 7,
+      "event_index": 50,
+      "team": "RED",
+      "word": "CRANE",
+      "result": "NEUTRAL",
+      "correct": false
+    },
+    {
+      "event_type": "clue",
+      "turn_number": 8,
+      "event_index": 51,
+      "team": "BLUE",
+      "word": "CURTAIN",
+      "number": 1
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 8,
+      "event_index": 52,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_1",
+      "content": "Looking at CURTAIN (1), I'm thinking IRON - as in \"iron curtain,\" the famous Cold War term. That's a pretty direct historical phrase connection.\n\nShould we just go with IRON as our single confident guess, or do you see another strong curtain connection I'm missing?"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 8,
+      "event_index": 53,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_2",
+      "content": "IRON is definitely it - \"iron curtain\" is a classic phrase. I don't see any other strong curtain connections on the board. Let's lock in IRON and skip the bonus guess.\n\nCONSENSUS: YES\nTOP: IRON"
+    },
+    {
+      "event_type": "discussion",
+      "turn_number": 8,
+      "event_index": 54,
+      "team": "BLUE",
+      "agent_id": "blue_guesser_1",
+      "content": "I agree - IRON CURTAIN is the obvious connection here. That's our word.\n\nCONSENSUS: YES\nTOP: IRON"
+    },
+    {
+      "event_type": "guess",
+      "turn_number": 8,
+      "event_index": 55,
+      "team": "BLUE",
+      "word": "IRON",
+      "result": "BLUE",
+      "correct": true
+    }
+  ],
+  "turn_traces": [],
+  "winner": "BLUE",
+  "total_turns": 8,
+  "metadata": {
+    "red_team": {
+      "cluer": "anthropic/claude-sonnet-4.5",
+      "guesser_1": "anthropic/claude-sonnet-4.5",
+      "guesser_2": "anthropic/claude-sonnet-4.5"
+    },
+    "blue_team": {
+      "cluer": "anthropic/claude-sonnet-4.5",
+      "guesser_1": "anthropic/claude-sonnet-4.5",
+      "guesser_2": "anthropic/claude-sonnet-4.5"
+    },
+    "max_discussion_rounds": 3
+  }
+}

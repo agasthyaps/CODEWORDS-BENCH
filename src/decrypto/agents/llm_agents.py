@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import re
 from dataclasses import dataclass
-from typing import Any
+from pathlib import Path
+from typing import Any, Callable
 
 from src.agents.llm import LLMProvider
 
@@ -45,6 +46,24 @@ def _format_history(view: dict[str, Any]) -> str:
 def _format_public_clues(view: dict[str, Any]) -> str:
     pc = view.get("public_clues")
     return str(pc) if pc is not None else "null"
+
+
+def _load_prompt_template(name: str) -> str:
+    path = Path(__file__).parent / "prompts" / name
+    with open(path, "r") as f:
+        return f.read()
+
+
+def _format_discussion_log(discussion: list[dict[str, str]]) -> str:
+    if not discussion:
+        return "(no discussion yet)"
+    return "\n".join(
+        [f"{d.get('agent_id', 'agent')}: {d.get('message', '')}" for d in discussion]
+    )
+
+
+def _parse_consensus_flag(text: str) -> bool:
+    return bool(re.search(r"CONSENSUS\\s*:\\s*YES", text, re.IGNORECASE))
 
 
 CONFIRMATION_LANGUAGE_PATTERNS = (
@@ -420,12 +439,38 @@ class DecryptoGuesserLLM:
             parse_retry_used=True,
         )
 
+    async def discuss(
+        self,
+        round_inputs: RoundInputs,
+        kind: str,
+        discussion: list[dict[str, str]],
+        independent: tuple[GuesserIndependent, GuesserIndependent],
+    ) -> tuple[str, bool]:
+        if kind == "decode":
+            view = view_for_guesser_decode(round_inputs, self.team)
+        else:
+            view = view_for_guesser_intercept(round_inputs, self.team)
+        assert_view_safe(view)
+
+        system = _load_prompt_template("guesser_discussion.md").format(kind=kind.upper())
+        user = _load_prompt_template("guesser_discussion_turn.md").format(
+            view=view,
+            kind=kind.upper(),
+            independent=[x.model_dump(mode="json") for x in independent],
+            discussion=_format_discussion_log(discussion),
+        )
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        resp = await self.provider.complete(messages=messages, temperature=self.temperature)
+        content = resp.content.strip()
+        return content, _parse_consensus_flag(content)
+
     async def share_rationale(
         self,
         round_inputs: RoundInputs,
         kind: str,
         independent_a: GuesserIndependent,
         independent_b: GuesserIndependent,
+        discussion: list[dict[str, str]],
     ) -> GuesserShare:
         if kind == "decode":
             view = view_for_guesser_decode(round_inputs, self.team)
@@ -438,6 +483,7 @@ class DecryptoGuesserLLM:
             f"ROLE_VIEW:\n{view}\n\n"
             f"Task: {kind.upper()}.\n"
             f"Independent guesses:\n{independent_a.model_dump(mode='json')}\n{independent_b.model_dump(mode='json')}\n\n"
+            f"Discussion transcript:\n{_format_discussion_log(discussion)}\n\n"
             "Share one short message to help your teammate converge.\n"
             "Return JSON:\n"
             "{ \"message\": \"...\" }\n"
@@ -464,6 +510,7 @@ class DecryptoGuesserLLM:
         kind: str,
         independent: tuple[GuesserIndependent, GuesserIndependent],
         shares: tuple[GuesserShare, GuesserShare],
+        discussion: list[dict[str, str]],
     ) -> ConsensusGuess:
         if kind == "decode":
             view = view_for_guesser_decode(round_inputs, self.team)
@@ -498,6 +545,9 @@ class DecryptoGuesserLLM:
             f"Task: {kind.upper()}.\n"
             f"Independent:\n{[x.model_dump(mode='json') for x in independent]}\n\n"
             f"Share messages:\n{[x.model_dump(mode='json') for x in shares]}\n\n"
+            f"Discussion transcript:\n{_format_discussion_log(discussion)}\n\n"
+            "Consensus guidance: choose a code mentioned in discussion, "
+            "or explicitly say in rationale that this is NEW.\n"
             "Update the slot->keyword/theme hypothesis table using the reveal summary.\n"
             "Return JSON:\n"
             "{\n"
@@ -679,6 +729,10 @@ async def run_bounded_action(
     kind: str,
     guesser_1: DecryptoGuesserLLM,
     guesser_2: DecryptoGuesserLLM,
+    *,
+    discussion_log: list[dict[str, str]] | None = None,
+    max_discussion_turns_per_guesser: int = 2,
+    emit_discussion: Callable[[str, str], None] | None = None,
 ) -> ActionLog:
     """
     Bounded discussion loop:
@@ -696,13 +750,33 @@ async def run_bounded_action(
         guesser_1.independent_guess(round_inputs, kind),
         guesser_2.independent_guess(round_inputs, kind),
     )
+    discussion_log = discussion_log if discussion_log is not None else []
+    consecutive_consensus = 0
+    max_messages = max(1, max_discussion_turns_per_guesser) * 2
+    guessers = [guesser_1, guesser_2]
+    for i in range(max_messages):
+        guesser = guessers[i % 2]
+        content, consensus = await guesser.discuss(
+            round_inputs, kind, discussion_log, (ind1, ind2)
+        )
+        entry = {"agent_id": guesser.agent_id, "message": content}
+        discussion_log.append(entry)
+        if emit_discussion is not None:
+            emit_discussion(guesser.agent_id, content)
+        if consensus:
+            consecutive_consensus += 1
+            if consecutive_consensus >= 2:
+                break
+        else:
+            consecutive_consensus = 0
+
     s1, s2 = await asyncio.gather(
-        guesser_1.share_rationale(round_inputs, kind, ind1, ind2),
-        guesser_2.share_rationale(round_inputs, kind, ind1, ind2),
+        guesser_1.share_rationale(round_inputs, kind, ind1, ind2, discussion_log),
+        guesser_2.share_rationale(round_inputs, kind, ind1, ind2, discussion_log),
     )
     # Deterministic captain: guesser_1
     consensus = await guesser_1.captain_consensus(
-        round_inputs, kind, (ind1, ind2), (s1, s2)
+        round_inputs, kind, (ind1, ind2), (s1, s2), discussion_log
     )
 
     return ActionLog(

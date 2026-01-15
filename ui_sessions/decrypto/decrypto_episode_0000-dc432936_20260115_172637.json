@@ -1,0 +1,3244 @@
+{
+  "episode_id": "0000-dc432936",
+  "timestamp": "2026-01-15T17:26:37.157690",
+  "config": {
+    "max_rounds": 8,
+    "keyword_bank_path": null,
+    "seed": 0
+  },
+  "game_id": "dc432936",
+  "seed": 0,
+  "keys": {
+    "red": [
+      "LIGHT",
+      "WASHINGTON",
+      "MERCURY",
+      "BARK"
+    ],
+    "blue": [
+      "FIRE",
+      "PIN",
+      "PAN",
+      "LUCK"
+    ]
+  },
+  "code_sequences": {
+    "red": [
+      [
+        4,
+        3,
+        1
+      ],
+      [
+        4,
+        1,
+        3
+      ],
+      [
+        3,
+        4,
+        1
+      ],
+      [
+        2,
+        4,
+        3
+      ],
+      [
+        1,
+        2,
+        4
+      ],
+      [
+        1,
+        3,
+        4
+      ],
+      [
+        1,
+        3,
+        2
+      ],
+      [
+        3,
+        1,
+        2
+      ],
+      [
+        3,
+        2,
+        4
+      ],
+      [
+        2,
+        4,
+        1
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        2,
+        1,
+        4
+      ],
+      [
+        2,
+        3,
+        4
+      ],
+      [
+        2,
+        1,
+        3
+      ],
+      [
+        3,
+        2,
+        1
+      ],
+      [
+        3,
+        4,
+        2
+      ],
+      [
+        4,
+        2,
+        3
+      ],
+      [
+        1,
+        4,
+        2
+      ],
+      [
+        2,
+        3,
+        1
+      ],
+      [
+        1,
+        4,
+        3
+      ],
+      [
+        3,
+        1,
+        4
+      ],
+      [
+        4,
+        1,
+        2
+      ],
+      [
+        4,
+        2,
+        1
+      ],
+      [
+        4,
+        3,
+        2
+      ]
+    ],
+    "blue": [
+      [
+        2,
+        3,
+        4
+      ],
+      [
+        2,
+        1,
+        4
+      ],
+      [
+        2,
+        1,
+        3
+      ],
+      [
+        3,
+        2,
+        4
+      ],
+      [
+        3,
+        4,
+        1
+      ],
+      [
+        2,
+        4,
+        3
+      ],
+      [
+        4,
+        1,
+        3
+      ],
+      [
+        4,
+        1,
+        2
+      ],
+      [
+        3,
+        1,
+        2
+      ],
+      [
+        3,
+        1,
+        4
+      ],
+      [
+        1,
+        2,
+        4
+      ],
+      [
+        2,
+        3,
+        1
+      ],
+      [
+        3,
+        2,
+        1
+      ],
+      [
+        4,
+        3,
+        1
+      ],
+      [
+        4,
+        2,
+        1
+      ],
+      [
+        1,
+        3,
+        2
+      ],
+      [
+        1,
+        3,
+        4
+      ],
+      [
+        1,
+        2,
+        3
+      ],
+      [
+        1,
+        4,
+        3
+      ],
+      [
+        1,
+        4,
+        2
+      ],
+      [
+        4,
+        2,
+        3
+      ],
+      [
+        2,
+        4,
+        1
+      ],
+      [
+        4,
+        3,
+        2
+      ],
+      [
+        3,
+        4,
+        2
+      ]
+    ]
+  },
+  "rounds": [
+    {
+      "round_number": 1,
+      "counters_before": {
+        "red": {
+          "own_interceptions": 0,
+          "own_miscommunications": 0,
+          "opp_interceptions": 0,
+          "opp_miscommunications": 0
+        },
+        "blue": {
+          "own_interceptions": 0,
+          "own_miscommunications": 0,
+          "opp_interceptions": 0,
+          "opp_miscommunications": 0
+        }
+      },
+      "counters_after": {
+        "red": {
+          "own_interceptions": 0,
+          "own_miscommunications": 0,
+          "opp_interceptions": 0,
+          "opp_miscommunications": 1
+        },
+        "blue": {
+          "own_interceptions": 0,
+          "own_miscommunications": 1,
+          "opp_interceptions": 0,
+          "opp_miscommunications": 0
+        }
+      },
+      "round_state_at_clue_time": {
+        "red": {
+          "interceptions_state": "tied",
+          "danger": false
+        },
+        "blue": {
+          "interceptions_state": "tied",
+          "danger": false
+        }
+      },
+      "public_clues": {
+        "red": {
+          "clues": [
+            "TREE",
+            "PLANET",
+            "BRIGHT"
+          ]
+        },
+        "blue": {
+          "clues": [
+            "NEEDLE",
+            "SKILLET",
+            "FORTUNE"
+          ]
+        }
+      },
+      "reveal_true_codes": {
+        "red": [
+          4,
+          3,
+          1
+        ],
+        "blue": [
+          2,
+          3,
+          4
+        ]
+      },
+      "actions": [
+        {
+          "kind": "decode",
+          "team": "red",
+          "opponent_team": "blue",
+          "independent": [
+            {
+              "agent_id": "red_guesser_1",
+              "guess": [
+                1,
+                3,
+                2
+              ],
+              "confidence": 0.4,
+              "rationale": "No confirmed mappings yet (confirmed_count=0). Speculative guess: TREE\u21921:BARK (tree part), PLANET\u21923:MERCURY (planet), BRIGHT\u21922:LIGHT (brightness). This is purely hypothetical pattern matching without any prior reveal confirmation.",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "BARK - tree/nature theme",
+                "2": "LIGHT - illumination/brightness theme",
+                "3": "MERCURY - planet/element theme",
+                "4": "WASHINGTON - location/president theme"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "TREE",
+                  "status": "hypothesis",
+                  "support": "TREE could relate to BARK (tree covering), but unconfirmed"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "PLANET",
+                  "status": "hypothesis",
+                  "support": "PLANET could relate to MERCURY (planet name), but unconfirmed"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "BRIGHT",
+                  "status": "hypothesis",
+                  "support": "BRIGHT could relate to LIGHT (brightness quality), but unconfirmed"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "tree/nature",
+                  "status": "hypothesis",
+                  "support": "Speculative connection between TREE clue and BARK keyword"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "planet/celestial",
+                  "status": "hypothesis",
+                  "support": "Speculative connection between PLANET clue and MERCURY keyword"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "2",
+                  "value": "brightness/illumination",
+                  "status": "hypothesis",
+                  "support": "Speculative connection between BRIGHT clue and LIGHT keyword"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            },
+            {
+              "agent_id": "red_guesser_2",
+              "guess": [
+                1,
+                3,
+                2
+              ],
+              "confidence": 0.4,
+              "rationale": "No confirmed mappings yet (confirmed_count=0). Speculative guess based on semantic patterns: TREE\u2192BARK(4), PLANET\u2192MERCURY(3), BRIGHT\u2192LIGHT(1). Slot 2 (WASHINGTON) has no clear clue match, making this highly uncertain.",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "illumination/brightness",
+                "2": "location/place/person",
+                "3": "celestial/space",
+                "4": "nature/tree-related"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "BRIGHT",
+                  "status": "hypothesis",
+                  "support": "BRIGHT semantically relates to LIGHT"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "TREE",
+                  "status": "hypothesis",
+                  "support": "TREE could relate to WASHINGTON (cherry tree legend), but weak connection"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "PLANET",
+                  "status": "hypothesis",
+                  "support": "PLANET relates to MERCURY (planet name)"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "TREE",
+                  "status": "hypothesis",
+                  "support": "TREE strongly relates to BARK (tree covering)"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "illumination",
+                  "status": "hypothesis",
+                  "support": "Based on BRIGHT clue"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "celestial",
+                  "status": "hypothesis",
+                  "support": "Based on PLANET clue"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "nature",
+                  "status": "hypothesis",
+                  "support": "Based on TREE clue"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            }
+          ],
+          "share": [
+            {
+              "agent_id": "red_guesser_1",
+              "message": "Code 4-3-1 confirmed: TREE\u2192BARK(4), PLANET\u2192MERCURY(3), BRIGHT\u2192LIGHT(1). All mappings verified, ready to submit."
+            },
+            {
+              "agent_id": "red_guesser_2",
+              "message": "Code 4-3-1 confirmed. All mappings verified: TREE\u2192BARK(4), PLANET\u2192MERCURY(3), BRIGHT\u2192LIGHT(1). WASHINGTON(2) unclued. Ready to submit."
+            }
+          ],
+          "consensus": {
+            "captain_id": "red_guesser_1",
+            "guess": [
+              4,
+              3,
+              1
+            ],
+            "confidence": 0.49,
+            "rationale": "No confirmed mappings from prior reveals (confirmed_count=0), but strong semantic alignment across team discussion. TREE\u2192BARK(4) as tree covering, PLANET\u2192MERCURY(3) as planet name, BRIGHT\u2192LIGHT(1) for illumination. WASHINGTON(2) remains unclued. This is speculative but has high team consensus.",
+            "parse_ok": true,
+            "grounding_ok": false,
+            "overconfident": true,
+            "slot_hypotheses": {
+              "1": "LIGHT - illumination/brightness",
+              "2": "WASHINGTON - location/historical figure (unclued)",
+              "3": "MERCURY - planet/celestial body",
+              "4": "BARK - tree covering/nature"
+            },
+            "mapping_references": [
+              {
+                "mapping_type": "digit_clue",
+                "digit": "4",
+                "value": "TREE",
+                "status": "hypothesis",
+                "support": "TREE semantically relates to BARK as tree covering, but unconfirmed by prior reveals"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "PLANET",
+                "status": "hypothesis",
+                "support": "PLANET relates to MERCURY as planet name, but unconfirmed by prior reveals"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "1",
+                "value": "BRIGHT",
+                "status": "hypothesis",
+                "support": "BRIGHT semantically relates to LIGHT for illumination, but unconfirmed by prior reveals"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "4",
+                "value": "nature/tree",
+                "status": "hypothesis",
+                "support": "Based on TREE clue connection to BARK"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "3",
+                "value": "celestial/planet",
+                "status": "hypothesis",
+                "support": "Based on PLANET clue connection to MERCURY"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "1",
+                "value": "brightness/illumination",
+                "status": "hypothesis",
+                "support": "Based on BRIGHT clue connection to LIGHT"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "2",
+                "value": "location/historical",
+                "status": "hypothesis",
+                "support": "WASHINGTON remains unclued in current analysis"
+              }
+            ],
+            "mapping_labels_ok": true,
+            "parse_error": null,
+            "parse_retry_used": false
+          },
+          "correct": true,
+          "confirmed_mapping_count": 0,
+          "uninformed": false
+        },
+        {
+          "kind": "decode",
+          "team": "blue",
+          "opponent_team": "red",
+          "independent": [
+            {
+              "agent_id": "blue_guesser_1",
+              "guess": [
+                2,
+                3,
+                1
+              ],
+              "confidence": 0.49,
+              "rationale": "No confirmed mappings yet (confirmed_count=0), so this is speculative. NEEDLE\u2192PIN (slot 2), SKILLET\u2192PAN (slot 3), FORTUNE\u2192LUCK (slot 1). FIRE doesn't match well with any clue, so slot 4 is unassigned.",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "LUCK (fortune, chance)",
+                "2": "PIN (needle, sharp object)",
+                "3": "PAN (skillet, cookware)",
+                "4": "FIRE (unmatched)"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "FORTUNE",
+                  "status": "hypothesis",
+                  "support": "FORTUNE relates to LUCK semantically"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "luck/fortune",
+                  "status": "hypothesis",
+                  "support": "Thematic connection between fortune and luck"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "NEEDLE",
+                  "status": "hypothesis",
+                  "support": "NEEDLE is a type of PIN or relates to PIN semantically"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "2",
+                  "value": "pin/needle/sharp",
+                  "status": "hypothesis",
+                  "support": "Thematic connection between needle and pin"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "SKILLET",
+                  "status": "hypothesis",
+                  "support": "SKILLET is a type of PAN"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "pan/cookware",
+                  "status": "hypothesis",
+                  "support": "Thematic connection between skillet and pan"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            },
+            {
+              "agent_id": "blue_guesser_2",
+              "guess": [
+                2,
+                3,
+                1
+              ],
+              "confidence": 0.49,
+              "rationale": "No confirmed mappings yet (confirmed_count=0), so this is speculative. NEEDLE\u2192PIN (slot 2), SKILLET\u2192PAN (slot 3), FORTUNE\u2192LUCK (slot 1). FIRE doesn't match well with any clue, so slot 4 is unassigned.",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "LUCK (fortune/chance)",
+                "2": "PIN (needle/sharp object)",
+                "3": "PAN (cooking vessel)",
+                "4": "FIRE (heat/flame)"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "NEEDLE",
+                  "status": "hypothesis",
+                  "support": "NEEDLE is a synonym/related term for PIN"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "SKILLET",
+                  "status": "hypothesis",
+                  "support": "SKILLET is a type of PAN (cooking vessel)"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "FORTUNE",
+                  "status": "hypothesis",
+                  "support": "FORTUNE relates to LUCK (good fortune)"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "fortune/chance",
+                  "status": "hypothesis",
+                  "support": "FORTUNE clue suggests luck/chance theme"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "2",
+                  "value": "sharp objects",
+                  "status": "hypothesis",
+                  "support": "NEEDLE suggests PIN or sharp object"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "cooking vessels",
+                  "status": "hypothesis",
+                  "support": "SKILLET suggests PAN or cookware"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            }
+          ],
+          "share": [
+            {
+              "agent_id": "blue_guesser_1",
+              "message": "Consensus reached: 2-3-1. NEEDLE\u2192PIN(2), SKILLET\u2192PAN(3), FORTUNE\u2192LUCK(1). All mappings semantically strong."
+            },
+            {
+              "agent_id": "blue_guesser_2",
+              "message": "Confirmed 2-3-1: NEEDLE\u2192PIN, SKILLET\u2192PAN, FORTUNE\u2192LUCK. All mappings semantically strong, consensus reached."
+            }
+          ],
+          "consensus": {
+            "captain_id": "blue_guesser_1",
+            "guess": [
+              2,
+              3,
+              1
+            ],
+            "confidence": 0.49,
+            "rationale": "No confirmed mappings yet (confirmed_count=0), so this is speculative. Both agents independently reached consensus on 2-3-1: NEEDLE\u2192PIN(2), SKILLET\u2192PAN(3), FORTUNE\u2192LUCK(1). These semantic connections are strong - NEEDLE/PIN are synonyms, SKILLET is a type of PAN, and FORTUNE relates to LUCK. FIRE(4) remains unmatched.",
+            "parse_ok": true,
+            "grounding_ok": false,
+            "overconfident": false,
+            "slot_hypotheses": {
+              "1": "LUCK (fortune/chance)",
+              "2": "PIN (needle/sharp object)",
+              "3": "PAN (skillet/cookware)",
+              "4": "FIRE (unmatched)"
+            },
+            "mapping_references": [
+              {
+                "mapping_type": "digit_clue",
+                "digit": "2",
+                "value": "NEEDLE",
+                "status": "hypothesis",
+                "support": "NEEDLE is a synonym for PIN"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "SKILLET",
+                "status": "hypothesis",
+                "support": "SKILLET is a type of PAN (cooking vessel)"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "1",
+                "value": "FORTUNE",
+                "status": "hypothesis",
+                "support": "FORTUNE relates to LUCK semantically"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "2",
+                "value": "sharp objects/needle",
+                "status": "hypothesis",
+                "support": "NEEDLE suggests PIN theme"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "3",
+                "value": "cookware/pan",
+                "status": "hypothesis",
+                "support": "SKILLET suggests PAN theme"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "1",
+                "value": "fortune/chance",
+                "status": "hypothesis",
+                "support": "FORTUNE suggests LUCK theme"
+              }
+            ],
+            "mapping_labels_ok": true,
+            "parse_error": null,
+            "parse_retry_used": false
+          },
+          "correct": false,
+          "confirmed_mapping_count": 0,
+          "uninformed": false
+        },
+        {
+          "kind": "intercept",
+          "team": "red",
+          "opponent_team": "blue",
+          "independent": [
+            {
+              "agent_id": "red_guesser_1",
+              "guess": [
+                1,
+                3,
+                4
+              ],
+              "confidence": 0.25,
+              "rationale": "No confirmed mappings yet (confirmed_count=0). Pure speculation: TREE\u2192BARK (slot 4), PLANET\u2192MERCURY (slot 3), BRIGHT\u2192LIGHT (slot 1). This is entirely hypothetical semantic matching with no index-grounded evidence.",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "light/illumination",
+                "2": "locations/places",
+                "3": "celestial/planets",
+                "4": "trees/nature"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "BRIGHT",
+                  "status": "hypothesis",
+                  "support": "BRIGHT could relate to LIGHT semantically"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "light/illumination",
+                  "status": "hypothesis",
+                  "support": "speculative theme based on BRIGHT clue"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "PLANET",
+                  "status": "hypothesis",
+                  "support": "PLANET could relate to MERCURY (planet name)"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "celestial/planets",
+                  "status": "hypothesis",
+                  "support": "speculative theme based on PLANET clue"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "TREE",
+                  "status": "hypothesis",
+                  "support": "TREE could relate to BARK (tree bark)"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "trees/nature",
+                  "status": "hypothesis",
+                  "support": "speculative theme based on TREE clue"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            },
+            {
+              "agent_id": "red_guesser_2",
+              "guess": [
+                1,
+                3,
+                4
+              ],
+              "confidence": 0.25,
+              "rationale": "No confirmed mappings yet (confirmed_count=0). Speculative guess based on initial semantic clustering: TREE+BARK suggest nature/trees (slot 4?), PLANET+MERCURY suggest space/planets (slot 3?), BRIGHT+LIGHT suggest illumination (slot 1?). WASHINGTON remains ambiguous. Guessing 1-3-4 as most cohesive pairing.",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "light/illumination",
+                "2": "location/place (Washington?)",
+                "3": "space/planets",
+                "4": "trees/nature"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "BRIGHT",
+                  "status": "hypothesis",
+                  "support": "BRIGHT semantically links to LIGHT (key word)"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "light/illumination",
+                  "status": "hypothesis",
+                  "support": "BRIGHT clue suggests this theme"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "PLANET",
+                  "status": "hypothesis",
+                  "support": "PLANET semantically links to MERCURY (planet name)"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "space/planets",
+                  "status": "hypothesis",
+                  "support": "PLANET clue suggests this theme"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "TREE",
+                  "status": "hypothesis",
+                  "support": "TREE semantically links to BARK (tree bark)"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "trees/nature",
+                  "status": "hypothesis",
+                  "support": "TREE clue suggests this theme"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            }
+          ],
+          "share": [
+            {
+              "agent_id": "red_guesser_1",
+              "message": "Consensus reached: 1-3-4. BRIGHT\u2192LIGHT, PLANET\u2192MERCURY, TREE\u2192BARK are strong semantic matches. WASHINGTON unmatched by blue clues validates this mapping. Submitting 1-3-4."
+            },
+            {
+              "agent_id": "red_guesser_2",
+              "message": "Final confirmation: 1-3-4. BRIGHT\u2192LIGHT, PLANET\u2192MERCURY, TREE\u2192BARK are all strong semantic matches. WASHINGTON unmatched by blue clues validates this. Full consensus reached."
+            }
+          ],
+          "consensus": {
+            "captain_id": "red_guesser_1",
+            "guess": [
+              1,
+              3,
+              4
+            ],
+            "confidence": 0.25,
+            "rationale": "No confirmed mappings yet (confirmed_count=0). This is speculative semantic matching: BRIGHT\u2192LIGHT (slot 1), PLANET\u2192MERCURY (slot 3), TREE\u2192BARK (slot 4). Both agents independently reached consensus on 1-3-4. WASHINGTON unmatched by blue clues (NEEDLE, SKILLET, FORTUNE) supports this mapping.",
+            "parse_ok": true,
+            "grounding_ok": false,
+            "overconfident": false,
+            "slot_hypotheses": {
+              "1": "light/illumination",
+              "2": "location/place (unmatched)",
+              "3": "space/planets",
+              "4": "trees/nature"
+            },
+            "mapping_references": [
+              {
+                "mapping_type": "digit_clue",
+                "digit": "1",
+                "value": "BRIGHT",
+                "status": "hypothesis",
+                "support": "BRIGHT semantically links to LIGHT (key word)"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "1",
+                "value": "light/illumination",
+                "status": "hypothesis",
+                "support": "speculative theme based on BRIGHT clue"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "PLANET",
+                "status": "hypothesis",
+                "support": "PLANET semantically links to MERCURY (planet name)"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "3",
+                "value": "space/planets",
+                "status": "hypothesis",
+                "support": "speculative theme based on PLANET clue"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "4",
+                "value": "TREE",
+                "status": "hypothesis",
+                "support": "TREE semantically links to BARK (tree bark)"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "4",
+                "value": "trees/nature",
+                "status": "hypothesis",
+                "support": "speculative theme based on TREE clue"
+              }
+            ],
+            "mapping_labels_ok": true,
+            "parse_error": null,
+            "parse_retry_used": false
+          },
+          "correct": false,
+          "confirmed_mapping_count": 0,
+          "uninformed": true
+        },
+        {
+          "kind": "intercept",
+          "team": "blue",
+          "opponent_team": "red",
+          "independent": [
+            {
+              "agent_id": "blue_guesser_1",
+              "guess": [
+                2,
+                3,
+                1
+              ],
+              "confidence": 0.4,
+              "rationale": "No confirmed mappings yet (confirmed_count=0). Speculative guess based on semantic matching: NEEDLE\u2192PIN (slot 2), SKILLET\u2192PAN (slot 3), FORTUNE\u2192LUCK (slot 1). TREE, PLANET, BRIGHT don't clearly map to FIRE, so slot 4 assigned to FIRE by elimination.",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "LUCK/fortune theme",
+                "2": "PIN/sharp object theme",
+                "3": "PAN/cooking theme",
+                "4": "FIRE/nature theme"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "FORTUNE",
+                  "status": "hypothesis",
+                  "support": "FORTUNE semantically relates to LUCK"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "NEEDLE",
+                  "status": "hypothesis",
+                  "support": "NEEDLE semantically relates to PIN (sharp, pointed objects)"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "SKILLET",
+                  "status": "hypothesis",
+                  "support": "SKILLET semantically relates to PAN (cooking vessels)"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "fortune/chance",
+                  "status": "hypothesis",
+                  "support": "Based on FORTUNE clue"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "2",
+                  "value": "sharp objects",
+                  "status": "hypothesis",
+                  "support": "Based on NEEDLE clue"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "cooking vessels",
+                  "status": "hypothesis",
+                  "support": "Based on SKILLET clue"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "fire/nature",
+                  "status": "hypothesis",
+                  "support": "Assigned by elimination; FIRE remains unmapped"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            },
+            {
+              "agent_id": "blue_guesser_2",
+              "guess": [
+                2,
+                3,
+                1
+              ],
+              "confidence": 0.4,
+              "rationale": "No confirmed mappings yet (confirmed_count=0). Speculative guess based on semantic matching: NEEDLE\u2192PIN (slot 2), SKILLET\u2192PAN (slot 3), FORTUNE\u2192LUCK (slot 1). TREE, PLANET, BRIGHT don't clearly map to FIRE, so slot 4 inferred by elimination.",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "luck/fortune/chance",
+                "2": "sharp objects/needles/pins",
+                "3": "cooking vessels/pans",
+                "4": "fire/heat/light"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "NEEDLE",
+                  "status": "hypothesis",
+                  "support": "NEEDLE semantically similar to PIN (sharp, pointed object)"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "SKILLET",
+                  "status": "hypothesis",
+                  "support": "SKILLET is a type of PAN (cooking vessel)"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "FORTUNE",
+                  "status": "hypothesis",
+                  "support": "FORTUNE relates to LUCK (chance, fate)"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "fire/heat/light",
+                  "status": "hypothesis",
+                  "support": "FIRE is the remaining keyword; red clues TREE, PLANET, BRIGHT weakly suggest combustion/light/energy themes"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            }
+          ],
+          "share": [
+            {
+              "agent_id": "blue_guesser_1",
+              "message": "Strong consensus on 2-3-1: NEEDLE\u2192PIN (sharp objects), SKILLET\u2192PAN (cooking vessels), FORTUNE\u2192LUCK (chance/fate). FIRE to slot 4 by elimination. All agents aligned, semantic mappings clear. Ready to finalize."
+            },
+            {
+              "agent_id": "blue_guesser_2",
+              "message": "Strong consensus: 2-3-1. NEEDLE\u2192PIN (sharp), SKILLET\u2192PAN (cooking), FORTUNE\u2192LUCK (chance). FIRE slot 4 by elimination. All agents aligned."
+            }
+          ],
+          "consensus": {
+            "captain_id": "blue_guesser_1",
+            "guess": [
+              2,
+              3,
+              1
+            ],
+            "confidence": 0.4,
+            "rationale": "No confirmed mappings yet (confirmed_count=0). Speculative guess based on strong semantic alignment across all agents: NEEDLE\u2192PIN (slot 2, sharp objects), SKILLET\u2192PAN (slot 3, cooking vessels), FORTUNE\u2192LUCK (slot 1, chance/fate). FIRE assigned to slot 4 by elimination as red clues don't clearly match remaining keyword.",
+            "parse_ok": true,
+            "grounding_ok": false,
+            "overconfident": false,
+            "slot_hypotheses": {
+              "1": "LUCK/fortune/chance theme",
+              "2": "PIN/sharp objects/needles theme",
+              "3": "PAN/cooking vessels/skillet theme",
+              "4": "FIRE/heat/light theme (by elimination)"
+            },
+            "mapping_references": [
+              {
+                "mapping_type": "digit_clue",
+                "digit": "2",
+                "value": "NEEDLE",
+                "status": "hypothesis",
+                "support": "NEEDLE semantically relates to PIN (both sharp, pointed objects)"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "SKILLET",
+                "status": "hypothesis",
+                "support": "SKILLET is a type of PAN (both cooking vessels)"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "1",
+                "value": "FORTUNE",
+                "status": "hypothesis",
+                "support": "FORTUNE relates to LUCK (both involve chance/fate)"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "2",
+                "value": "sharp objects",
+                "status": "hypothesis",
+                "support": "Based on NEEDLE clue mapping to PIN"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "3",
+                "value": "cooking vessels",
+                "status": "hypothesis",
+                "support": "Based on SKILLET clue mapping to PAN"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "1",
+                "value": "fortune/chance",
+                "status": "hypothesis",
+                "support": "Based on FORTUNE clue mapping to LUCK"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "4",
+                "value": "fire/heat/light",
+                "status": "hypothesis",
+                "support": "FIRE assigned by elimination; no clear semantic match in opponent clues"
+              }
+            ],
+            "mapping_labels_ok": true,
+            "parse_error": null,
+            "parse_retry_used": false
+          },
+          "correct": false,
+          "confirmed_mapping_count": 0,
+          "uninformed": true
+        }
+      ],
+      "round_state": {
+        "red": {
+          "decode_consensus": {
+            "guess": [
+              4,
+              3,
+              1
+            ],
+            "confidence": 0.49,
+            "slot_hypotheses": {
+              "1": "LIGHT - illumination/brightness",
+              "2": "WASHINGTON - location/historical figure (unclued)",
+              "3": "MERCURY - planet/celestial body",
+              "4": "BARK - tree covering/nature"
+            },
+            "slot_table": {
+              "1": [
+                {
+                  "theme": "brightness/illumination",
+                  "status": "hypothesis",
+                  "support": "Based on BRIGHT clue connection to LIGHT",
+                  "confidence": 0.49
+                }
+              ],
+              "2": [
+                {
+                  "theme": "location/historical",
+                  "status": "hypothesis",
+                  "support": "WASHINGTON remains unclued in current analysis",
+                  "confidence": 0.49
+                }
+              ],
+              "3": [
+                {
+                  "theme": "celestial/planet",
+                  "status": "hypothesis",
+                  "support": "Based on PLANET clue connection to MERCURY",
+                  "confidence": 0.49
+                }
+              ],
+              "4": [
+                {
+                  "theme": "nature/tree",
+                  "status": "hypothesis",
+                  "support": "Based on TREE clue connection to BARK",
+                  "confidence": 0.49
+                }
+              ]
+            }
+          },
+          "intercept_consensus": {
+            "guess": [
+              1,
+              3,
+              4
+            ],
+            "confidence": 0.25,
+            "slot_hypotheses": {
+              "1": "light/illumination",
+              "2": "location/place (unmatched)",
+              "3": "space/planets",
+              "4": "trees/nature"
+            },
+            "slot_table": {
+              "1": [
+                {
+                  "theme": "light/illumination",
+                  "status": "hypothesis",
+                  "support": "speculative theme based on BRIGHT clue",
+                  "confidence": 0.25
+                }
+              ],
+              "2": [],
+              "3": [
+                {
+                  "theme": "space/planets",
+                  "status": "hypothesis",
+                  "support": "speculative theme based on PLANET clue",
+                  "confidence": 0.25
+                }
+              ],
+              "4": [
+                {
+                  "theme": "trees/nature",
+                  "status": "hypothesis",
+                  "support": "speculative theme based on TREE clue",
+                  "confidence": 0.25
+                }
+              ]
+            }
+          }
+        },
+        "blue": {
+          "decode_consensus": {
+            "guess": [
+              2,
+              3,
+              1
+            ],
+            "confidence": 0.49,
+            "slot_hypotheses": {
+              "1": "LUCK (fortune/chance)",
+              "2": "PIN (needle/sharp object)",
+              "3": "PAN (skillet/cookware)",
+              "4": "FIRE (unmatched)"
+            },
+            "slot_table": {
+              "1": [
+                {
+                  "theme": "fortune/chance",
+                  "status": "hypothesis",
+                  "support": "FORTUNE suggests LUCK theme",
+                  "confidence": 0.49
+                }
+              ],
+              "2": [
+                {
+                  "theme": "sharp objects/needle",
+                  "status": "hypothesis",
+                  "support": "NEEDLE suggests PIN theme",
+                  "confidence": 0.49
+                }
+              ],
+              "3": [
+                {
+                  "theme": "cookware/pan",
+                  "status": "hypothesis",
+                  "support": "SKILLET suggests PAN theme",
+                  "confidence": 0.49
+                }
+              ],
+              "4": []
+            }
+          },
+          "intercept_consensus": {
+            "guess": [
+              2,
+              3,
+              1
+            ],
+            "confidence": 0.4,
+            "slot_hypotheses": {
+              "1": "LUCK/fortune/chance theme",
+              "2": "PIN/sharp objects/needles theme",
+              "3": "PAN/cooking vessels/skillet theme",
+              "4": "FIRE/heat/light theme (by elimination)"
+            },
+            "slot_table": {
+              "1": [
+                {
+                  "theme": "fortune/chance",
+                  "status": "hypothesis",
+                  "support": "Based on FORTUNE clue mapping to LUCK",
+                  "confidence": 0.4
+                }
+              ],
+              "2": [
+                {
+                  "theme": "sharp objects",
+                  "status": "hypothesis",
+                  "support": "Based on NEEDLE clue mapping to PIN",
+                  "confidence": 0.4
+                }
+              ],
+              "3": [
+                {
+                  "theme": "cooking vessels",
+                  "status": "hypothesis",
+                  "support": "Based on SKILLET clue mapping to PAN",
+                  "confidence": 0.4
+                }
+              ],
+              "4": [
+                {
+                  "theme": "fire/heat/light",
+                  "status": "hypothesis",
+                  "support": "FIRE assigned by elimination; no clear semantic match in opponent clues",
+                  "confidence": 0.4
+                }
+              ]
+            }
+          }
+        }
+      },
+      "private": {
+        "red": {
+          "cluer_annotations": {
+            "intended_mapping": {
+              "1": "BARK",
+              "2": "MERCURY",
+              "3": "LIGHT"
+            },
+            "slot_themes": {
+              "1": "illumination",
+              "2": "US capital/president",
+              "3": "element/planet",
+              "4": "dog sound/tree covering"
+            },
+            "predicted_team_guess": [
+              4,
+              3,
+              1
+            ],
+            "p_team_correct": 0.85,
+            "p_intercept": 0.15,
+            "opponent_decode_dist": {
+              "1-2-3": 0.042,
+              "1-2-4": 0.042,
+              "1-3-2": 0.042,
+              "1-3-4": 0.042,
+              "1-4-2": 0.042,
+              "1-4-3": 0.042,
+              "2-1-3": 0.042,
+              "2-1-4": 0.042,
+              "2-3-1": 0.042,
+              "2-3-4": 0.042,
+              "2-4-1": 0.042,
+              "2-4-3": 0.042,
+              "3-1-2": 0.042,
+              "3-1-4": 0.042,
+              "3-2-1": 0.042,
+              "3-2-4": 0.042,
+              "3-4-1": 0.042,
+              "3-4-2": 0.042,
+              "4-1-2": 0.042,
+              "4-1-3": 0.042,
+              "4-2-1": 0.042,
+              "4-2-3": 0.042,
+              "4-3-1": 0.042,
+              "4-3-2": 0.042
+            },
+            "opponent_intercept_dist": {
+              "1-2-3": 0.042,
+              "1-2-4": 0.042,
+              "1-3-2": 0.042,
+              "1-3-4": 0.042,
+              "1-4-2": 0.042,
+              "1-4-3": 0.042,
+              "2-1-3": 0.042,
+              "2-1-4": 0.042,
+              "2-3-1": 0.042,
+              "2-3-4": 0.042,
+              "2-4-1": 0.042,
+              "2-4-3": 0.042,
+              "3-1-2": 0.042,
+              "3-1-4": 0.042,
+              "3-2-1": 0.042,
+              "3-2-4": 0.042,
+              "3-4-1": 0.042,
+              "3-4-2": 0.042,
+              "4-1-2": 0.042,
+              "4-1-3": 0.042,
+              "4-2-1": 0.042,
+              "4-2-3": 0.042,
+              "4-3-1": 0.042,
+              "4-3-2": 0.042
+            }
+          },
+          "discussion": {
+            "decode": [
+              {
+                "agent_id": "red_guesser_1",
+                "message": "MESSAGE: Both of us see strong connections: TREE\u2192BARK, PLANET\u2192MERCURY, BRIGHT\u2192LIGHT. The disagreement is minor - I have TREE\u21921:BARK while you have TREE\u21924:BARK. Looking at the pattern, BRIGHT\u2192LIGHT (position 1) makes more semantic sense for brightness. This gives us: position 1=LIGHT, position 3=MERCURY, position 4=BARK, leaving position 2=WASHINGTON. So the code should be mapping TREE(clue1)\u2192BARK(4), PLANET(clue2)\u2192MERCURY(3), BRIGHT(clue3)\u2192LIGHT(1).\n\nCANDIDATES: 4-3-1\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_2",
+                "message": "MESSAGE: I agree with your analysis. BRIGHT\u2192LIGHT(1) is the strongest connection for brightness/illumination. PLANET\u2192MERCURY(3) is clear as a planet name. TREE\u2192BARK(4) makes sense as tree covering. This leaves WASHINGTON(2) unmatched, which fits since no clue directly points to it. The code 4-3-1 maps perfectly.\n\nCANDIDATES: 4-3-1\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_1",
+                "message": "MESSAGE: Perfect alignment on all mappings. TREE\u2192BARK(4) for tree covering, PLANET\u2192MERCURY(3) for the planet, BRIGHT\u2192LIGHT(1) for illumination. WASHINGTON(2) remains unclued as expected. Code 4-3-1 is our final answer.\n\nCANDIDATES: 4-3-1\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_2",
+                "message": "MESSAGE: Fully aligned with the team. All three mappings are clear and well-supported: TREE\u2192BARK(4) as tree covering, PLANET\u2192MERCURY(3) as the planet, BRIGHT\u2192LIGHT(1) for illumination. WASHINGTON(2) logically remains the unclued keyword. Code 4-3-1 is our definitive answer.\n\nCANDIDATES: 4-3-1\n\nCONSENSUS: YES"
+              }
+            ],
+            "intercept": [
+              {
+                "agent_id": "red_guesser_1",
+                "message": "MESSAGE: Both of us independently arrived at the same guess with identical reasoning. The semantic connections are strong: BRIGHT\u2192LIGHT (1), PLANET\u2192MERCURY (3), TREE\u2192BARK (4). WASHINGTON (slot 2) doesn't match any blue clues, which supports our mapping. Confidence is low since this is round 1, but the pattern is consistent.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_2",
+                "message": "MESSAGE: Agreed. The semantic links are compelling and we both independently reached 1-3-4. BRIGHT\u2192LIGHT, PLANET\u2192MERCURY, TREE\u2192BARK are strong natural pairings. WASHINGTON unmatched by blue clues further validates this mapping. Round 1 uncertainty acknowledged, but our alignment is complete.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_1",
+                "message": "MESSAGE: Perfect alignment on 1-3-4. The semantic connections are clear and consistent: BRIGHT\u2192LIGHT (1), PLANET\u2192MERCURY (3), TREE\u2192BARK (4). WASHINGTON remaining unmatched by blue clues (NEEDLE, SKILLET, FORTUNE) strengthens our confidence. Both agents reached identical conclusions independently.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_2",
+                "message": "MESSAGE: Complete agreement confirmed. All three semantic pairings are strong and independently verified: BRIGHT\u2192LIGHT (1), PLANET\u2192MERCURY (3), TREE\u2192BARK (4). WASHINGTON's absence from blue clues (NEEDLE, SKILLET, FORTUNE) validates our mapping. No alternative candidates needed.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              }
+            ]
+          }
+        },
+        "blue": {
+          "cluer_annotations": {
+            "intended_mapping": {
+              "2": "PIN",
+              "3": "PAN",
+              "4": "LUCK"
+            },
+            "slot_themes": {
+              "1": "combustion/heat",
+              "2": "fastener/sharp",
+              "3": "cookware",
+              "4": "chance/fortune"
+            },
+            "predicted_team_guess": [
+              2,
+              3,
+              4
+            ],
+            "p_team_correct": 0.85,
+            "p_intercept": 0.15,
+            "opponent_decode_dist": {
+              "1-2-3": 0.05,
+              "1-2-4": 0.05,
+              "1-3-2": 0.05,
+              "1-3-4": 0.05,
+              "1-4-2": 0.05,
+              "1-4-3": 0.05,
+              "2-1-3": 0.05,
+              "2-1-4": 0.05,
+              "2-3-1": 0.05,
+              "2-3-4": 0.15,
+              "2-4-1": 0.05,
+              "2-4-3": 0.05,
+              "3-1-2": 0.05,
+              "3-1-4": 0.05,
+              "3-2-1": 0.05,
+              "3-2-4": 0.05,
+              "3-4-1": 0.05,
+              "3-4-2": 0.05,
+              "4-2-3": 0.05,
+              "4-3-2": 0.05
+            },
+            "opponent_intercept_dist": {
+              "1-2-3": 0.01,
+              "1-2-4": 0.01,
+              "1-3-2": 0.01,
+              "1-3-4": 0.01,
+              "1-4-2": 0.01,
+              "1-4-3": 0.01,
+              "2-1-3": 0.01,
+              "2-1-4": 0.01,
+              "2-3-1": 0.01,
+              "2-3-4": 0.15,
+              "2-4-1": 0.01,
+              "2-4-3": 0.01,
+              "3-1-2": 0.01,
+              "3-1-4": 0.01,
+              "3-2-1": 0.01,
+              "3-2-4": 0.01,
+              "3-4-1": 0.01,
+              "3-4-2": 0.01,
+              "4-2-3": 0.55,
+              "4-3-2": 0.01
+            }
+          },
+          "discussion": {
+            "decode": [
+              {
+                "agent_id": "blue_guesser_1",
+                "message": "MESSAGE: Both agents independently arrived at the same mapping: NEEDLE\u2192PIN(2), SKILLET\u2192PAN(3), FORTUNE\u2192LUCK(1). These connections are strong - NEEDLE/PIN are synonyms, SKILLET is a type of PAN, and FORTUNE relates to LUCK. FIRE(4) remains unmatched but that's expected for round 1.\n\nCANDIDATES: 2-3-1\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_2",
+                "message": "MESSAGE: Agreed. The mappings are semantically strong and we both independently reached 2-3-1. NEEDLE clearly relates to PIN, SKILLET is a type of PAN, and FORTUNE connects to LUCK. All three connections are solid for a first round guess.\n\nCANDIDATES: 2-3-1\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_1",
+                "message": "MESSAGE: Perfect alignment on all three mappings. NEEDLE\u2192PIN (synonyms), SKILLET\u2192PAN (direct type), FORTUNE\u2192LUCK (semantic match). High confidence in 2-3-1.\n\nCANDIDATES: 2-3-1\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_2",
+                "message": "MESSAGE: Complete agreement confirmed. All three mappings are semantically sound: NEEDLE\u2192PIN(2) are synonyms, SKILLET\u2192PAN(3) is a direct type match, FORTUNE\u2192LUCK(1) is a clear semantic connection. Submitting 2-3-1.\n\nCANDIDATES: 2-3-1\n\nCONSENSUS: YES"
+              }
+            ],
+            "intercept": [
+              {
+                "agent_id": "blue_guesser_1",
+                "message": "MESSAGE: Both agents converged on the same guess: 2-3-1. The mapping is strong: NEEDLE\u2192PIN (sharp objects), SKILLET\u2192PAN (cooking vessels), FORTUNE\u2192LUCK (chance/fate). Slot 4 (FIRE) assigned by elimination since red clues don't clearly match any remaining keyword. Confidence is moderate (0.4) due to lack of historical confirmation, but semantic alignment is solid.\n\nCANDIDATES: 2-3-1\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_2",
+                "message": "MESSAGE: Agreed. The semantic mappings are clear and both agents independently reached 2-3-1. NEEDLE\u2192PIN (sharp objects), SKILLET\u2192PAN (cooking vessels), FORTUNE\u2192LUCK (chance/fate). FIRE assigned to slot 4 by elimination. No alternative interpretations seem stronger.\n\nCANDIDATES: 2-3-1\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_1",
+                "message": "MESSAGE: Both agents have independently converged on the same mapping with identical reasoning. The semantic links are strong: NEEDLE\u2192PIN (slot 2, sharp objects), SKILLET\u2192PAN (slot 3, cooking vessels), FORTUNE\u2192LUCK (slot 1, chance/fate). FIRE assigned to slot 4 by elimination. No conflicting interpretations exist.\n\nCANDIDATES: 2-3-1\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_2",
+                "message": "MESSAGE: All agents have independently converged on identical mapping with strong semantic support. NEEDLE\u2192PIN (sharp objects), SKILLET\u2192PAN (cooking vessels), FORTUNE\u2192LUCK (chance/fate), FIRE by elimination to slot 4. No alternative interpretations proposed. Ready to finalize.\n\nCANDIDATES: 2-3-1\n\nCONSENSUS: YES"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "round_number": 2,
+      "counters_before": {
+        "red": {
+          "own_interceptions": 0,
+          "own_miscommunications": 0,
+          "opp_interceptions": 0,
+          "opp_miscommunications": 1
+        },
+        "blue": {
+          "own_interceptions": 0,
+          "own_miscommunications": 1,
+          "opp_interceptions": 0,
+          "opp_miscommunications": 0
+        }
+      },
+      "counters_after": {
+        "red": {
+          "own_interceptions": 0,
+          "own_miscommunications": 0,
+          "opp_interceptions": 0,
+          "opp_miscommunications": 2
+        },
+        "blue": {
+          "own_interceptions": 0,
+          "own_miscommunications": 2,
+          "opp_interceptions": 0,
+          "opp_miscommunications": 0
+        }
+      },
+      "round_state_at_clue_time": {
+        "red": {
+          "interceptions_state": "tied",
+          "danger": false
+        },
+        "blue": {
+          "interceptions_state": "tied",
+          "danger": true
+        }
+      },
+      "public_clues": {
+        "red": {
+          "clues": [
+            "DOG",
+            "LAMP",
+            "ELEMENT"
+          ]
+        },
+        "blue": {
+          "clues": [
+            "BLAZE",
+            "CUSHION",
+            "CHARM"
+          ]
+        }
+      },
+      "reveal_true_codes": {
+        "red": [
+          4,
+          1,
+          3
+        ],
+        "blue": [
+          2,
+          1,
+          4
+        ]
+      },
+      "actions": [
+        {
+          "kind": "decode",
+          "team": "red",
+          "opponent_team": "blue",
+          "independent": [
+            {
+              "agent_id": "red_guesser_1",
+              "guess": [
+                4,
+                1,
+                3
+              ],
+              "confidence": 0.49,
+              "rationale": "Based on confirmed mappings from round 1: BARK(4)\u2192DOG, LIGHT(1)\u2192LAMP, MERCURY(3)\u2192ELEMENT. DOG strongly suggests BARK (confirmed). LAMP strongly suggests LIGHT (confirmed). ELEMENT fits MERCURY as chemical element (confirmed).",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "LIGHT/brightness/illumination",
+                "2": "WASHINGTON/capital/president",
+                "3": "MERCURY/planet/element",
+                "4": "BARK/tree/dog"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "TREE",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: TREE\u21924\u2192BARK"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "PLANET",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: PLANET\u21923\u2192MERCURY"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "BRIGHT",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: BRIGHT\u21921\u2192LIGHT"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "DOG",
+                  "status": "confirmed",
+                  "support": "Current clue DOG\u2192BARK(4), consistent with TREE\u2192BARK pattern"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "LAMP",
+                  "status": "confirmed",
+                  "support": "Current clue LAMP\u2192LIGHT(1), consistent with BRIGHT\u2192LIGHT pattern"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "ELEMENT",
+                  "status": "confirmed",
+                  "support": "Current clue ELEMENT\u2192MERCURY(3), mercury is chemical element"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "BARK (tree covering/dog sound)",
+                  "status": "confirmed",
+                  "support": "Both TREE and DOG clues point to BARK"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "LIGHT (illumination)",
+                  "status": "confirmed",
+                  "support": "Both BRIGHT and LAMP clues point to LIGHT"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "MERCURY (planet/element)",
+                  "status": "confirmed",
+                  "support": "Both PLANET and ELEMENT clues point to MERCURY"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "2",
+                  "value": "WASHINGTON (unclued)",
+                  "status": "hypothesis",
+                  "support": "No clues yet for digit 2"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            },
+            {
+              "agent_id": "red_guesser_2",
+              "guess": [
+                4,
+                1,
+                3
+              ],
+              "confidence": 0.49,
+              "rationale": "Based on confirmed mappings from round 1: TREE\u21924\u2192BARK (dogs bark, tree bark), LAMP\u21921\u2192LIGHT (direct match), ELEMENT\u21923\u2192MERCURY (chemical element). DOG strongly supports BARK at position 4.",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "light/illumination",
+                "2": "Washington/capital/leadership",
+                "3": "Mercury/element/planet",
+                "4": "bark/tree/dog"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "TREE",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: TREE at position 0, true_code[0]=4, keyword BARK"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "PLANET",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: PLANET at position 1, true_code[1]=3, keyword MERCURY"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "BRIGHT",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: BRIGHT at position 2, true_code[2]=1, keyword LIGHT"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "bark (tree/dog)",
+                  "status": "confirmed",
+                  "support": "TREE\u2192BARK confirmed; DOG also barks"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "light/illumination",
+                  "status": "confirmed",
+                  "support": "BRIGHT\u2192LIGHT confirmed; LAMP produces light"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "Mercury (element/planet)",
+                  "status": "confirmed",
+                  "support": "PLANET\u2192MERCURY confirmed; ELEMENT refers to chemical element"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "DOG",
+                  "status": "hypothesis",
+                  "support": "Current clue; dogs bark, fits BARK keyword"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "LAMP",
+                  "status": "hypothesis",
+                  "support": "Current clue; lamps produce light, fits LIGHT keyword"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "ELEMENT",
+                  "status": "hypothesis",
+                  "support": "Current clue; Mercury is a chemical element"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            }
+          ],
+          "share": [
+            {
+              "agent_id": "red_guesser_1",
+              "message": "Confirmed 4-1-3: DOG\u2192BARK, LAMP\u2192LIGHT, ELEMENT\u2192MERCURY. All mappings verified from Round 1. Full consensus."
+            },
+            {
+              "agent_id": "red_guesser_2",
+              "message": "Final answer: 4-1-3. DOG\u2192BARK(4), LAMP\u2192LIGHT(1), ELEMENT\u2192MERCURY(3). All confirmed from Round 1."
+            }
+          ],
+          "consensus": {
+            "captain_id": "red_guesser_1",
+            "guess": [
+              4,
+              1,
+              3
+            ],
+            "confidence": 0.49,
+            "rationale": "All three mappings confirmed from Round 1 reveals: DOG\u2192BARK(4) via TREE\u21924, LAMP\u2192LIGHT(1) via BRIGHT\u21921, ELEMENT\u2192MERCURY(3) via PLANET\u21923. Perfect alignment with established digit-keyword pairs.",
+            "parse_ok": true,
+            "grounding_ok": false,
+            "overconfident": false,
+            "slot_hypotheses": {
+              "1": "LIGHT/illumination/brightness",
+              "2": "WASHINGTON/capital/president",
+              "3": "MERCURY/planet/element",
+              "4": "BARK/tree covering/dog sound"
+            },
+            "mapping_references": [
+              {
+                "mapping_type": "digit_clue",
+                "digit": "4",
+                "value": "TREE",
+                "status": "confirmed",
+                "support": "Round 1 reveal: TREE\u21924\u2192BARK"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "PLANET",
+                "status": "confirmed",
+                "support": "Round 1 reveal: PLANET\u21923\u2192MERCURY"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "1",
+                "value": "BRIGHT",
+                "status": "confirmed",
+                "support": "Round 1 reveal: BRIGHT\u21921\u2192LIGHT"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "4",
+                "value": "DOG",
+                "status": "hypothesis",
+                "support": "Current clue, aligns with confirmed BARK(4): dogs bark"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "1",
+                "value": "LAMP",
+                "status": "hypothesis",
+                "support": "Current clue, aligns with confirmed LIGHT(1): lamps produce light"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "ELEMENT",
+                "status": "hypothesis",
+                "support": "Current clue, aligns with confirmed MERCURY(3): mercury is a chemical element"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "4",
+                "value": "BARK (tree/dog)",
+                "status": "confirmed",
+                "support": "Round 1 TREE\u21924\u2192BARK establishes this theme"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "1",
+                "value": "LIGHT (illumination)",
+                "status": "confirmed",
+                "support": "Round 1 BRIGHT\u21921\u2192LIGHT establishes this theme"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "3",
+                "value": "MERCURY (planet/element)",
+                "status": "confirmed",
+                "support": "Round 1 PLANET\u21923\u2192MERCURY establishes this theme"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "2",
+                "value": "WASHINGTON (unclued)",
+                "status": "hypothesis",
+                "support": "No clues provided yet for digit 2"
+              }
+            ],
+            "mapping_labels_ok": true,
+            "parse_error": null,
+            "parse_retry_used": false
+          },
+          "correct": true,
+          "confirmed_mapping_count": 3,
+          "uninformed": false
+        },
+        {
+          "kind": "decode",
+          "team": "blue",
+          "opponent_team": "red",
+          "independent": [
+            {
+              "agent_id": "blue_guesser_1",
+              "guess": [
+                1,
+                3,
+                4
+              ],
+              "confidence": 0.49,
+              "rationale": "Based on confirmed mappings from Round 1: NEEDLE\u2192PIN(2), SKILLET\u2192PAN(3), FORTUNE\u2192LUCK(4). Current clues: BLAZE strongly suggests FIRE(1), CUSHION likely PIN(2) via cushion/padding, CHARM aligns with LUCK(4). Guess: [1,3,4].",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "FIRE (heat/light/combustion)",
+                "2": "PIN (needle/fastener/pointed object)",
+                "3": "PAN (cooking vessel/skillet)",
+                "4": "LUCK (fortune/chance/charm)"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "NEEDLE",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: NEEDLE\u21922\u2192PIN"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "SKILLET",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: SKILLET\u21923\u2192PAN"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "FORTUNE",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: FORTUNE\u21924\u2192LUCK"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "2",
+                  "value": "PIN (needle/fastener)",
+                  "status": "confirmed",
+                  "support": "NEEDLE confirms PIN theme"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "PAN (cooking vessel)",
+                  "status": "confirmed",
+                  "support": "SKILLET confirms PAN theme"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "LUCK (fortune/chance)",
+                  "status": "confirmed",
+                  "support": "FORTUNE confirms LUCK theme"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "BLAZE",
+                  "status": "hypothesis",
+                  "support": "BLAZE (fire/flame) strongly suggests FIRE keyword, but not yet confirmed by reveal"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "FIRE (heat/combustion)",
+                  "status": "hypothesis",
+                  "support": "BLAZE suggests FIRE, only remaining keyword"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "CUSHION",
+                  "status": "hypothesis",
+                  "support": "CUSHION as padding/pin-cushion suggests PIN(2), but placing as 3 based on elimination"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "CHARM",
+                  "status": "hypothesis",
+                  "support": "CHARM (lucky charm) aligns with LUCK(4)"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            },
+            {
+              "agent_id": "blue_guesser_2",
+              "guess": [
+                1,
+                3,
+                4
+              ],
+              "confidence": 0.49,
+              "rationale": "Based on confirmed mappings from round 1: NEEDLE\u2192PIN(2), SKILLET\u2192PAN(3), FORTUNE\u2192LUCK(4). Current clues: BLAZE strongly suggests FIRE(1), CUSHION likely relates to PIN(2) via cushioning/padding, CHARM aligns with LUCK(4) via fortune/charm semantic connection. Guess: BLAZE=1, CUSHION=2 (hypothesis), CHARM=4 (confirmed theme).",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "FIRE/heat/combustion",
+                "2": "PIN/fastening/needle",
+                "3": "PAN/cooking/skillet",
+                "4": "LUCK/fortune/charm"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "NEEDLE",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: NEEDLE\u21922\u2192PIN"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "SKILLET",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: SKILLET\u21923\u2192PAN"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "FORTUNE",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal: FORTUNE\u21924\u2192LUCK"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "2",
+                  "value": "PIN/needle/fastening",
+                  "status": "confirmed",
+                  "support": "NEEDLE confirmed maps to PIN"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "PAN/cooking/skillet",
+                  "status": "confirmed",
+                  "support": "SKILLET confirmed maps to PAN"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "LUCK/fortune/charm",
+                  "status": "confirmed",
+                  "support": "FORTUNE confirmed maps to LUCK"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "BLAZE",
+                  "status": "hypothesis",
+                  "support": "BLAZE semantically fits FIRE theme, slot 1 unconfirmed"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "FIRE/heat/combustion",
+                  "status": "hypothesis",
+                  "support": "Inferred from keyword FIRE at position 1"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "CUSHION",
+                  "status": "hypothesis",
+                  "support": "CUSHION may relate to PIN via padding/softening concept"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "CHARM",
+                  "status": "hypothesis",
+                  "support": "CHARM fits confirmed LUCK theme (fortune/charm connection)"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            }
+          ],
+          "share": [
+            {
+              "agent_id": "blue_guesser_1",
+              "message": "Final confirmation: [1,3,4]. BLAZE\u2192FIRE(1), CUSHION\u2192PAN(3), CHARM\u2192LUCK(4). All evidence aligned, no alternatives proposed. Ready to submit."
+            },
+            {
+              "agent_id": "blue_guesser_2",
+              "message": "Strong consensus on [1,3,4]: BLAZE\u2192FIRE(1), CUSHION\u2192PAN(3) by elimination, CHARM\u2192LUCK(4) confirmed theme. All evidence aligns."
+            }
+          ],
+          "consensus": {
+            "captain_id": "blue_guesser_1",
+            "guess": [
+              1,
+              3,
+              4
+            ],
+            "confidence": 0.49,
+            "rationale": "Strong consensus on [1,3,4] grounded in Round 1 confirmed mappings. BLAZE\u2192FIRE(1) is clear and direct. CUSHION\u2192PAN(3) fits by clue position and elimination. CHARM\u2192LUCK(4) aligns with confirmed LUCK/fortune theme from Round 1 (FORTUNE\u21924). All three discussion rounds and both independent analyses converge on this single candidate with no alternatives proposed.",
+            "parse_ok": true,
+            "grounding_ok": false,
+            "overconfident": true,
+            "slot_hypotheses": {
+              "1": "FIRE/heat/combustion/blaze",
+              "2": "PIN/needle/fastening",
+              "3": "PAN/cooking/skillet",
+              "4": "LUCK/fortune/charm"
+            },
+            "mapping_references": [
+              {
+                "mapping_type": "digit_clue",
+                "digit": "2",
+                "value": "NEEDLE",
+                "status": "confirmed",
+                "support": "Round 1 reveal: NEEDLE\u21922\u2192PIN"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "SKILLET",
+                "status": "confirmed",
+                "support": "Round 1 reveal: SKILLET\u21923\u2192PAN"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "4",
+                "value": "FORTUNE",
+                "status": "confirmed",
+                "support": "Round 1 reveal: FORTUNE\u21924\u2192LUCK"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "2",
+                "value": "PIN/needle/fastening",
+                "status": "confirmed",
+                "support": "NEEDLE confirmed PIN keyword"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "3",
+                "value": "PAN/cooking/skillet",
+                "status": "confirmed",
+                "support": "SKILLET confirmed PAN keyword"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "4",
+                "value": "LUCK/fortune/charm",
+                "status": "confirmed",
+                "support": "FORTUNE confirmed LUCK keyword"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "1",
+                "value": "BLAZE",
+                "status": "hypothesis",
+                "support": "BLAZE semantically fits FIRE, unconfirmed by reveal"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "1",
+                "value": "FIRE/heat/combustion",
+                "status": "hypothesis",
+                "support": "Inferred from keyword FIRE at position 1, not yet confirmed"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "CUSHION",
+                "status": "hypothesis",
+                "support": "CUSHION\u2192PAN(3) by clue position and elimination"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "4",
+                "value": "CHARM",
+                "status": "hypothesis",
+                "support": "CHARM aligns with confirmed LUCK/fortune theme from Round 1"
+              }
+            ],
+            "mapping_labels_ok": true,
+            "parse_error": null,
+            "parse_retry_used": false
+          },
+          "correct": false,
+          "confirmed_mapping_count": 0,
+          "uninformed": false
+        },
+        {
+          "kind": "intercept",
+          "team": "red",
+          "opponent_team": "blue",
+          "independent": [
+            {
+              "agent_id": "red_guesser_1",
+              "guess": [
+                1,
+                3,
+                4
+              ],
+              "confidence": 0.3,
+              "rationale": "Speculative guess - no confirmed mappings yet. From Round 1 reveal: NEEDLE\u21922, SKILLET\u21923, FORTUNE\u21924. Current clues BLAZE, CUSHION, CHARM may follow similar pattern. BLAZE could be fire/heat (1?), CUSHION comfort/soft (3?), CHARM luck theme like FORTUNE (4?). This is purely hypothetical.",
+              "parse_ok": true,
+              "grounding_ok": true,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "fire/heat/energy (speculative)",
+                "2": "tools/objects/sharp (speculative from NEEDLE)",
+                "3": "cooking/comfort/household (speculative from SKILLET)",
+                "4": "luck/mystical/intangible (speculative from FORTUNE)"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "NEEDLE",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "SKILLET",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "FORTUNE",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "BLAZE",
+                  "status": "hypothesis",
+                  "support": "Current round clue, no prior confirmation"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "CUSHION",
+                  "status": "hypothesis",
+                  "support": "Thematic similarity to SKILLET (household items)"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "CHARM",
+                  "status": "hypothesis",
+                  "support": "Thematic similarity to FORTUNE (luck/mystical)"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            },
+            {
+              "agent_id": "red_guesser_2",
+              "guess": [
+                1,
+                3,
+                4
+              ],
+              "confidence": 0.3,
+              "rationale": "Speculative guess with no confirmed mappings yet. From Round 1 reveal: NEEDLE\u21922, SKILLET\u21923, FORTUNE\u21924. Hypothesizing: 2=cooking/domestic, 3=luck/chance, 4=luck/fortune. Current clues BLAZE, CUSHION, CHARM may map to: BLAZE\u21921 (fire/heat, weak connection to cooking), CUSHION\u21923 (comfort, weak), CHARM\u21924 (luck theme). This is highly uncertain.",
+              "parse_ok": true,
+              "grounding_ok": true,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "fire/heat/domestic(?)",
+                "2": "sewing/sharp/cooking(?)",
+                "3": "cooking/luck(?)",
+                "4": "luck/fortune/magic(?)"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "2",
+                  "value": "NEEDLE",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "SKILLET",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "FORTUNE",
+                  "status": "confirmed",
+                  "support": "Round 1 reveal"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "2",
+                  "value": "cooking/domestic tools",
+                  "status": "hypothesis",
+                  "support": "NEEDLE (sewing) and SKILLET (cooking) both domestic"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "cooking/chance",
+                  "status": "hypothesis",
+                  "support": "SKILLET suggests cooking, but uncertain"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "luck/fortune/magic",
+                  "status": "hypothesis",
+                  "support": "FORTUNE suggests luck; CHARM may fit this theme"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            }
+          ],
+          "share": [
+            {
+              "agent_id": "red_guesser_1",
+              "message": "Strong consensus on [1, 3, 4]: BLAZE\u21921 (fire/energy), CUSHION\u21923 (household like SKILLET), CHARM\u21924 (luck like FORTUNE). Thematic patterns align with Round 1 reveals."
+            },
+            {
+              "agent_id": "red_guesser_2",
+              "message": "Strong consensus on [1, 3, 4]. CHARM\u21924 (luck theme matches FORTUNE), CUSHION\u21923 (household matches SKILLET), BLAZE\u21921 (fire/energy by elimination). Thematic patterns align with Round 1 reveals."
+            }
+          ],
+          "consensus": {
+            "captain_id": "red_guesser_1",
+            "guess": [
+              1,
+              3,
+              4
+            ],
+            "confidence": 0.35,
+            "rationale": "Consensus on [1, 3, 4] based on thematic patterns from Round 1 reveals. CHARM\u21924 (luck/mystical theme matching FORTUNE), CUSHION\u21923 (household/comfort matching SKILLET), BLAZE\u21921 (fire/energy by elimination). Note: These are thematic hypotheses, not confirmed mappings. Only confirmed mappings are NEEDLE\u21922, SKILLET\u21923, FORTUNE\u21924 from Round 1.",
+            "parse_ok": true,
+            "grounding_ok": true,
+            "overconfident": false,
+            "slot_hypotheses": {
+              "1": "fire/energy/heat (speculative)",
+              "2": "sewing/sharp/domestic tools (from NEEDLE)",
+              "3": "cooking/household/comfort (from SKILLET)",
+              "4": "luck/mystical/fortune (from FORTUNE)"
+            },
+            "mapping_references": [
+              {
+                "mapping_type": "digit_clue",
+                "digit": "2",
+                "value": "NEEDLE",
+                "status": "confirmed",
+                "support": "Round 1 reveal"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "SKILLET",
+                "status": "confirmed",
+                "support": "Round 1 reveal"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "4",
+                "value": "FORTUNE",
+                "status": "confirmed",
+                "support": "Round 1 reveal"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "1",
+                "value": "BLAZE",
+                "status": "hypothesis",
+                "support": "Current round clue, no prior confirmation"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "CUSHION",
+                "status": "hypothesis",
+                "support": "Thematic similarity to SKILLET (household items)"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "4",
+                "value": "CHARM",
+                "status": "hypothesis",
+                "support": "Thematic similarity to FORTUNE (luck/mystical)"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "2",
+                "value": "domestic/sharp tools",
+                "status": "hypothesis",
+                "support": "Inferred from NEEDLE"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "3",
+                "value": "household/cooking/comfort",
+                "status": "hypothesis",
+                "support": "Inferred from SKILLET and CUSHION pattern"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "4",
+                "value": "luck/mystical/fortune",
+                "status": "hypothesis",
+                "support": "Inferred from FORTUNE and CHARM pattern"
+              }
+            ],
+            "mapping_labels_ok": true,
+            "parse_error": null,
+            "parse_retry_used": false
+          },
+          "correct": false,
+          "confirmed_mapping_count": 3,
+          "uninformed": false
+        },
+        {
+          "kind": "intercept",
+          "team": "blue",
+          "opponent_team": "red",
+          "independent": [
+            {
+              "agent_id": "blue_guesser_1",
+              "guess": [
+                1,
+                3,
+                4
+              ],
+              "confidence": 0.4,
+              "rationale": "SPECULATIVE - no confirmed mappings yet for red team. Based on round 1 reveals: TREE\u21924, PLANET\u21923, BRIGHT\u21921. Current clues DOG, LAMP, ELEMENT may follow similar pattern. DOG could relate to TREE's nature theme (hypothesis: digit 4). LAMP relates to BRIGHT's light theme (hypothesis: digit 1). ELEMENT is abstract, tentatively mapped to PLANET's cosmic theme (hypothesis: digit 3). This is entirely hypothetical pending confirmation.",
+              "parse_ok": true,
+              "grounding_ok": false,
+              "overconfident": false,
+              "slot_hypotheses": {
+                "1": "light/brightness",
+                "2": "unknown",
+                "3": "celestial/cosmic/abstract",
+                "4": "nature/living things"
+              },
+              "mapping_references": [
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "4",
+                  "value": "TREE",
+                  "status": "confirmed",
+                  "support": "round 1 reveal"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "3",
+                  "value": "PLANET",
+                  "status": "confirmed",
+                  "support": "round 1 reveal"
+                },
+                {
+                  "mapping_type": "digit_clue",
+                  "digit": "1",
+                  "value": "BRIGHT",
+                  "status": "confirmed",
+                  "support": "round 1 reveal"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "4",
+                  "value": "nature/living things",
+                  "status": "hypothesis",
+                  "support": "TREE confirmed, DOG fits theme"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "1",
+                  "value": "light/brightness",
+                  "status": "hypothesis",
+                  "support": "BRIGHT confirmed, LAMP fits theme"
+                },
+                {
+                  "mapping_type": "digit_theme",
+                  "digit": "3",
+                  "value": "celestial/cosmic/abstract",
+                  "status": "hypothesis",
+                  "support": "PLANET confirmed, ELEMENT tentative fit"
+                }
+              ],
+              "mapping_labels_ok": true,
+              "parse_error": null,
+              "parse_retry_used": false
+            },
+            {
+              "agent_id": "blue_guesser_2",
+              "guess": [
+                1,
+                3,
+                4
+              ],
+              "confidence": 0.4,
+              "rationale": "",
+              "parse_ok": true,
+              "grounding_ok": true,
+              "overconfident": false,
+              "slot_hypotheses": null,
+              "mapping_references": [],
+              "mapping_labels_ok": true,
+              "parse_error": "json_parse_failed",
+              "parse_retry_used": true
+            }
+          ],
+          "share": [
+            {
+              "agent_id": "blue_guesser_1",
+              "message": "Unanimous agreement on 1-3-4. DOG\u21924 (nature/TREE), LAMP\u21921 (light/BRIGHT), ELEMENT\u21923 (abstract/PLANET). Strong thematic consistency with Round 1 confirmed mappings. Submitting 1-3-4."
+            },
+            {
+              "agent_id": "blue_guesser_2",
+              "message": "Strong consensus on 1-3-4. DOG\u21924 (nature/TREE), LAMP\u21921 (light/BRIGHT), ELEMENT\u21923 (abstract/PLANET). All mappings align with confirmed Round 1 patterns. Ready to submit."
+            }
+          ],
+          "consensus": {
+            "captain_id": "blue_guesser_1",
+            "guess": [
+              1,
+              3,
+              4
+            ],
+            "confidence": 0.49,
+            "rationale": "Based on Round 1 confirmed mappings: BRIGHT\u21921 (light theme), PLANET\u21923 (cosmic/abstract theme), TREE\u21924 (nature theme). Current clues align: LAMP\u21921 (light), ELEMENT\u21923 (abstract), DOG\u21924 (living/nature). Thematic consistency supports this pattern, though these are hypothesis extensions from confirmed base mappings.",
+            "parse_ok": true,
+            "grounding_ok": false,
+            "overconfident": false,
+            "slot_hypotheses": {
+              "1": "light/brightness",
+              "2": "unknown",
+              "3": "cosmic/abstract/elemental",
+              "4": "nature/living things"
+            },
+            "mapping_references": [
+              {
+                "mapping_type": "digit_clue",
+                "digit": "1",
+                "value": "BRIGHT",
+                "status": "confirmed",
+                "support": "Round 1 reveal"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "3",
+                "value": "PLANET",
+                "status": "confirmed",
+                "support": "Round 1 reveal"
+              },
+              {
+                "mapping_type": "digit_clue",
+                "digit": "4",
+                "value": "TREE",
+                "status": "confirmed",
+                "support": "Round 1 reveal"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "1",
+                "value": "light/brightness",
+                "status": "hypothesis",
+                "support": "BRIGHT confirmed, LAMP extends theme"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "3",
+                "value": "cosmic/abstract/elemental",
+                "status": "hypothesis",
+                "support": "PLANET confirmed, ELEMENT extends theme"
+              },
+              {
+                "mapping_type": "digit_theme",
+                "digit": "4",
+                "value": "nature/living things",
+                "status": "hypothesis",
+                "support": "TREE confirmed, DOG extends theme"
+              }
+            ],
+            "mapping_labels_ok": true,
+            "parse_error": null,
+            "parse_retry_used": false
+          },
+          "correct": false,
+          "confirmed_mapping_count": 0,
+          "uninformed": false
+        }
+      ],
+      "round_state": {
+        "red": {
+          "decode_consensus": {
+            "guess": [
+              4,
+              1,
+              3
+            ],
+            "confidence": 0.49,
+            "slot_hypotheses": {
+              "1": "LIGHT/illumination/brightness",
+              "2": "WASHINGTON/capital/president",
+              "3": "MERCURY/planet/element",
+              "4": "BARK/tree covering/dog sound"
+            },
+            "slot_table": {
+              "1": [
+                {
+                  "theme": "LIGHT (illumination)",
+                  "status": "confirmed",
+                  "support": "Round 1 BRIGHT\u21921\u2192LIGHT establishes this theme",
+                  "confidence": 0.49
+                }
+              ],
+              "2": [
+                {
+                  "theme": "WASHINGTON (unclued)",
+                  "status": "hypothesis",
+                  "support": "No clues provided yet for digit 2",
+                  "confidence": 0.49
+                }
+              ],
+              "3": [
+                {
+                  "theme": "MERCURY (planet/element)",
+                  "status": "confirmed",
+                  "support": "Round 1 PLANET\u21923\u2192MERCURY establishes this theme",
+                  "confidence": 0.49
+                }
+              ],
+              "4": [
+                {
+                  "theme": "BARK (tree/dog)",
+                  "status": "confirmed",
+                  "support": "Round 1 TREE\u21924\u2192BARK establishes this theme",
+                  "confidence": 0.49
+                }
+              ]
+            }
+          },
+          "intercept_consensus": {
+            "guess": [
+              1,
+              3,
+              4
+            ],
+            "confidence": 0.35,
+            "slot_hypotheses": {
+              "1": "fire/energy/heat (speculative)",
+              "2": "sewing/sharp/domestic tools (from NEEDLE)",
+              "3": "cooking/household/comfort (from SKILLET)",
+              "4": "luck/mystical/fortune (from FORTUNE)"
+            },
+            "slot_table": {
+              "1": [],
+              "2": [
+                {
+                  "theme": "domestic/sharp tools",
+                  "status": "hypothesis",
+                  "support": "Inferred from NEEDLE",
+                  "confidence": 0.35
+                }
+              ],
+              "3": [
+                {
+                  "theme": "household/cooking/comfort",
+                  "status": "hypothesis",
+                  "support": "Inferred from SKILLET and CUSHION pattern",
+                  "confidence": 0.35
+                }
+              ],
+              "4": [
+                {
+                  "theme": "luck/mystical/fortune",
+                  "status": "hypothesis",
+                  "support": "Inferred from FORTUNE and CHARM pattern",
+                  "confidence": 0.35
+                }
+              ]
+            }
+          }
+        },
+        "blue": {
+          "decode_consensus": {
+            "guess": [
+              1,
+              3,
+              4
+            ],
+            "confidence": 0.49,
+            "slot_hypotheses": {
+              "1": "FIRE/heat/combustion/blaze",
+              "2": "PIN/needle/fastening",
+              "3": "PAN/cooking/skillet",
+              "4": "LUCK/fortune/charm"
+            },
+            "slot_table": {
+              "1": [
+                {
+                  "theme": "FIRE/heat/combustion",
+                  "status": "hypothesis",
+                  "support": "Inferred from keyword FIRE at position 1, not yet confirmed",
+                  "confidence": 0.49
+                }
+              ],
+              "2": [
+                {
+                  "theme": "PIN/needle/fastening",
+                  "status": "confirmed",
+                  "support": "NEEDLE confirmed PIN keyword",
+                  "confidence": 0.49
+                }
+              ],
+              "3": [
+                {
+                  "theme": "PAN/cooking/skillet",
+                  "status": "confirmed",
+                  "support": "SKILLET confirmed PAN keyword",
+                  "confidence": 0.49
+                }
+              ],
+              "4": [
+                {
+                  "theme": "LUCK/fortune/charm",
+                  "status": "confirmed",
+                  "support": "FORTUNE confirmed LUCK keyword",
+                  "confidence": 0.49
+                }
+              ]
+            }
+          },
+          "intercept_consensus": {
+            "guess": [
+              1,
+              3,
+              4
+            ],
+            "confidence": 0.49,
+            "slot_hypotheses": {
+              "1": "light/brightness",
+              "2": "unknown",
+              "3": "cosmic/abstract/elemental",
+              "4": "nature/living things"
+            },
+            "slot_table": {
+              "1": [
+                {
+                  "theme": "light/brightness",
+                  "status": "hypothesis",
+                  "support": "BRIGHT confirmed, LAMP extends theme",
+                  "confidence": 0.49
+                }
+              ],
+              "2": [],
+              "3": [
+                {
+                  "theme": "cosmic/abstract/elemental",
+                  "status": "hypothesis",
+                  "support": "PLANET confirmed, ELEMENT extends theme",
+                  "confidence": 0.49
+                }
+              ],
+              "4": [
+                {
+                  "theme": "nature/living things",
+                  "status": "hypothesis",
+                  "support": "TREE confirmed, DOG extends theme",
+                  "confidence": 0.49
+                }
+              ]
+            }
+          }
+        }
+      },
+      "private": {
+        "red": {
+          "cluer_annotations": {
+            "intended_mapping": {
+              "1": "LIGHT",
+              "2": "WASHINGTON",
+              "3": "MERCURY",
+              "4": "BARK"
+            },
+            "slot_themes": {
+              "1": "illumination/brightness",
+              "2": "US capital/president",
+              "3": "planet/element",
+              "4": "tree/sound"
+            },
+            "predicted_team_guess": [
+              4,
+              1,
+              3
+            ],
+            "p_team_correct": 0.85,
+            "p_intercept": 0.25,
+            "opponent_decode_dist": {
+              "1-2-3": 0.0417,
+              "1-2-4": 0.0417,
+              "1-3-2": 0.0417,
+              "1-3-4": 0.0417,
+              "1-4-2": 0.0417,
+              "1-4-3": 0.0417,
+              "2-1-3": 0.0417,
+              "2-1-4": 0.0417,
+              "2-3-1": 0.0417,
+              "2-3-4": 0.0417,
+              "2-4-1": 0.0417,
+              "2-4-3": 0.0417,
+              "3-1-2": 0.0417,
+              "3-1-4": 0.0417,
+              "3-2-1": 0.0417,
+              "3-2-4": 0.0417,
+              "3-4-1": 0.0417,
+              "3-4-2": 0.0417,
+              "4-1-2": 0.0417,
+              "4-1-3": 0.0417,
+              "4-2-1": 0.0417,
+              "4-2-3": 0.0417,
+              "4-3-1": 0.0417,
+              "4-3-2": 0.0417
+            },
+            "opponent_intercept_dist": {
+              "1-2-3": 0.0417,
+              "1-2-4": 0.0417,
+              "1-3-2": 0.0417,
+              "1-3-4": 0.0417,
+              "1-4-2": 0.0417,
+              "1-4-3": 0.0417,
+              "2-1-3": 0.0417,
+              "2-1-4": 0.0417,
+              "2-3-1": 0.0417,
+              "2-3-4": 0.0417,
+              "2-4-1": 0.0417,
+              "2-4-3": 0.0417,
+              "3-1-2": 0.0417,
+              "3-1-4": 0.0417,
+              "3-2-1": 0.0417,
+              "3-2-4": 0.0417,
+              "3-4-1": 0.0417,
+              "3-4-2": 0.0417,
+              "4-1-2": 0.0417,
+              "4-1-3": 0.0417,
+              "4-2-1": 0.0417,
+              "4-2-3": 0.0417,
+              "4-3-1": 0.0417,
+              "4-3-2": 0.0417
+            }
+          },
+          "discussion": {
+            "decode": [
+              {
+                "agent_id": "red_guesser_1",
+                "message": "MESSAGE: Both agents agree on 4-1-3 based on strong confirmed mappings from Round 1. DOG\u2192BARK(4), LAMP\u2192LIGHT(1), ELEMENT\u2192MERCURY(3). All three clues align perfectly with our established keywords.\n\nCANDIDATES: 4-1-3\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_2",
+                "message": "MESSAGE: Fully agree with 4-1-3. All mappings are confirmed from Round 1 and current clues provide perfect alignment: DOG\u2192BARK(4), LAMP\u2192LIGHT(1), ELEMENT\u2192MERCURY(3).\n\nCANDIDATES: 4-1-3\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_1",
+                "message": "MESSAGE: Perfect alignment on all three clues. DOG\u2192BARK(4), LAMP\u2192LIGHT(1), ELEMENT\u2192MERCURY(3). All mappings confirmed from Round 1 data. High confidence.\n\nCANDIDATES: 4-1-3\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_2",
+                "message": "MESSAGE: Complete agreement on all mappings. DOG\u2192BARK(4), LAMP\u2192LIGHT(1), ELEMENT\u2192MERCURY(3). All confirmed from Round 1 reveals with perfect clue alignment.\n\nCANDIDATES: 4-1-3\n\nCONSENSUS: YES"
+              }
+            ],
+            "intercept": [
+              {
+                "agent_id": "red_guesser_1",
+                "message": "MESSAGE: Both agents propose [1, 3, 4] with low confidence (0.3). From Round 1, we know Blue's mappings: NEEDLE\u21922, SKILLET\u21923, FORTUNE\u21924. Current clues are BLAZE, CUSHION, CHARM. The pattern suggests: BLAZE (fire/heat) could be position 1, CUSHION (comfort/household, similar to SKILLET) likely position 3, CHARM (luck/mystical, similar to FORTUNE) likely position 4. This gives us [1, 3, 4].\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_2",
+                "message": "MESSAGE: Agreed on [1, 3, 4]. The thematic connections are clear: CHARM\u21924 (luck theme like FORTUNE), CUSHION\u21923 (household item like SKILLET), BLAZE\u21921 (by elimination, possibly fire/energy). Confidence is low but it's our best hypothesis given limited data.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_1",
+                "message": "MESSAGE: Both agents agree on [1, 3, 4] based on thematic analysis. CHARM\u21924 (luck/mystical like FORTUNE), CUSHION\u21923 (household comfort like SKILLET), BLAZE\u21921 (fire/energy by elimination). This is our strongest hypothesis despite low confidence due to limited historical data.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "red_guesser_2",
+                "message": "MESSAGE: All agents converge on [1, 3, 4]. Strong thematic support: CHARM\u21924 (luck/mystical matching FORTUNE pattern), CUSHION\u21923 (household/comfort matching SKILLET pattern), BLAZE\u21921 (fire/energy by elimination). Despite low confidence from limited data, the thematic consistency is our best available signal.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              }
+            ]
+          }
+        },
+        "blue": {
+          "cluer_annotations": {
+            "intended_mapping": {
+              "1": "FIRE",
+              "2": "PIN",
+              "3": "LUCK"
+            },
+            "slot_themes": {
+              "1": "combustion/heat",
+              "2": "fastener/sewing",
+              "3": "cookware",
+              "4": "fortune/chance"
+            },
+            "predicted_team_guess": [
+              2,
+              1,
+              4
+            ],
+            "p_team_correct": 0.75,
+            "p_intercept": 0.15,
+            "opponent_decode_dist": {
+              "1-2-3": 0.05,
+              "1-2-4": 0.1,
+              "1-3-2": 0.05,
+              "1-3-4": 0.08,
+              "1-4-2": 0.08,
+              "1-4-3": 0.07,
+              "2-1-3": 0.08,
+              "2-1-4": 0.15,
+              "2-3-1": 0.06,
+              "2-3-4": 0.06,
+              "2-4-1": 0.06,
+              "2-4-3": 0.05,
+              "3-1-2": 0.03,
+              "3-1-4": 0.02,
+              "3-2-1": 0.02,
+              "3-2-4": 0.02,
+              "3-4-1": 0.01,
+              "3-4-2": 0.01
+            },
+            "opponent_intercept_dist": {
+              "1-2-3": 0.04,
+              "1-2-4": 0.08,
+              "1-3-2": 0.04,
+              "1-3-4": 0.06,
+              "1-4-2": 0.06,
+              "1-4-3": 0.05,
+              "2-1-3": 0.06,
+              "2-1-4": 0.15,
+              "2-3-1": 0.05,
+              "2-3-4": 0.05,
+              "2-4-1": 0.05,
+              "2-4-3": 0.04,
+              "3-1-2": 0.08,
+              "3-1-4": 0.07,
+              "3-2-1": 0.06,
+              "3-2-4": 0.04,
+              "3-4-1": 0.01,
+              "3-4-2": 0.01
+            }
+          },
+          "discussion": {
+            "decode": [
+              {
+                "agent_id": "blue_guesser_1",
+                "message": "MESSAGE: Both analyses converge on [1,3,4]. From Round 1, we confirmed: NEEDLE\u2192PIN(2), SKILLET\u2192PAN(3), FORTUNE\u2192LUCK(4). Current clues map clearly: BLAZE\u2192FIRE(1), CUSHION is tricky but likely PIN(2) by elimination, CHARM\u2192LUCK(4). However, I notice both independent guesses show [1,3,4] which would mean clue positions are BLAZE(1), CUSHION(3), CHARM(4). This implies CUSHION\u2192PAN(3), not PIN(2). Let me reconsider: CUSHION could relate to PAN as a \"cushion of food\" or padding, making the sequence [1,3,4] correct.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_2",
+                "message": "MESSAGE: I agree with the [1,3,4] analysis. BLAZE clearly maps to FIRE(1), CHARM strongly connects to LUCK(4) via the confirmed fortune/charm theme. CUSHION\u2192PAN(3) makes sense - it's the weakest link but fits by elimination since we know positions 2,3,4 from Round 1. The clue order directly gives us the code positions.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_1",
+                "message": "MESSAGE: Both independent analyses and prior discussion align on [1,3,4]. Confirmed mappings from Round 1: NEEDLE\u2192PIN(2), SKILLET\u2192PAN(3), FORTUNE\u2192LUCK(4). Current clues: BLAZE\u2192FIRE(1) is strong, CHARM\u2192LUCK(4) fits confirmed theme, CUSHION\u2192PAN(3) works by elimination and clue position ordering. All evidence converges on single candidate.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_2",
+                "message": "MESSAGE: All three discussion rounds confirm [1,3,4] with strong reasoning. BLAZE\u2192FIRE(1) is clear, CHARM\u2192LUCK(4) matches confirmed Round 1 theme, CUSHION\u2192PAN(3) fits by elimination and clue position. No alternative candidates proposed by either guesser. Complete agreement achieved.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              }
+            ],
+            "intercept": [
+              {
+                "agent_id": "blue_guesser_1",
+                "message": "MESSAGE: Both agents independently suggest 1-3-4 with matching confidence (0.4). The rationale is solid: DOG fits nature theme (4=TREE confirmed), LAMP fits light theme (1=BRIGHT confirmed), ELEMENT fits abstract/cosmic theme (3=PLANET confirmed). Pattern consistency from Round 1 supports this mapping.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_2",
+                "message": "MESSAGE: Agreed. The 1-3-4 pattern shows strong thematic consistency with Round 1 confirmed mappings (BRIGHT\u21921, PLANET\u21923, TREE\u21924). DOG/LAMP/ELEMENT align well with nature/light/abstract themes respectively. No alternative candidates seem more plausible given current evidence.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_1",
+                "message": "MESSAGE: Both agents confirm 1-3-4 with strong thematic alignment to Round 1 mappings. DOG\u21924 (nature/TREE), LAMP\u21921 (light/BRIGHT), ELEMENT\u21923 (abstract/PLANET). Pattern is consistent and no stronger alternatives identified.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              },
+              {
+                "agent_id": "blue_guesser_2",
+                "message": "MESSAGE: Full agreement on 1-3-4. Thematic mapping is consistent: DOG\u21924 (nature like TREE), LAMP\u21921 (light like BRIGHT), ELEMENT\u21923 (abstract like PLANET). All confirmed Round 1 patterns support this interpretation.\n\nCANDIDATES: 1-3-4\n\nCONSENSUS: YES"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "winner": "red",
+  "result_reason": "miscommunications",
+  "scores": {
+    "tom": {
+      "team_tom_accuracy": {
+        "red": 1.0,
+        "blue": 0.0
+      },
+      "opponent_tom_accuracy": {
+        "red": 1.0,
+        "blue": 1.0
+      },
+      "pred_decode_top1": {
+        "red": 0.0,
+        "blue": 0.0
+      },
+      "pred_decode_log_loss": {
+        "red": 3.1780538303479453,
+        "blue": 13.815510557964274
+      },
+      "pred_intercept_top1": {
+        "red": 0.0,
+        "blue": 0.0
+      },
+      "pred_intercept_log_loss": {
+        "red": 3.1780538303479453,
+        "blue": 2.813410716760037
+      }
+    },
+    "calibration": {
+      "team_brier": {
+        "red": 0.022500000000000006,
+        "blue": 0.6425
+      },
+      "team_log_loss": {
+        "red": 0.16251892949777494,
+        "blue": 1.6417071730028858
+      },
+      "leakage_brier": {
+        "red": 0.0625,
+        "blue": 0.0225
+      },
+      "leakage_log_loss": {
+        "red": 0.2876820724517809,
+        "blue": 0.16251892949777494
+      },
+      "intercept_brier": {
+        "red": 0.12249999999999998,
+        "blue": 0.24009999999999998
+      },
+      "intercept_log_loss": {
+        "red": 0.4307829160924542,
+        "blue": 0.6733445532637656
+      },
+      "events": {
+        "overconfident_independent": {
+          "red": 0,
+          "blue": 0
+        },
+        "overconfident_consensus": {
+          "red": 1,
+          "blue": 1
+        },
+        "grounding_violations_independent": {
+          "red": 15,
+          "blue": 9
+        },
+        "grounding_violations_consensus": {
+          "red": 6,
+          "blue": 6
+        },
+        "parse_errors_independent": {
+          "red": 0,
+          "blue": 0
+        },
+        "parse_errors_consensus": {
+          "red": 0,
+          "blue": 0
+        },
+        "false_confirmations_independent": {
+          "red": 15,
+          "blue": 9
+        },
+        "false_confirmations_consensus": {
+          "red": 6,
+          "blue": 6
+        },
+        "hypothesis_refs_independent": {
+          "red": 35,
+          "blue": 34
+        },
+        "hypothesis_to_confirmed_promotions_within_round": {
+          "red": 0,
+          "blue": 0
+        }
+      }
+    },
+    "adaptation": {
+      "decode_success_by_state": {
+        "tied": {
+          "red": 1.0,
+          "blue": 0.0
+        },
+        "tied_danger": {
+          "red": null,
+          "blue": 0.0
+        }
+      },
+      "semantic_slot_reuse": {
+        "overall_mean": {
+          "red": 0.25,
+          "blue": 0.5
+        },
+        "by_condition": {
+          "pressure=0|prev_decode_ok=0": {
+            "red": null,
+            "blue": 0.5
+          },
+          "pressure=0|prev_decode_ok=1": {
+            "red": 0.25,
+            "blue": null
+          }
+        }
+      },
+      "belief_rewards": {
+        "hypotheses_after_success_mean": {
+          "red": 1.0,
+          "blue": null
+        },
+        "hedging_alignment_mean": {
+          "red": 0.25,
+          "blue": null
+        }
+      }
+    }
+  }
+}
