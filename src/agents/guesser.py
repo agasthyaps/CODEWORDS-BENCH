@@ -21,6 +21,8 @@ class ParsedGuesses(BaseModel):
     words: list[str]
     reasoning: str
     is_pass: bool = False
+    confidence: int | None = None  # 1-5
+    why_stop: str | None = None
 
 
 class ParsedDiscussion(BaseModel):
@@ -95,13 +97,15 @@ def parse_guess_response(response: str) -> ParsedGuesses | None:
         re.IGNORECASE
     )
     if pass_match:
+        conf = _parse_confidence(response)
+        why_stop = _parse_why_stop(response)
         reasoning_match = re.search(
             r"REASONING\s*:\s*(.+)",
             response,
             re.IGNORECASE | re.DOTALL
         )
         reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
-        return ParsedGuesses(words=[], reasoning=reasoning, is_pass=True)
+        return ParsedGuesses(words=[], reasoning=reasoning, is_pass=True, confidence=conf, why_stop=why_stop)
 
     # Extract guesses
     guesses_match = re.search(
@@ -127,7 +131,27 @@ def parse_guess_response(response: str) -> ParsedGuesses | None:
     )
     reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
 
-    return ParsedGuesses(words=words, reasoning=reasoning, is_pass=False)
+    conf = _parse_confidence(response)
+    why_stop = _parse_why_stop(response)
+
+    return ParsedGuesses(words=words, reasoning=reasoning, is_pass=False, confidence=conf, why_stop=why_stop)
+
+
+def _parse_confidence(response: str) -> int | None:
+    m = re.search(r"CONFIDENCE\s*:\s*\[?\s*([1-5])\s*\]?", response, re.IGNORECASE)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
+
+
+def _parse_why_stop(response: str) -> str | None:
+    m = re.search(r"WHY_STOP\s*:\s*(.+?)(?:\n|$)", response, re.IGNORECASE)
+    if not m:
+        return None
+    return m.group(1).strip()
 
 
 def validate_guesses(
@@ -428,6 +452,8 @@ class GuesserAgent:
                 "reasoning": parsed.reasoning if parsed else "",
                 "is_pass": parsed.is_pass if parsed else True,
                 "raw_words": parsed.words if parsed else [],
+                "confidence": parsed.confidence if parsed else None,
+                "why_stop": parsed.why_stop if parsed else None,
             },
             validation_errors=validation_errors,
             retry_count=0,

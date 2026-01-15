@@ -19,5 +19,7 @@ Provide your final guesses based on the discussion. Order by confidence (most co
 Format:
 ```
 GUESSES: WORD1, WORD2, WORD3
+CONFIDENCE: 1-5
+WHY_STOP: brief reason you stopped (or "N/A" if using max guesses)
 REASONING: Your private explanation
 ```

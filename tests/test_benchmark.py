@@ -57,7 +57,7 @@ class TestExperimentConfig:
         assert len(config.seeds) == 3
 
     def test_generates_correct_matchup_count_homogeneous(self):
-        """Should generate correct number of homogeneous matchups."""
+        """Should generate correct number of v1.1 matchups (4 configs × 2 directions per pair)."""
         models = [
             ModelConfig(name="a", model_id="a"),
             ModelConfig(name="b", model_id="b"),
@@ -71,11 +71,11 @@ class TestExperimentConfig:
 
         matchups = generate_matchups(config)
 
-        # 3 models: (A vs A), (A vs B), (A vs C), (B vs B), (B vs C), (C vs C) = 6
-        assert len(matchups) == 6
+        # 3 models => 3 unordered pairs; each pair => 4 configs × 2 directions = 8
+        assert len(matchups) == 3 * 8
 
     def test_generates_correct_matchup_count_mixed_cluer(self):
-        """Should generate correct number of mixed cluer matchups."""
+        """Should generate v1.1 matchups even when team_compositions requests MIXED_CLUER."""
         models = [
             ModelConfig(name="a", model_id="a"),
             ModelConfig(name="b", model_id="b"),
@@ -88,8 +88,8 @@ class TestExperimentConfig:
 
         matchups = generate_matchups(config)
 
-        # 2 models, each can be cluer with other as guesser: 2 matchups
-        assert len(matchups) == 2
+        # 2 models => 1 pair; 4 configs × 2 directions = 8
+        assert len(matchups) == 8
 
     def test_counts_total_games(self):
         """Should count total games correctly."""
@@ -106,11 +106,11 @@ class TestExperimentConfig:
             games_per_config=2,
         )
 
-        matchups = generate_matchups(config)  # 3 matchups (A vs A, A vs B, B vs B)
+        matchups = generate_matchups(config)
         total = count_total_games(config)
 
-        # 3 matchups × 2 modes × 5 seeds × 2 games = 60
-        expected = 3 * 2 * 5 * 2
+        # 2 models => 8 matchups; 8 × 2 modes × 5 seeds × 2 games = 160
+        expected = 8 * 2 * 5 * 2
         assert total == expected
 
     def test_invalid_config_raises_error(self):
@@ -142,7 +142,7 @@ class TestMatchupGeneration:
     """Tests for matchup generation."""
 
     def test_homogeneous_matchups_symmetric(self):
-        """Homogeneous matchups should be symmetric."""
+        """Homogeneous configs should have homogeneous teams."""
         models = [
             ModelConfig(name="a", model_id="a"),
             ModelConfig(name="b", model_id="b"),
@@ -155,7 +155,10 @@ class TestMatchupGeneration:
 
         matchups = generate_matchups(config)
 
-        for matchup in matchups:
+        homog_matchups = [m for m in matchups if (m.config_type or "").startswith("homog-")]
+        assert homog_matchups, "Expected at least one homogeneous matchup"
+
+        for matchup in homog_matchups:
             # All agents on each team should be the same model
             red = matchup.red_team
             assert red.cluer == red.guesser_1 == red.guesser_2
@@ -177,29 +180,66 @@ class TestMatchupGeneration:
 
         matchups = generate_matchups(config)
 
-        for matchup in matchups:
+        mixed_matchups = [m for m in matchups if (m.config_type or "").startswith("mixed-")]
+        assert mixed_matchups, "Expected at least one mixed matchup"
+
+        for matchup in mixed_matchups:
             red = matchup.red_team
             # Cluer should be different from guessers
             assert red.cluer != red.guesser_1
             # Both guessers should be the same
             assert red.guesser_1 == red.guesser_2
 
+            blue = matchup.blue_team
+            assert blue.cluer != blue.guesser_1
+            assert blue.guesser_1 == blue.guesser_2
+
     def test_heterogeneous_requires_three_models(self):
-        """Heterogeneous requires at least 3 models."""
+        """Subset pairing should restrict to specified pairs."""
         models = [
             ModelConfig(name="a", model_id="a"),
             ModelConfig(name="b", model_id="b"),
+            ModelConfig(name="c", model_id="c"),
         ]
         config = ExperimentConfig(
             name="test",
             models=models,
-            team_compositions=[TeamComposition.HETEROGENEOUS],
+            team_compositions=[TeamComposition.HOMOGENEOUS],
+            matchup_strategy="subset",
+            matchup_subset=[("a", "c")],
         )
 
         matchups = generate_matchups(config)
 
-        # With only 2 models, heterogeneous produces no matchups
-        assert len(matchups) == 0
+        # One pair => 8 matchups
+        assert len(matchups) == 8
+
+
+class TestDirectionPairing:
+    """Tests for direction pairing (side-swap)."""
+
+    def test_each_config_emits_both_directions(self):
+        models = [
+            ModelConfig(name="a", model_id="a"),
+            ModelConfig(name="b", model_id="b"),
+        ]
+        config = ExperimentConfig(name="test", models=models)
+        matchups = generate_matchups(config)
+
+        # All matchups should have pair_key/config_type/direction set
+        for m in matchups:
+            assert m.pair_key is not None
+            assert m.config_type is not None
+            assert m.direction in ("A_RED_B_BLUE", "A_BLUE_B_RED")
+
+        # For each config_type, we should see both directions
+        by_cfg: dict[str, set[str]] = {}
+        for m in matchups:
+            by_cfg.setdefault(m.config_type or "UNKNOWN", set()).add(m.direction or "NONE")
+
+        assert set(by_cfg.keys()) == {"homog-A", "homog-B", "mixed-A-clue", "mixed-B-clue"}
+        for dirs in by_cfg.values():
+            assert dirs == {"A_RED_B_BLUE", "A_BLUE_B_RED"}
 
 
 # ============================================================================

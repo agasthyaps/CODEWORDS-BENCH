@@ -32,8 +32,30 @@ class TeamMetrics(BaseModel):
     avg_discussion_length: int  # Total chars across discussions
 
     # Theory of Mind score (fallback: correct_guesses / sum(clue_numbers))
-    # TODO: Implement structured extraction from REASONING field
+    # v1.1: prediction-based ToM (falls back to clue_efficiency when unavailable)
     theory_of_mind_score: float
+
+    # Optional submetrics when prediction traces are available
+    tom_predictions_count: int = 0
+    # Mind-modeling (ToM) core metric: overlap@k (recall@k) between predicted and actual guesses.
+    tom_overlap_at_k: float | None = None
+    tom_translated_overlap_at_k: float | None = None
+    tom_rank_correlation: float | None = None
+    tom_confusion_calibration: float | None = None
+
+    # Compliance (separate from ToM)
+    tom_format_compliance_rate: float | None = None  # fraction of turns with parseable prediction output
+    tom_boardword_compliance_rate: float | None = None  # fraction of turns where top-k predictions are all board words
+    tom_non_board_rate_top_k: float | None = None  # average fraction of non-board words in top-k predictions
+
+    # Risk / calibration
+    cluer_confidence_mean: float | None = None  # 1-5
+    cluer_overconfidence_rate: float | None = None  # high confidence + low overlap@k
+    guesser_confidence_mean: float | None = None  # 1-5
+    guesser_overconfidence_rate: float | None = None  # high confidence + any wrong guess that turn
+    guesser_confidence_correctness_n: int = 0
+    guesser_confidence_correctness_point_biserial: float | None = None
+    guesser_confidence_correctness_spearman: float | None = None
 
 
 class EpisodeMetrics(BaseModel):

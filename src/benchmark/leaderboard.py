@@ -30,6 +30,13 @@ class LeaderboardEntry(BaseModel):
     avg_clue_efficiency: float | None = None  # Cluer only
     avg_guess_accuracy: float | None = None  # Guesser only
     avg_theory_of_mind: float
+    # Side analysis (computed per appearance as RED vs BLUE)
+    red_games: int = 0
+    red_wins: int = 0
+    blue_games: int = 0
+    blue_wins: int = 0
+    side_advantage_delta: float | None = None  # P(win|RED) - P(win|BLUE)
+    side_adjusted_win_rate: float | None = None  # avg(P(win|RED), P(win|BLUE))
 
 
 class HeadToHeadEntry(BaseModel):
@@ -53,6 +60,39 @@ class Leaderboard(BaseModel):
     by_guesser: list[LeaderboardEntry] = Field(default_factory=list)
     by_mode: dict[str, list[LeaderboardEntry]] = Field(default_factory=dict)
     head_to_head: list[HeadToHeadEntry] = Field(default_factory=list)
+    # Global side advantage
+    overall_red_win_rate: float | None = None
+    overall_blue_win_rate: float | None = None
+    overall_draw_rate: float | None = None
+    # Synergy / composition comparisons (pair-level)
+    synergy: list["SynergyEntry"] = Field(default_factory=list)
+    # Calibration vs assassin outcomes (team-level rows across all games)
+    assassin_overconfidence_summary: dict[str, float | int] = Field(default_factory=dict)
+    top_offenders: list["OffenderEntry"] = Field(default_factory=list)
+
+
+class OffenderEntry(BaseModel):
+    """Model-level risk summary for primary guesser behavior."""
+    model_config = {"protected_namespaces": ()}
+    model: str
+    team_rows: int
+    assassin_hits: int
+    assassin_hit_rate: float
+    overconf_rows: int
+    overconf_rate: float
+    overconf_given_assassin_hit_rate: float | None = None
+
+
+class SynergyEntry(BaseModel):
+    """Compare homogeneous vs mixed performance for a model pair."""
+    model_config = {"protected_namespaces": ()}
+    model_a: str
+    model_b: str
+    homogeneous_games: int
+    homogeneous_a_win_rate: float | None = None
+    mixed_games: int
+    mixed_a_win_rate_as_cluer: float | None = None
+    delta_homog_minus_mixed: float | None = None
 
 
 def wilson_score_interval(successes: int, total: int, confidence: float = 0.95) -> ConfidenceInterval:
@@ -108,6 +148,10 @@ def _extract_model_stats(
     """Extract statistics for a specific model."""
     games = 0
     wins = 0
+    red_games = 0
+    red_wins = 0
+    blue_games = 0
+    blue_wins = 0
     coordination_scores = []
     clue_efficiencies = []
     guess_accuracies = []
@@ -139,8 +183,10 @@ def _extract_model_stats(
 
         if red_match:
             games += 1
+            red_games += 1
             if result.winner == Team.RED:
                 wins += 1
+                red_wins += 1
             coordination_scores.append(result.metrics.red_coordination_score)
             clue_efficiencies.append(result.metrics.red_metrics.clue_efficiency)
             guess_accuracies.append(result.metrics.red_metrics.guess_accuracy)
@@ -148,8 +194,10 @@ def _extract_model_stats(
 
         if blue_match:
             games += 1
+            blue_games += 1
             if result.winner == Team.BLUE:
                 wins += 1
+                blue_wins += 1
             coordination_scores.append(result.metrics.blue_coordination_score)
             clue_efficiencies.append(result.metrics.blue_metrics.clue_efficiency)
             guess_accuracies.append(result.metrics.blue_metrics.guess_accuracy)
@@ -158,6 +206,10 @@ def _extract_model_stats(
     return {
         "games": games,
         "wins": wins,
+        "red_games": red_games,
+        "red_wins": red_wins,
+        "blue_games": blue_games,
+        "blue_wins": blue_wins,
         "coordination_scores": coordination_scores,
         "clue_efficiencies": clue_efficiencies,
         "guess_accuracies": guess_accuracies,
@@ -207,7 +259,20 @@ def _create_leaderboard_entry(
         win_rate_ci=win_rate_ci,
         avg_coordination_score=avg_coord,
         avg_theory_of_mind=avg_tom,
+        red_games=stats.get("red_games", 0),
+        red_wins=stats.get("red_wins", 0),
+        blue_games=stats.get("blue_games", 0),
+        blue_wins=stats.get("blue_wins", 0),
     )
+
+    # Side advantage / adjusted win rate (only meaningful when model appears on both sides)
+    rg = entry.red_games
+    bg = entry.blue_games
+    if rg > 0 and bg > 0:
+        p_red = entry.red_wins / rg
+        p_blue = entry.blue_wins / bg
+        entry.side_advantage_delta = p_red - p_blue
+        entry.side_adjusted_win_rate = (p_red + p_blue) / 2
 
     if role in ("overall", "cluer") and stats["clue_efficiencies"]:
         entry.avg_clue_efficiency = (
@@ -239,6 +304,21 @@ def build_leaderboard(results: list[BenchmarkResult]) -> Leaderboard:
             continue
         model_ids.update(result.red_models.values())
         model_ids.update(result.blue_models.values())
+
+    # Global side advantage
+    valid_results = [r for r in results if not r.error and r.metrics is not None]
+    if valid_results:
+        total = len(valid_results)
+        red_wins = sum(1 for r in valid_results if r.winner == Team.RED)
+        blue_wins = sum(1 for r in valid_results if r.winner == Team.BLUE)
+        draws = sum(1 for r in valid_results if r.winner is None)
+        overall_red_win_rate = red_wins / total
+        overall_blue_win_rate = blue_wins / total
+        overall_draw_rate = draws / total
+    else:
+        overall_red_win_rate = None
+        overall_blue_win_rate = None
+        overall_draw_rate = None
 
     # Build overall leaderboard
     overall_entries = []
@@ -312,12 +392,217 @@ def build_leaderboard(results: list[BenchmarkResult]) -> Leaderboard:
         reverse=True,
     )
 
+    # Synergy / composition comparison (homogeneous vs mixed)
+    synergy_entries: list[SynergyEntry] = []
+    pair_buckets: dict[tuple[str, str], dict[str, int]] = {}
+
+    def _bucket_for_pair(a: str, b: str) -> dict[str, int]:
+        key = (a, b) if a <= b else (b, a)
+        if key not in pair_buckets:
+            pair_buckets[key] = {
+                "homog_games": 0,
+                "homog_a_wins": 0,
+                "mixed_games": 0,
+                "mixed_a_cluer_games": 0,
+                "mixed_a_cluer_wins": 0,
+            }
+        return pair_buckets[key]
+
+    for r in valid_results:
+        red_vals = list(r.red_models.values())
+        blue_vals = list(r.blue_models.values())
+        all_models = sorted(set(red_vals + blue_vals))
+        if len(all_models) != 2:
+            continue
+        a, b = all_models[0], all_models[1]
+        bucket = _bucket_for_pair(a, b)
+
+        # Homogeneous: each team all same model, and they differ
+        red_homog = len(set(red_vals)) == 1
+        blue_homog = len(set(blue_vals)) == 1
+        if red_homog and blue_homog and red_vals[0] != blue_vals[0]:
+            bucket["homog_games"] += 1
+            # Determine if A won
+            if (red_vals[0] == a and r.winner == Team.RED) or (blue_vals[0] == a and r.winner == Team.BLUE):
+                bucket["homog_a_wins"] += 1
+            continue
+
+        # Mixed (cluer differs from guessers on both teams)
+        red_cluer = r.red_models.get("cluer")
+        blue_cluer = r.blue_models.get("cluer")
+        if not red_cluer or not blue_cluer:
+            continue
+        red_guessers = [r.red_models.get("guesser_1"), r.red_models.get("guesser_2")]
+        blue_guessers = [r.blue_models.get("guesser_1"), r.blue_models.get("guesser_2")]
+        if None in red_guessers or None in blue_guessers:
+            continue
+
+        red_mixed = (red_cluer != red_guessers[0] and red_guessers[0] == red_guessers[1])
+        blue_mixed = (blue_cluer != blue_guessers[0] and blue_guessers[0] == blue_guessers[1])
+        if red_mixed and blue_mixed:
+            bucket["mixed_games"] += 1
+            # Track win rate when A is cluer (either side)
+            if red_cluer == a:
+                bucket["mixed_a_cluer_games"] += 1
+                if r.winner == Team.RED:
+                    bucket["mixed_a_cluer_wins"] += 1
+            if blue_cluer == a:
+                bucket["mixed_a_cluer_games"] += 1
+                if r.winner == Team.BLUE:
+                    bucket["mixed_a_cluer_wins"] += 1
+
+    for (a, b), bucket in pair_buckets.items():
+        homog_games = bucket["homog_games"]
+        mixed_games = bucket["mixed_games"]
+        homog_wr = (bucket["homog_a_wins"] / homog_games) if homog_games > 0 else None
+        mixed_cluer_wr = (
+            bucket["mixed_a_cluer_wins"] / bucket["mixed_a_cluer_games"]
+            if bucket["mixed_a_cluer_games"] > 0
+            else None
+        )
+        delta = (homog_wr - mixed_cluer_wr) if (homog_wr is not None and mixed_cluer_wr is not None) else None
+        if homog_games > 0 or mixed_games > 0:
+            synergy_entries.append(
+                SynergyEntry(
+                    model_a=a,
+                    model_b=b,
+                    homogeneous_games=homog_games,
+                    homogeneous_a_win_rate=homog_wr,
+                    mixed_games=mixed_games,
+                    mixed_a_win_rate_as_cluer=mixed_cluer_wr,
+                    delta_homog_minus_mixed=delta,
+                )
+            )
+
+    # Sort: most data first, then biggest absolute delta
+    synergy_entries.sort(
+        key=lambda s: ((s.homogeneous_games + s.mixed_games), abs(s.delta_homog_minus_mixed or 0.0)),
+        reverse=True,
+    )
+
+    # Assassin hits vs guesser overconfidence (team-level)
+    # Each game contributes up to 2 team-rows (RED team, BLUE team)
+    assassin_rows = 0
+    assassin_rows_overconf = 0
+    non_assassin_rows = 0
+    non_assassin_rows_overconf = 0
+
+    def _overconf_flag(team_metrics) -> int | None:
+        r = getattr(team_metrics, "guesser_overconfidence_rate", None)
+        if r is None:
+            return None
+        # Treat any evidence of overconfidence as positive
+        return 1 if r > 0 else 0
+
+    for r in valid_results:
+        # RED team row
+        red_flag = _overconf_flag(r.metrics.red_metrics)
+        if red_flag is not None:
+            if r.metrics.red_metrics.assassin_hit:
+                assassin_rows += 1
+                assassin_rows_overconf += red_flag
+            else:
+                non_assassin_rows += 1
+                non_assassin_rows_overconf += red_flag
+
+        # BLUE team row
+        blue_flag = _overconf_flag(r.metrics.blue_metrics)
+        if blue_flag is not None:
+            if r.metrics.blue_metrics.assassin_hit:
+                assassin_rows += 1
+                assassin_rows_overconf += blue_flag
+            else:
+                non_assassin_rows += 1
+                non_assassin_rows_overconf += blue_flag
+
+    assassin_overconf_rate = (assassin_rows_overconf / assassin_rows) if assassin_rows > 0 else None
+    non_assassin_overconf_rate = (non_assassin_rows_overconf / non_assassin_rows) if non_assassin_rows > 0 else None
+
+    summary = {
+        "assassin_team_rows": assassin_rows,
+        "assassin_overconf_rows": assassin_rows_overconf,
+        "assassin_overconf_rate": assassin_overconf_rate if assassin_overconf_rate is not None else 0.0,
+        "non_assassin_team_rows": non_assassin_rows,
+        "non_assassin_overconf_rows": non_assassin_rows_overconf,
+        "non_assassin_overconf_rate": non_assassin_overconf_rate if non_assassin_overconf_rate is not None else 0.0,
+    }
+
+    # Top offenders (by primary guesser model)
+    offender_buckets: dict[str, dict[str, int]] = {}
+
+    def _bucket(model_id: str) -> dict[str, int]:
+        if model_id not in offender_buckets:
+            offender_buckets[model_id] = {
+                "rows": 0,
+                "assassin": 0,
+                "overconf": 0,
+                "assassin_and_overconf": 0,
+            }
+        return offender_buckets[model_id]
+
+    def _add_row(model_id: str, assassin_hit: bool, overconf: int | None) -> None:
+        if model_id is None:
+            return
+        b = _bucket(model_id)
+        b["rows"] += 1
+        if assassin_hit:
+            b["assassin"] += 1
+        if overconf is not None and overconf > 0:
+            b["overconf"] += 1
+            if assassin_hit:
+                b["assassin_and_overconf"] += 1
+
+    for r in valid_results:
+        # RED team: attribute to primary guesser (guesser_1)
+        red_model = r.red_models.get("guesser_1")
+        red_overconf = _overconf_flag(r.metrics.red_metrics)
+        _add_row(red_model, bool(r.metrics.red_metrics.assassin_hit), red_overconf)
+
+        # BLUE team
+        blue_model = r.blue_models.get("guesser_1")
+        blue_overconf = _overconf_flag(r.metrics.blue_metrics)
+        _add_row(blue_model, bool(r.metrics.blue_metrics.assassin_hit), blue_overconf)
+
+    offenders: list[OffenderEntry] = []
+    for model_id, b in offender_buckets.items():
+        rows = b["rows"]
+        if rows <= 0:
+            continue
+        assassin = b["assassin"]
+        overconf = b["overconf"]
+        assassin_rate = assassin / rows
+        overconf_rate = overconf / rows
+        overconf_given_assassin = (b["assassin_and_overconf"] / assassin) if assassin > 0 else None
+        offenders.append(
+            OffenderEntry(
+                model=model_id,
+                team_rows=rows,
+                assassin_hits=assassin,
+                assassin_hit_rate=assassin_rate,
+                overconf_rows=overconf,
+                overconf_rate=overconf_rate,
+                overconf_given_assassin_hit_rate=overconf_given_assassin,
+            )
+        )
+
+    # Sort: highest assassin hit rate, then overconfidence rate, then more data
+    offenders.sort(
+        key=lambda o: (o.assassin_hit_rate, o.overconf_rate, o.team_rows),
+        reverse=True,
+    )
+
     return Leaderboard(
         overall=overall_entries,
         by_cluer=cluer_entries,
         by_guesser=guesser_entries,
         by_mode=by_mode,
         head_to_head=head_to_head,
+        overall_red_win_rate=overall_red_win_rate,
+        overall_blue_win_rate=overall_blue_win_rate,
+        overall_draw_rate=overall_draw_rate,
+        synergy=synergy_entries,
+        assassin_overconfidence_summary=summary,
+        top_offenders=offenders,
     )
 
 
@@ -383,17 +668,60 @@ def export_leaderboard_markdown(leaderboard: Leaderboard) -> str:
     """Export leaderboard to Markdown format."""
     lines = ["# Benchmark Leaderboard", ""]
 
+    if leaderboard.overall_red_win_rate is not None:
+        lines.append("## Side Advantage (Global)")
+        lines.append("")
+        lines.append(
+            f"- **RED win rate:** {leaderboard.overall_red_win_rate:.1%}  "
+            f"**BLUE win rate:** {leaderboard.overall_blue_win_rate:.1%}  "
+            f"**Draw rate:** {leaderboard.overall_draw_rate:.1%}"
+        )
+        lines.append("")
+
     # Overall
     lines.append("## Overall Rankings")
     lines.append("")
-    lines.append("| Rank | Model | Games | Win Rate | 95% CI | Coord. Score | ToM |")
-    lines.append("|------|-------|-------|----------|--------|--------------|-----|")
+
+    # Calibration vs assassin outcomes
+    if leaderboard.assassin_overconfidence_summary:
+        s = leaderboard.assassin_overconfidence_summary
+        lines.append("## Calibration vs Assassin Hits")
+        lines.append("")
+
+    # Top offenders table
+    if leaderboard.top_offenders:
+        lines.append("## Top Offenders (Primary Guesser)")
+        lines.append("")
+        lines.append("| Rank | Model | Team Rows | Assassin Hits | Assassin Hit Rate | Overconf Rows | Overconf Rate | Overconf|Assassin |")
+        lines.append("|------|-------|----------:|--------------:|------------------:|-------------:|-------------:|----------------:|")
+        for i, o in enumerate(leaderboard.top_offenders[:15], 1):
+            oga = f"{o.overconf_given_assassin_hit_rate:.1%}" if o.overconf_given_assassin_hit_rate is not None else "N/A"
+            lines.append(
+                f"| {i} | {o.model} | {o.team_rows} | {o.assassin_hits} | {o.assassin_hit_rate:.1%} | "
+                f"{o.overconf_rows} | {o.overconf_rate:.1%} | {oga} |"
+            )
+        lines.append("")
+        lines.append(
+            f"- **Assassin-hit team-rows:** {s.get('assassin_team_rows', 0)} | "
+            f"**Overconf rows:** {s.get('assassin_overconf_rows', 0)} | "
+            f"**Overconf rate:** {float(s.get('assassin_overconf_rate', 0.0)):.1%}"
+        )
+        lines.append(
+            f"- **Non-assassin team-rows:** {s.get('non_assassin_team_rows', 0)} | "
+            f"**Overconf rows:** {s.get('non_assassin_overconf_rows', 0)} | "
+            f"**Overconf rate:** {float(s.get('non_assassin_overconf_rate', 0.0)):.1%}"
+        )
+        lines.append("")
+    lines.append("| Rank | Model | Games | Win Rate | Side-Adj | Side Δ | 95% CI | Coord. Score | ToM |")
+    lines.append("|------|-------|-------|----------|----------|--------|--------|--------------|-----|")
 
     for i, entry in enumerate(leaderboard.overall, 1):
         ci = f"[{entry.win_rate_ci.lower:.2f}, {entry.win_rate_ci.upper:.2f}]"
+        side_adj = f"{entry.side_adjusted_win_rate:.1%}" if entry.side_adjusted_win_rate is not None else "N/A"
+        side_delta = f"{entry.side_advantage_delta:+.1%}" if entry.side_advantage_delta is not None else "N/A"
         lines.append(
             f"| {i} | {entry.model} | {entry.games} | "
-            f"{entry.win_rate:.1%} | {ci} | "
+            f"{entry.win_rate:.1%} | {side_adj} | {side_delta} | {ci} | "
             f"{entry.avg_coordination_score:.3f} | {entry.avg_theory_of_mind:.3f} |"
         )
 
@@ -444,6 +772,21 @@ def export_leaderboard_markdown(leaderboard: Leaderboard) -> str:
                 f"{h2h.model_a_wins} | {h2h.model_b_wins} | {h2h.model_a_win_rate:.1%} |"
             )
 
+        lines.append("")
+
+    # Synergy
+    if leaderboard.synergy:
+        lines.append("## Synergy (Homogeneous vs Mixed)")
+        lines.append("")
+        lines.append("| Model A | Model B | Homog Games | Homog A Win | Mixed Games | Mixed A Win (as cluer) | Δ (Homog - Mixed) |")
+        lines.append("|---------|---------|------------|-------------|------------|-------------------------|------------------|")
+        for s in leaderboard.synergy[:20]:
+            homog = f"{s.homogeneous_a_win_rate:.1%}" if s.homogeneous_a_win_rate is not None else "N/A"
+            mixed = f"{s.mixed_a_win_rate_as_cluer:.1%}" if s.mixed_a_win_rate_as_cluer is not None else "N/A"
+            delta = f"{s.delta_homog_minus_mixed:+.1%}" if s.delta_homog_minus_mixed is not None else "N/A"
+            lines.append(
+                f"| {s.model_a} | {s.model_b} | {s.homogeneous_games} | {homog} | {s.mixed_games} | {mixed} | {delta} |"
+            )
         lines.append("")
 
     return "\n".join(lines)

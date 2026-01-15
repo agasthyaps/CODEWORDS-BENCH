@@ -3,6 +3,7 @@
 
 import asyncio
 import argparse
+import random
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from src.agents import AgentConfig, CluerAgent, GuesserAgent, create_provider
 from src.runner import TeamAgents, ExtendedEpisodeRecord
 from src.runner.orchestrator import run_clue_phase, run_discussion_phase, run_guess_phase, TurnTraces
 from src.metrics import compute_episode_metrics, export_metrics
+from src.benchmark import load_model_farm
 
 
 # ANSI colors for terminal output
@@ -108,9 +110,10 @@ def print_turn_header(turn_number: int, team: Team):
 
 def create_llm_team(
     team: Team,
-    cluer_model: str = "anthropic/claude-3.5-sonnet",
+    cluer_model: str,
     guesser_1_model: str | None = None,
     guesser_2_model: str | None = None,
+    base_url_by_model: dict[str, str | None] | None = None,
 ):
     """Create a team with LLM agents.
 
@@ -131,15 +134,15 @@ def create_llm_team(
     return TeamAgents(
         cluer=CluerAgent(
             AgentConfig(model=cluer_model, role="cluer", team=team, agent_id=f"{team_key}_cluer", temperature=0.7),
-            create_provider("openrouter", cluer_model),
+            create_provider("openrouter", cluer_model, base_url=(base_url_by_model or {}).get(cluer_model)),
         ),
         guesser_1=GuesserAgent(
             AgentConfig(model=guesser_1_model, role="guesser", team=team, agent_id=f"{team_key}_guesser_1", temperature=0.7),
-            create_provider("openrouter", guesser_1_model),
+            create_provider("openrouter", guesser_1_model, base_url=(base_url_by_model or {}).get(guesser_1_model)),
         ),
         guesser_2=GuesserAgent(
             AgentConfig(model=guesser_2_model, role="guesser", team=team, agent_id=f"{team_key}_guesser_2", temperature=0.7),
-            create_provider("openrouter", guesser_2_model),
+            create_provider("openrouter", guesser_2_model, base_url=(base_url_by_model or {}).get(guesser_2_model)),
         ),
     )
 
@@ -193,6 +196,7 @@ async def run_verbose_episode(
                 turn_number=turn_count,
                 team=team,
                 clue_trace=clue_trace,
+                prediction_trace=None,
                 discussion_traces=[],
                 guess_trace=None,
             )
@@ -202,6 +206,14 @@ async def run_verbose_episode(
         # Print the clue
         if state.current_clue:
             print_clue(team, state.current_clue.word, state.current_clue.number)
+
+        # Prediction step (for ToM): cluer predicts teammate guesses before discussion
+        prediction_trace = None
+        try:
+            if hasattr(team_agents.cluer, "predict_guesses") and state.current_clue is not None:
+                prediction_trace = await team_agents.cluer.predict_guesses(state, state.current_clue)
+        except Exception:
+            prediction_trace = None
 
         # Discussion phase
         guessers = team_agents.get_guessers()
@@ -267,6 +279,7 @@ async def run_verbose_episode(
             turn_number=turn_count,
             team=team,
             clue_trace=clue_trace,
+            prediction_trace=prediction_trace,
             discussion_traces=discussion_traces,
             guess_trace=guess_trace,
         )
@@ -331,9 +344,25 @@ Examples:
         """
     )
 
+    parser.add_argument(
+        "--random-teams",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Randomly choose heterogeneous role assignments from the model farm (default: on).",
+    )
+    parser.add_argument(
+        "--models-config",
+        default=None,
+        help="Path to model farm JSON (default: config/models.json if present).",
+    )
+    parser.add_argument(
+        "--allow-cross-team-duplicates",
+        action="store_true",
+        help="Allow the same model to appear on both teams (still enforces heterogeneity within each team).",
+    )
+
     # Red team arguments
-    parser.add_argument("--red", default="anthropic/claude-3.5-sonnet",
-                        help="Default model for entire red team")
+    parser.add_argument("--red", default=None, help="Default model for entire red team")
     parser.add_argument("--red-cluer", default=None,
                         help="Model for red cluer (overrides --red)")
     parser.add_argument("--red-guesser-1", default=None,
@@ -342,8 +371,7 @@ Examples:
                         help="Model for red guesser 2 (defaults to --red-guesser-1 or --red)")
 
     # Blue team arguments
-    parser.add_argument("--blue", default="openai/gpt-4o",
-                        help="Default model for entire blue team")
+    parser.add_argument("--blue", default=None, help="Default model for entire blue team")
     parser.add_argument("--blue-cluer", default=None,
                         help="Model for blue cluer (overrides --blue)")
     parser.add_argument("--blue-guesser-1", default=None,
@@ -368,15 +396,74 @@ Examples:
 
     config = GameConfig.for_mode(mode_map[args.mode], seed=args.seed)
 
-    # Resolve red team models
-    red_cluer = args.red_cluer or args.red
-    red_guesser_1 = args.red_guesser_1 or args.red
-    red_guesser_2 = args.red_guesser_2 or red_guesser_1
+    # Load model farm (for random teams and base_url mapping)
+    repo_root = Path(__file__).parent.parent
+    default_models_config_path = repo_root / "config" / "models.json"
+    models_config_path = Path(args.models_config) if args.models_config else None
+    load_path = None
+    if models_config_path and models_config_path.exists():
+        load_path = models_config_path
+    elif default_models_config_path.exists():
+        load_path = default_models_config_path
 
-    # Resolve blue team models
-    blue_cluer = args.blue_cluer or args.blue
-    blue_guesser_1 = args.blue_guesser_1 or args.blue
-    blue_guesser_2 = args.blue_guesser_2 or blue_guesser_1
+    model_ids: list[str] = []
+    base_url_by_model: dict[str, str | None] = {}
+    if load_path is not None:
+        farm_models, _ = load_model_farm(load_path)
+        # Deduplicate model IDs while preserving order
+        seen = set()
+        for m in farm_models:
+            if m.model_id in seen:
+                continue
+            seen.add(m.model_id)
+            model_ids.append(m.model_id)
+            base_url_by_model[m.model_id] = m.base_url
+
+    def _sample_distinct(pool: list[str], k: int, rng: random.Random) -> list[str]:
+        if len(pool) < k:
+            raise ValueError(f"Need at least {k} distinct models, only have {len(pool)} in model farm.")
+        return rng.sample(pool, k)
+
+    def _pick_heterogeneous_teams(rng: random.Random) -> tuple[tuple[str, str, str], tuple[str, str, str]]:
+        if len(model_ids) < 3:
+            raise ValueError(
+                "Random team selection requires at least 3 models in config/models.json "
+                "(to make one heterogeneous team)."
+            )
+        if not args.allow_cross_team_duplicates and len(model_ids) >= 6:
+            picks = _sample_distinct(model_ids, 6, rng)
+            red = (picks[0], picks[1], picks[2])
+            blue = (picks[3], picks[4], picks[5])
+            return red, blue
+
+        # Allow cross-team duplicates (but keep each team heterogeneous)
+        red = tuple(_sample_distinct(model_ids, 3, rng))  # type: ignore[assignment]
+        blue = tuple(_sample_distinct(model_ids, 3, rng))  # type: ignore[assignment]
+        return red, blue
+
+    any_team_override = any(
+        [
+            args.red, args.blue,
+            args.red_cluer, args.red_guesser_1, args.red_guesser_2,
+            args.blue_cluer, args.blue_guesser_1, args.blue_guesser_2,
+        ]
+    )
+
+    if args.random_teams and not any_team_override:
+        rng = random.Random(args.seed)
+        (red_cluer, red_guesser_1, red_guesser_2), (blue_cluer, blue_guesser_1, blue_guesser_2) = _pick_heterogeneous_teams(rng)
+    else:
+        # Resolve via CLI (fallback to defaults if user specifies partial)
+        default_red = args.red or (model_ids[0] if model_ids else "openai/gpt-4o")
+        default_blue = args.blue or (model_ids[1] if len(model_ids) > 1 else default_red)
+
+        red_cluer = args.red_cluer or default_red
+        red_guesser_1 = args.red_guesser_1 or default_red
+        red_guesser_2 = args.red_guesser_2 or red_guesser_1
+
+        blue_cluer = args.blue_cluer or default_blue
+        blue_guesser_1 = args.blue_guesser_1 or default_blue
+        blue_guesser_2 = args.blue_guesser_2 or blue_guesser_1
 
     # Print team composition
     print(f"\n{Colors.BOLD}Team Composition:{Colors.RESET}")
@@ -392,8 +479,8 @@ Examples:
 
     episode = await run_verbose_episode(
         config=config,
-        red_team=create_llm_team(Team.RED, red_cluer, red_guesser_1, red_guesser_2),
-        blue_team=create_llm_team(Team.BLUE, blue_cluer, blue_guesser_1, blue_guesser_2),
+        red_team=create_llm_team(Team.RED, red_cluer, red_guesser_1, red_guesser_2, base_url_by_model=base_url_by_model),
+        blue_team=create_llm_team(Team.BLUE, blue_cluer, blue_guesser_1, blue_guesser_2, base_url_by_model=base_url_by_model),
         max_turns=args.max_turns,
         show_board=not args.quiet,
     )

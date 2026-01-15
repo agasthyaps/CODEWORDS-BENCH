@@ -22,6 +22,7 @@ class TurnTraces(BaseModel):
     turn_number: int
     team: Team
     clue_trace: AgentTrace
+    prediction_trace: AgentTrace | None = None
     discussion_traces: list[AgentTrace]
     guess_trace: AgentTrace | None  # None if team passed without guessing
 
@@ -182,10 +183,20 @@ async def run_turn(
             turn_number=turn_number,
             team=team,
             clue_trace=clue_trace,
+            prediction_trace=None,
             discussion_traces=[],
             guess_trace=None,
         )
         return state, traces
+
+    # Prediction step (for ToM): cluer predicts teammate guesses before discussion
+    prediction_trace: AgentTrace | None = None
+    try:
+        if hasattr(team_agents.cluer, "predict_guesses") and state.current_clue is not None:
+            prediction_trace = await team_agents.cluer.predict_guesses(state, state.current_clue)
+    except Exception:
+        # Prediction should never crash the game; store nothing on failure.
+        prediction_trace = None
 
     # Discussion phase
     guessers = team_agents.get_guessers()
@@ -211,6 +222,7 @@ async def run_turn(
         turn_number=turn_number,
         team=team,
         clue_trace=clue_trace,
+        prediction_trace=prediction_trace,
         discussion_traces=discussion_traces,
         guess_trace=guess_trace,
     )

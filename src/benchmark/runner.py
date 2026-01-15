@@ -95,7 +95,17 @@ def _get_matchup_id(matchup: MatchupConfig) -> str:
     """Generate a unique ID for a matchup."""
     red = f"R({matchup.red_team.cluer.name},{matchup.red_team.guesser_1.name},{matchup.red_team.guesser_2.name})"
     blue = f"B({matchup.blue_team.cluer.name},{matchup.blue_team.guesser_1.name},{matchup.blue_team.guesser_2.name})"
-    return f"{matchup.composition.value}:{red}vs{blue}"
+
+    meta = []
+    if matchup.pair_key:
+        meta.append(f"pair={matchup.pair_key}")
+    if matchup.config_type:
+        meta.append(f"cfg={matchup.config_type}")
+    if matchup.direction:
+        meta.append(f"dir={matchup.direction}")
+    meta_str = "|".join(meta) if meta else matchup.composition.value
+
+    return f"{meta_str}:{red}vs{blue}"
 
 
 def _build_team_agents(
@@ -111,14 +121,17 @@ def _build_team_agents(
     cluer_provider = create_provider(
         team_assignment.cluer.provider,
         team_assignment.cluer.model_id,
+        base_url=team_assignment.cluer.base_url,
     )
     guesser1_provider = create_provider(
         team_assignment.guesser_1.provider,
         team_assignment.guesser_1.model_id,
+        base_url=team_assignment.guesser_1.base_url,
     )
     guesser2_provider = create_provider(
         team_assignment.guesser_2.provider,
         team_assignment.guesser_2.model_id,
+        base_url=team_assignment.guesser_2.base_url,
     )
 
     # Create agents

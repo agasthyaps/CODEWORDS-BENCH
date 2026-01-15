@@ -512,6 +512,97 @@ class TestTheoryOfMind:
         # In fallback mode, ToM = clue_efficiency
         assert metrics.theory_of_mind_score == metrics.clue_efficiency
 
+    def test_prediction_based_tom_scoring(self):
+        """Prediction-based ToM should score against actual guesses."""
+        config = GameConfig(seed=42)
+        state = create_game(config=config)
+
+        # Build a minimal episode with one RED turn + prediction trace
+        clue_trace = AgentTrace(
+            agent_id="red_cluer",
+            turn_number=1,
+            prompt_sent="",
+            raw_response="",
+            parsed_result={"word": "TEST", "number": 2, "reasoning": ""},
+            validation_errors=[],
+            retry_count=0,
+            model="mock",
+            temperature=0.0,
+            latency_ms=0.0,
+            input_tokens=0,
+            output_tokens=0,
+        )
+        prediction_trace = AgentTrace(
+            agent_id="red_cluer",
+            turn_number=1,
+            prompt_sent="",
+            raw_response="",
+            parsed_result={
+                "predicted_guesses": ["ALPHA", "BRAVO"],
+                "confusion_risks": [{"word": "XENO", "reason": "looks related"}],
+                "confidence": 5,
+            },
+            validation_errors=[],
+            retry_count=0,
+            model="mock",
+            temperature=0.0,
+            latency_ms=0.0,
+            input_tokens=0,
+            output_tokens=0,
+        )
+
+        turn = TurnTraces(
+            turn_number=1,
+            team=Team.RED,
+            clue_trace=clue_trace,
+            prediction_trace=prediction_trace,
+            discussion_traces=[],
+            guess_trace=None,
+        )
+
+        # Actual guesses: one correct, one wrong
+        transcript = [
+            {
+                "event_type": "guess",
+                "turn_number": 1,
+                "event_index": 1,
+                "team": "RED",
+                "word": "ALPHA",
+                "result": CardType.RED.value,
+                "correct": True,
+            },
+            {
+                "event_type": "guess",
+                "turn_number": 1,
+                "event_index": 2,
+                "team": "RED",
+                "word": "XENO",
+                "result": CardType.NEUTRAL.value,
+                "correct": False,
+            },
+        ]
+
+        episode = ExtendedEpisodeRecord(
+            episode_id="tomtest",
+            config=config,
+            board_seed=state.board_seed,
+            board=state.board,
+            public_transcript=transcript,
+            turn_traces=[turn],
+            winner=None,
+            total_turns=1,
+            metadata={},
+        )
+
+        red = compute_team_metrics(episode, Team.RED)
+        assert red.tom_predictions_count == 1
+        assert red.tom_overlap_at_k == 0.5
+        assert red.tom_confusion_calibration == 1.0
+        assert red.theory_of_mind_score == 0.5
+        assert red.tom_format_compliance_rate == 1.0
+        assert red.cluer_confidence_mean == 5.0
+        assert red.guesser_confidence_correctness_n == 0
+
 
 # ============================================================================
 # Export Tests

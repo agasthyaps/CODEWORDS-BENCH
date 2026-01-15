@@ -9,6 +9,10 @@ from .config import (
     generate_matchups,
     count_total_games,
 )
+from .model_farm import (
+    ModelFarmFile,
+    load_model_farm,
+)
 from .runner import (
     BenchmarkResult,
     BenchmarkProgress,
@@ -35,6 +39,9 @@ __all__ = [
     "ExperimentConfig",
     "generate_matchups",
     "count_total_games",
+    # Model farm
+    "ModelFarmFile",
+    "load_model_farm",
     # Runner
     "BenchmarkResult",
     "BenchmarkProgress",

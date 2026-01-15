@@ -19,6 +19,8 @@ Provide your guesses in this exact format:
 
 ```
 GUESSES: WORD1, WORD2, WORD3
+CONFIDENCE: 1-5
+WHY_STOP: brief reason you stopped (or "N/A" if using max guesses)
 REASONING: Brief explanation of your choices
 ```
 
@@ -26,6 +28,8 @@ Or to pass:
 
 ```
 GUESSES: PASS
+CONFIDENCE: 1-5
+WHY_STOP: PASS
 REASONING: Why you chose to pass
 ```
 

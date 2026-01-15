@@ -17,6 +17,7 @@ from src.benchmark import (
     BenchmarkRunner, BenchmarkResult,
     build_leaderboard, export_leaderboard_markdown,
     count_total_games,
+    load_model_farm,
 )
 from src.benchmark.config import MatchupConfig, TeamAssignment
 
@@ -94,6 +95,9 @@ Examples:
   # Mixed cluer composition (cluers model A, guessers model B)
   python run_benchmark.py --models anthropic/claude-3.5-sonnet openai/gpt-4o \\
       --composition mixed_cluer --seeds 5
+
+  # Mini smoke test (2 models, 1 seed)
+  python run_benchmark.py --mini
         """
     )
 
@@ -103,8 +107,17 @@ Examples:
                         help="Use custom per-agent model flags instead of --models")
 
     # Standard benchmark mode (multiple models, generates matchups)
-    parser.add_argument("--models", nargs="+", default=["anthropic/claude-3.5-sonnet", "openai/gpt-4o"],
-                        help="Models to test (space-separated, for standard benchmark mode)")
+    parser.add_argument(
+        "--models",
+        nargs="+",
+        default=None,
+        help="Models to test (space-separated). If omitted and --models-config exists, loads from that file.",
+    )
+    parser.add_argument(
+        "--models-config",
+        default=None,
+        help="Path to model farm JSON (default: config/models.json if present).",
+    )
     parser.add_argument("--composition", choices=["homogeneous", "mixed_cluer", "mixed_guesser"],
                         default="homogeneous", help="Team composition type")
 
@@ -122,6 +135,18 @@ Examples:
     parser.add_argument("--seeds", type=int, default=10, help="Number of seeds (games per matchup)")
     parser.add_argument("--mode", choices=["standard", "no_assassin", "single_guesser"], default="standard",
                         help="Game mode")
+    parser.add_argument(
+        "--mini",
+        action="store_true",
+        help="Run a small smoke-test benchmark (overrides --seeds and truncates model list).",
+    )
+    parser.add_argument("--mini-seeds", type=int, default=1, help="Seeds when --mini is set")
+    parser.add_argument("--mini-models", type=int, default=2, help="Max models when --mini is set")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print resolved config and total game count, then exit.",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed output for each game")
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
     args = parser.parse_args()
@@ -196,10 +221,42 @@ Examples:
         description = f"Custom: R({red_cluer.split('/')[-1]}+{red_guesser_1.split('/')[-1]}+{red_guesser_2.split('/')[-1]}) vs B({blue_cluer.split('/')[-1]}+{blue_guesser_1.split('/')[-1]}+{blue_guesser_2.split('/')[-1]})"
     else:
         # Standard benchmark mode - generate matchups from model list
-        model_configs = []
-        for model_id in args.models:
-            name = model_id.split("/")[-1] if "/" in model_id else model_id
-            model_configs.append(ModelConfig(name=name, model_id=model_id))
+        # Resolve model list: CLI --models > --models-config > default fallback
+        repo_root = Path(__file__).parent.parent
+        default_models_config_path = repo_root / "config" / "models.json"
+        models_config_path = Path(args.models_config) if args.models_config else None
+
+        model_configs: list[ModelConfig] = []
+        matchup_strategy = "round_robin"
+        matchup_subset = None
+
+        if args.models:
+            for model_id in args.models:
+                name = model_id.split("/")[-1] if "/" in model_id else model_id
+                model_configs.append(ModelConfig(name=name, model_id=model_id))
+        else:
+            load_path = None
+            if models_config_path and models_config_path.exists():
+                load_path = models_config_path
+            elif default_models_config_path.exists():
+                load_path = default_models_config_path
+
+            if load_path is not None:
+                model_configs, farm = load_model_farm(load_path)
+                matchup_strategy = farm.default_matchups
+                matchup_subset = farm.matchups
+            else:
+                # Backward-compatible fallback
+                fallback = ["anthropic/claude-3.5-sonnet", "openai/gpt-4o"]
+                for model_id in fallback:
+                    name = model_id.split("/")[-1] if "/" in model_id else model_id
+                    model_configs.append(ModelConfig(name=name, model_id=model_id))
+
+        if args.mini:
+            # Mini run: cap models and seeds to keep runtime small.
+            if args.mini_models > 0:
+                model_configs = model_configs[:args.mini_models]
+            args.seeds = args.mini_seeds
 
         config = ExperimentConfig(
             name=args.name,
@@ -209,6 +266,8 @@ Examples:
             game_modes=[mode_map[args.mode]],
             seeds=list(range(args.seeds)),
             games_per_config=1,
+            matchup_strategy=matchup_strategy,  # type: ignore[arg-type]
+            matchup_subset=matchup_subset,
         )
         description = f"{' vs '.join(m.name for m in model_configs)} ({args.composition})"
 
@@ -221,9 +280,15 @@ Examples:
     print(f"Matchup: {description}")
     print(f"Mode: {args.mode}")
     print(f"Seeds: {args.seeds}")
+    if args.mini:
+        print(f"{Colors.YELLOW}Mini mode: ON{Colors.RESET} (models={len(config.models)}, seeds={len(config.seeds)})")
     print(f"Total games: {total_games}")
     print(f"Output: benchmark_results/{config.name}/")
     print(f"{'=' * 60}\n")
+
+    if args.dry_run:
+        print("Dry run: exiting before starting benchmark.")
+        return
 
     # Set up logging
     if args.quiet:

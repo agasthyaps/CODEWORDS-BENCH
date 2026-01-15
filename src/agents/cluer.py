@@ -153,6 +153,7 @@ class CluerAgent:
         self.provider = provider
         self.system_prompt = load_prompt_template("cluer_system.md")
         self.turn_prompt_template = load_prompt_template("cluer_turn.md")
+        self.predict_prompt_template = load_prompt_template("cluer_predict.md")
 
     def _build_prompt(self, visible_state: dict[str, Any]) -> tuple[str, str]:
         """Build the system and user prompts from visible state."""
@@ -310,3 +311,126 @@ class CluerAgent:
             f"Failed to generate valid clue after {self.config.max_retries} retries. "
             f"Errors: {validation_errors}"
         )
+
+    async def predict_guesses(
+        self,
+        state: GameState,
+        clue: Clue,
+    ) -> AgentTrace:
+        """
+        After committing a clue (and before seeing teammate discussion), predict teammate behavior.
+
+        This is used for prediction-based Theory-of-Mind scoring.
+        """
+        visible_state = get_visible_state(state, f"{self.config.team.value.lower()}_cluer")
+        system_prompt, _ = self._build_prompt(visible_state)
+
+        clue_number = "UNLIMITED" if clue.number == -1 else str(clue.number)
+        # Provide unrevealed board words to enable translation-to-board.
+        board_words = visible_state["board_words"]
+        revealed = visible_state.get("revealed", {})
+        unrevealed = [w for w in board_words if w not in revealed]
+        board_display = "  ".join(unrevealed)
+        user_prompt = self.predict_prompt_template.format(
+            clue_word=clue.word,
+            clue_number=clue_number,
+            board_words_display=board_display,
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+
+        response: LLMResponse = await self.provider.complete(
+            messages=messages,
+            temperature=self.config.temperature,
+        )
+
+        parsed = _parse_prediction_response(response.content)
+
+        return AgentTrace(
+            agent_id=self.config.agent_id,
+            turn_number=state.turn_number,
+            prompt_sent=f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}",
+            raw_response=response.content,
+            parsed_result=parsed,
+            validation_errors=[],
+            retry_count=0,
+            model=self.config.model,
+            temperature=self.config.temperature,
+            latency_ms=response.latency_ms,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+        )
+
+
+def _parse_prediction_response(response: str) -> dict[str, Any] | None:
+    """
+    Parse prediction response:
+
+    PREDICTED_GUESSES: WORD1, WORD2
+    CONFUSION_RISKS:
+    - WORDX: reason
+    """
+    text = response.strip()
+
+    # Predicted guesses
+    m = re.search(r"PREDICTED_GUESSES\s*:\s*(.+)", text, re.IGNORECASE)
+    if not m:
+        return None
+    guesses_raw = m.group(1).strip()
+    if guesses_raw.upper().startswith("PASS"):
+        predicted_guesses: list[str] = []
+    else:
+        predicted_guesses = [
+            w.strip().upper()
+            for w in re.split(r"[,;\n]+", guesses_raw)
+            if w.strip()
+        ]
+
+    # Translated guesses (board-word mapping)
+    tm = re.search(r"TRANSLATED_GUESSES\s*:\s*(.+)", text, re.IGNORECASE)
+    if tm:
+        translated_raw = tm.group(1).strip()
+        if translated_raw.upper().startswith("PASS"):
+            translated_guesses: list[str] = []
+        else:
+            translated_guesses = [
+                w.strip().upper()
+                for w in re.split(r"[,;\n]+", translated_raw)
+                if w.strip()
+            ]
+    else:
+        translated_guesses = []
+
+    # Confusion risks: parse lines after header, tolerant to bullets
+    risks: list[dict[str, str]] = []
+    risks_match = re.search(r"CONFUSION_RISKS\s*:\s*(.+)", text, re.IGNORECASE | re.DOTALL)
+    if risks_match:
+        risks_block = risks_match.group(1)
+        for line in risks_block.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            line = re.sub(r"^[-*\u2022]\s*", "", line)
+            # WORD: reason
+            m2 = re.match(r"([A-Za-z]+)\s*:\s*(.+)", line)
+            if m2:
+                risks.append({"word": m2.group(1).upper(), "reason": m2.group(2).strip()})
+            else:
+                # If only a word is provided
+                m3 = re.match(r"([A-Za-z]+)$", line)
+                if m3:
+                    risks.append({"word": m3.group(1).upper(), "reason": ""})
+
+    # Confidence (optional)
+    conf_match = re.search(r"CONFIDENCE\s*:\s*\[?\s*([1-5])\s*\]?", text, re.IGNORECASE)
+    confidence = int(conf_match.group(1)) if conf_match else None
+
+    return {
+        "predicted_guesses": predicted_guesses,
+        "translated_guesses": translated_guesses,
+        "confusion_risks": risks,
+        "confidence": confidence,
+    }
