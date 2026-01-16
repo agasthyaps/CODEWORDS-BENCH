@@ -759,7 +759,11 @@ def _sample_team(model_pool: list[str]) -> TeamSelection:
 async def _run_batch_job(job: Job, req: BatchStartRequest) -> None:
     try:
         results = []
+        if req.seed_count > req.count:
+            raise ValueError("seed_count cannot exceed count")
+        seeds = [random.randint(0, 2**31 - 1) for _ in range(req.seed_count)]
         for idx in range(req.count):
+            seed = seeds[idx % len(seeds)]
             if req.pinned:
                 if req.team_selection is None:
                     raise ValueError("pinned batch requires team_selection")
@@ -776,6 +780,7 @@ async def _run_batch_job(job: Job, req: BatchStartRequest) -> None:
                     CodenamesStartRequest(
                         team_selection=selection,
                         mode=req.codenames_mode,
+                        seed=seed,
                         max_discussion_rounds=req.max_discussion_rounds,
                         max_turns=req.max_turns,
                         event_delay_ms=req.event_delay_ms,
@@ -788,7 +793,7 @@ async def _run_batch_job(job: Job, req: BatchStartRequest) -> None:
                     sub_job,
                     DecryptoStartRequest(
                         team_selection=selection,
-                        seed=req.seed,
+                        seed=seed,
                         max_rounds=req.max_rounds,
                         max_discussion_turns_per_guesser=req.max_discussion_turns_per_guesser,
                         event_delay_ms=req.event_delay_ms,

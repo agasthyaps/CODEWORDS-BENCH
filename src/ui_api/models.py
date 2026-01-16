@@ -45,6 +45,7 @@ class DecryptoStartRequest(BaseModel):
 class BatchStartRequest(BaseModel):
     game_type: Literal["codenames", "decrypto"]
     count: int = Field(ge=1, le=500)
+    seed_count: int = Field(default=1, ge=1, le=500)
     pinned: bool = True
     team_selection: TeamSelection | None = None
     model_pool: list[str] | None = None

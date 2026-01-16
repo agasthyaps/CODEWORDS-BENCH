@@ -24,6 +24,7 @@ export default function BatchRunner({ models, defaultModel }: Props) {
   const [gameType, setGameType] = useState<"codenames" | "decrypto">("codenames");
   const [pinned, setPinned] = useState(true);
   const [count, setCount] = useState(5);
+  const [seedCount, setSeedCount] = useState(1);
   const [modelPool, setModelPool] = useState<string[]>([]);
   const [progress, setProgress] = useState({ completed: 0, total: 0 });
   const [status, setStatus] = useState<"idle" | "running" | "finished" | "error">("idle");
@@ -53,6 +54,7 @@ export default function BatchRunner({ models, defaultModel }: Props) {
     const payload: any = {
       game_type: gameType,
       count,
+      seed_count: seedCount,
       pinned,
       team_selection: pinned ? buildSelection() : undefined,
       model_pool: pinned ? undefined : modelPool,
@@ -110,7 +112,23 @@ export default function BatchRunner({ models, defaultModel }: Props) {
               value={count} 
               min={1}
               max={100}
-              onChange={(e) => setCount(Number(e.target.value))} 
+              onChange={(e) => {
+                const nextCount = Number(e.target.value);
+                setCount(nextCount);
+                setSeedCount((prev) => Math.min(prev, nextCount));
+              }} 
+            />
+          </div>
+          <div className="form-row">
+            <label>Random seeds</label>
+            <input 
+              type="number" 
+              value={seedCount} 
+              min={1}
+              max={count}
+              onChange={(e) =>
+                setSeedCount(Math.max(1, Math.min(count, Number(e.target.value))))
+              } 
             />
           </div>
           <div className="form-row">
