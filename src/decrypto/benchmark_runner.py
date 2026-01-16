@@ -99,6 +99,20 @@ def _build_team(team_key: TeamKey, assignment, temperature: float) -> _LLMTeam:
     )
 
 
+def _team_metadata(team_key: TeamKey, assignment: Any) -> dict[str, Any]:
+    return {
+        "type": "llm",
+        "cluer_model": assignment.cluer.model_id,
+        "guesser_1_model": assignment.guesser_1.model_id,
+        "guesser_2_model": assignment.guesser_2.model_id,
+        "agent_models": {
+            f"{team_key}_guesser_1": assignment.guesser_1.model_id,
+            f"{team_key}_guesser_2": assignment.guesser_2.model_id,
+            f"{team_key}_cluer": assignment.cluer.model_id,
+        },
+    }
+
+
 async def run_single_game(
     matchup: MatchupConfig,
     *,
@@ -129,6 +143,10 @@ async def run_single_game(
         )
 
     start = time.time()
+    metadata = {
+        "red_team": _team_metadata("red", matchup.red_team),
+        "blue_team": _team_metadata("blue", matchup.blue_team),
+    }
     episode = await run_episode(
         config=decrypto_config,
         game_id=game_id,
@@ -138,6 +156,7 @@ async def run_single_game(
         run_action_fn=run_action_fn,
         episode_id=f"{seed:04d}-{game_index:02d}-{game_id}",
         timestamp=datetime.utcnow(),
+        metadata=metadata,
     )
     duration = time.time() - start
 
@@ -278,4 +297,3 @@ class DecryptoBenchmarkRunner:
                         callback(completed, total, result)
 
         return results
-

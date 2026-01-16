@@ -213,6 +213,7 @@ async def run_episode(
     run_action_fn: Callable[[RoundInputs, TeamKey, TeamKey, str], Awaitable[ActionLog]],
     episode_id: str,
     timestamp: datetime | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> DecryptoEpisodeRecord:
     """
     Run a full Decrypto episode using strict snapshot semantics.
@@ -277,10 +278,10 @@ async def run_episode(
         winner=winner,
         result_reason=reason,  # type: ignore[arg-type]
         scores={},
+        metadata=metadata or {},
     )
 
     # Metrics are computed after the episode is fully constructed.
     from .metrics import compute_episode_scores
 
     return episode.model_copy(update={"scores": compute_episode_scores(episode)})
-
