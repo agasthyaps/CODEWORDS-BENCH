@@ -16,7 +16,7 @@ from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 
 from src.agents import AgentConfig, CluerAgent, GuesserAgent, create_provider
-from src.agents.guesser import parse_discussion_response
+from src.agents.guesser import parse_discussion_response, _top_lists_match
 from src.benchmark.model_farm import load_model_farm
 from src.decrypto.agents.llm_agents import DecryptoCluerLLM, DecryptoGuesserLLM, run_bounded_action
 from src.decrypto.game import (
@@ -48,7 +48,7 @@ from src.engine import (
 from src.metrics import compute_episode_metrics
 from src.runner import TeamAgents
 from src.runner.episode import ExtendedEpisodeRecord
-from src.runner.orchestrator import run_clue_phase
+from src.runner.orchestrator import run_clue_phase, TurnTraces
 
 from .models import (
     BatchStartRequest,
@@ -306,29 +306,45 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
 
         event_idx = 0
         turn_count = 0
+        all_turn_traces: list[TurnTraces] = []
+        
         while state.winner is None and turn_count < req.max_turns:
             turn_count += 1
-            team_agents = red_team if state.current_turn == Team.RED else blue_team
+            current_team = state.current_turn
+            team_agents = red_team if current_team == Team.RED else blue_team
 
             # Clue phase
-            state, _clue_trace, should_continue = await run_clue_phase(
+            state, clue_trace, should_continue = await run_clue_phase(
                 team_agents.cluer, state
             )
             event_idx = await _emit_new_events(
                 job, state, event_idx, delay_ms=req.event_delay_ms
             )
             if not should_continue:
+                # Ghost clue - no traces to record for this turn
                 continue
 
-            # Discussion phase (stream per message)
+            # Prediction step (for ToM): cluer predicts teammate guesses before discussion
+            prediction_trace = None
+            try:
+                if hasattr(team_agents.cluer, "predict_guesses") and state.current_clue is not None:
+                    prediction_trace = await team_agents.cluer.predict_guesses(state, state.current_clue)
+            except Exception:
+                # Prediction should never crash the game; store nothing on failure.
+                prediction_trace = None
+
+            # Discussion phase (stream per message) - collect traces
             discussion_messages = []
+            discussion_traces = []
             if req.mode != GameMode.SINGLE_GUESSER and team_agents.guesser_2 is not None:
                 consecutive_consensus = 0
+                previous_top_words: list[str] | None = None
                 max_messages = req.max_discussion_rounds * 2
                 guessers = [team_agents.guesser_1, team_agents.guesser_2]
                 for i in range(max_messages):
                     guesser = guessers[i % 2]
-                    message, _trace = await guesser.discuss(state, discussion_messages)
+                    message, trace = await guesser.discuss(state, discussion_messages)
+                    discussion_traces.append(trace)  # Collect trace
                     state = add_discussion_message(
                         state, message.agent_id, message.content
                     )
@@ -337,19 +353,31 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
                     event_idx = await _emit_new_events(
                         job, state, event_idx, delay_ms=req.event_delay_ms
                     )
+                    # Check for consensus - requires YES and matching TOP lists
                     parsed = parse_discussion_response(message.content)
                     if parsed.consensus:
-                        consecutive_consensus += 1
-                        if consecutive_consensus >= 2:
-                            break
+                        if consecutive_consensus == 0:
+                            # First YES - store the TOP list
+                            consecutive_consensus = 1
+                            previous_top_words = parsed.top_words
+                        else:
+                            # Second consecutive YES - check if TOP lists match
+                            if _top_lists_match(previous_top_words, parsed.top_words):
+                                # Real consensus - both said YES with same words
+                                break
+                            else:
+                                # False consensus - YES but different words, reset
+                                consecutive_consensus = 1
+                                previous_top_words = parsed.top_words
                     else:
                         consecutive_consensus = 0
+                        previous_top_words = None
 
             if state.phase == Phase.DISCUSSION:
                 state = transition_to_guessing(state)
 
-            # Guess phase (stream per guess)
-            guesses, _trace = await team_agents.primary_guesser.make_guesses(
+            # Guess phase (stream per guess) - collect trace
+            guesses, guess_trace = await team_agents.primary_guesser.make_guesses(
                 state, discussion_messages
             )
             if not guesses:
@@ -373,6 +401,17 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
                         job, state, event_idx, delay_ms=req.event_delay_ms
                     )
 
+            # Build turn trace
+            turn_trace = TurnTraces(
+                turn_number=turn_count,
+                team=current_team,
+                clue_trace=clue_trace,
+                prediction_trace=prediction_trace,
+                discussion_traces=discussion_traces,
+                guess_trace=guess_trace,
+            )
+            all_turn_traces.append(turn_trace)
+
             if state.phase == Phase.GAME_OVER:
                 break
 
@@ -382,7 +421,7 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
             board_seed=state.board_seed,
             board=state.board,
             public_transcript=[e.model_dump() for e in state.public_transcript],
-            turn_traces=[],
+            turn_traces=[t.model_dump(mode="json") for t in all_turn_traces],
             winner=state.winner,
             total_turns=turn_count,
             metadata={

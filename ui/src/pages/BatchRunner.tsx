@@ -26,6 +26,7 @@ export default function BatchRunner({ models, defaultModel }: Props) {
   const [count, setCount] = useState(5);
   const [modelPool, setModelPool] = useState<string[]>([]);
   const [progress, setProgress] = useState({ completed: 0, total: 0 });
+  const [status, setStatus] = useState<"idle" | "running" | "finished" | "error">("idle");
   const [results, setResults] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +49,7 @@ export default function BatchRunner({ models, defaultModel }: Props) {
     setProgress({ completed: 0, total: count });
     setResults([]);
     setError(null);
+    setStatus("running");
     const payload: any = {
       game_type: gameType,
       count,
@@ -69,23 +71,31 @@ export default function BatchRunner({ models, defaultModel }: Props) {
     stream.addEventListener("done", (ev: MessageEvent) => {
       const payload = JSON.parse(ev.data);
       setResults(payload.results || []);
+      setStatus("finished");
       stream.close();
     });
     stream.addEventListener("job_error", (ev: MessageEvent) => {
       const payload = JSON.parse(ev.data);
       setError(payload.error || "Batch failed");
+      setStatus("error");
       stream.close();
     });
     stream.addEventListener("error", () => {
+      setStatus("error");
       stream.close();
     });
   }
+
+  const progressPercent = progress.total > 0 
+    ? Math.round((progress.completed / progress.total) * 100) 
+    : 0;
 
   return (
     <div className="page">
       <h2>Batch Runner</h2>
       <div className="controls">
         <div className="panel">
+          <h3>Batch Settings</h3>
           <div className="form-row">
             <label>Game type</label>
             <select value={gameType} onChange={(e) => setGameType(e.target.value as any)}>
@@ -95,7 +105,13 @@ export default function BatchRunner({ models, defaultModel }: Props) {
           </div>
           <div className="form-row">
             <label>Games</label>
-            <input type="number" value={count} onChange={(e) => setCount(Number(e.target.value))} />
+            <input 
+              type="number" 
+              value={count} 
+              min={1}
+              max={100}
+              onChange={(e) => setCount(Number(e.target.value))} 
+            />
           </div>
           <div className="form-row">
             <label>Pinned teams</label>
@@ -115,11 +131,17 @@ export default function BatchRunner({ models, defaultModel }: Props) {
               ))}
             </div>
           )}
-          <button onClick={handleStart}>Start batch</button>
-          <div className="muted">
-            Progress: {progress.completed} / {progress.total}
+          <button onClick={handleStart} disabled={status === "running"}>
+            {status === "running" ? "Running..." : "Start Batch"}
+          </button>
+          <div className={`status ${status}`}>
+            <span className="status-dot" />
+            {status === "running" 
+              ? `Running: ${progress.completed}/${progress.total} (${progressPercent}%)`
+              : status.charAt(0).toUpperCase() + status.slice(1)
+            }
           </div>
-          {error && <div className="error">{error}</div>}
+          {error && <div className="error-banner">{error}</div>}
         </div>
         {pinned && (
           <>
@@ -129,7 +151,7 @@ export default function BatchRunner({ models, defaultModel }: Props) {
         )}
       </div>
       {results.length > 0 && (
-        <div className="panel">
+        <div className="panel batch-results">
           <h3>Batch Results</h3>
           <pre>{JSON.stringify(results, null, 2)}</pre>
         </div>

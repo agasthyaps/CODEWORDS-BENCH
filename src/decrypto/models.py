@@ -254,7 +254,7 @@ class DecryptoEpisodeRecord(BaseModel):
     code_sequences: dict[TeamKey, tuple[tuple[int, int, int], ...]]
     rounds: tuple[RoundLog, ...]
     winner: TeamKey | None = None
-    result_reason: Literal["interceptions", "miscommunications", "survived", "max_rounds"] | None = None
+    result_reason: Literal["interceptions", "miscommunications", "survived", "max_rounds", "tie_interceptions", "tie_miscommunications"] | None = None
     scores: dict[str, Any] = Field(default_factory=dict)
 
     def to_filename(self) -> str:

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { fetchReplay, fetchReplays, fetchStats } from "../api";
 import CodenamesBoard from "../components/CodenamesBoard";
 import ChatPanel from "../components/ChatPanel";
@@ -93,9 +95,9 @@ export default function ReplayViewer() {
       .forEach((action: any) => {
         const kind = action.kind?.toUpperCase();
         const guess = action.consensus?.guess?.join("-") || "N/A";
-        entries.push(`${kind} guess ${guess}`);
+        entries.push(`${kind} consensus ${guess}`);
         (action.share || []).forEach((share: any) => {
-          entries.push(`  share (${share.agent_id}): ${share.message}`);
+          entries.push(`share (${share.agent_id}): ${share.message}`);
         });
       });
     return entries;
@@ -110,9 +112,9 @@ export default function ReplayViewer() {
       .forEach((action: any) => {
         const kind = action.kind?.toUpperCase();
         const guess = action.consensus?.guess?.join("-") || "N/A";
-        entries.push(`${kind} guess ${guess}`);
+        entries.push(`${kind} consensus ${guess}`);
         (action.share || []).forEach((share: any) => {
-          entries.push(`  share (${share.agent_id}): ${share.message}`);
+          entries.push(`share (${share.agent_id}): ${share.message}`);
         });
       });
     return entries;
@@ -120,8 +122,9 @@ export default function ReplayViewer() {
 
   return (
     <div className="page">
-      <h2>Replay</h2>
-      <div className="panel">
+      <h2>Replay Viewer</h2>
+      <div className="panel" style={{ marginBottom: 24 }}>
+        <h3>Select Replay</h3>
         <div className="form-row">
           <label>Replay</label>
           <select
@@ -131,10 +134,10 @@ export default function ReplayViewer() {
               setSelected(next);
             }}
           >
-            <option value="">Select a replay</option>
+            <option value="">Choose a replay...</option>
             {replays.map((r) => (
               <option key={r.replay_id} value={r.replay_id}>
-                {r.game_type} — {r.replay_id}
+                {r.game_type.charAt(0).toUpperCase() + r.game_type.slice(1)} — {r.replay_id.slice(0, 12)}...
               </option>
             ))}
           </select>
@@ -142,81 +145,101 @@ export default function ReplayViewer() {
       </div>
 
       {codenames && (
-        <div className="layout">
-          <div className="left">
-            <CodenamesBoard
-              words={codenames.board.words || []}
-              keyByWord={codenames.board.key_by_word || {}}
-              revealed={revealed}
-            />
-            <div className="panel">
-              <label>Event</label>
-              <input
-                type="range"
-                min={0}
-                max={maxIndex}
-                value={eventIndex}
-                onChange={(e) => setEventIndex(Number(e.target.value))}
+        <>
+          <div className="layout">
+            <div className="left">
+              <CodenamesBoard
+                words={codenames.board.words || []}
+                keyByWord={codenames.board.key_by_word || {}}
+                revealed={revealed}
               />
-              <div className="muted">
-                {eventIndex} / {maxIndex}
+              <div className="panel">
+                <h3>Timeline</h3>
+                <div className="form-row">
+                  <label>Event</label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={maxIndex}
+                    value={eventIndex}
+                    onChange={(e) => setEventIndex(Number(e.target.value))}
+                  />
+                  <span className="muted">{eventIndex} / {maxIndex}</span>
+                </div>
               </div>
             </div>
+            <div className="right">
+              <ChatPanel title="Transcript" entries={chatEntries} />
+            </div>
           </div>
-          <div className="right">
-            <ChatPanel title="Transcript" entries={chatEntries} />
+          <div className="below-layout">
             {analysisLoading && (
               <div className="panel">
-                <h3>Opus Analysis</h3>
-                <div className="muted">Analyzing game results...</div>
+                <h3>Analysis</h3>
+                <div className="loading-text">Loading analysis...</div>
               </div>
             )}
             {analysis && (
-              <div className="panel">
-                <h3>Opus Analysis</h3>
-                <div className="analysis">{analysis}</div>
+              <div className="panel analysis-panel">
+                <h3>Analysis</h3>
+                <div className="analysis-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{analysis}</ReactMarkdown>
+                </div>
               </div>
             )}
           </div>
-        </div>
+        </>
       )}
 
       {decrypto && (
-        <div className="layout decrypto">
-          <div className="left">
-            <ChatPanel title="Red Log" entries={redLog} />
-          </div>
-          <div className="center">
-            <DecryptoBoard redKey={redKey} blueKey={blueKey} />
-            <div className="panel">
-              <label>Round</label>
-              <input
-                type="range"
-                min={0}
-                max={rounds.length}
-                value={eventIndex}
-                onChange={(e) => setEventIndex(Number(e.target.value))}
-              />
-              <div className="muted">
-                {eventIndex} / {rounds.length}
+        <>
+          <div className="layout decrypto">
+            <div className="left">
+              <ChatPanel title="Red Team Log" entries={redLog} variant="decrypto" />
+            </div>
+            <div className="center">
+              <DecryptoBoard redKey={redKey} blueKey={blueKey} />
+              <div className="panel">
+                <h3>Timeline</h3>
+                <div className="form-row">
+                  <label>Round</label>
+                  <input
+                    type="range"
+                    min={0}
+                    max={rounds.length}
+                    value={eventIndex}
+                    onChange={(e) => setEventIndex(Number(e.target.value))}
+                  />
+                  <span className="muted">{eventIndex} / {rounds.length}</span>
+                </div>
               </div>
             </div>
+            <div className="right">
+              <ChatPanel title="Blue Team Log" entries={blueLog} variant="decrypto" />
+            </div>
+          </div>
+          <div className="below-layout">
             {analysisLoading && (
               <div className="panel">
-                <h3>Opus Analysis</h3>
-                <div className="muted">Analyzing game results...</div>
+                <h3>Analysis</h3>
+                <div className="loading-text">Loading analysis...</div>
               </div>
             )}
             {analysis && (
-              <div className="panel">
-                <h3>Opus Analysis</h3>
-                <div className="analysis">{analysis}</div>
+              <div className="panel analysis-panel">
+                <h3>Analysis</h3>
+                <div className="analysis-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{analysis}</ReactMarkdown>
+                </div>
               </div>
             )}
           </div>
-          <div className="right">
-            <ChatPanel title="Blue Log" entries={blueLog} />
-          </div>
+        </>
+      )}
+
+      {!selected && (
+        <div className="panel">
+          <div className="empty-state">Select a replay from the dropdown above to view it.</div>
         </div>
       )}
     </div>

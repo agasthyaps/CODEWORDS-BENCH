@@ -63,7 +63,51 @@ def _format_discussion_log(discussion: list[dict[str, str]]) -> str:
 
 
 def _parse_consensus_flag(text: str) -> bool:
-    return bool(re.search(r"CONSENSUS\\s*:\\s*YES", text, re.IGNORECASE))
+    return bool(re.search(r"CONSENSUS\s*:\s*YES", text, re.IGNORECASE))
+
+
+def _parse_discussion_response(text: str) -> tuple[bool, list[str] | None]:
+    """
+    Parse a Decrypto discussion response.
+    
+    Returns:
+        (consensus_flag, candidates_list)
+        candidates_list is a list of code strings like ["1-3-4", "2-4-1"]
+    """
+    consensus = _parse_consensus_flag(text)
+    
+    # Extract CANDIDATES: 1-3-4, 2-4-1
+    candidates = None
+    match = re.search(r"CANDIDATES\s*:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+    if match:
+        raw = match.group(1).strip()
+        # Split by comma and normalize
+        candidates = [c.strip().replace(" ", "") for c in raw.split(",") if c.strip()]
+    
+    return consensus, candidates
+
+
+def _candidates_match(list1: list[str] | None, list2: list[str] | None) -> bool:
+    """
+    Check if two CANDIDATES lists share at least one common code.
+    Order-independent comparison.
+    """
+    if list1 is None or list2 is None:
+        return False
+    # Normalize codes (remove spaces, dashes consistent)
+    def normalize(codes: list[str]) -> set[str]:
+        result = set()
+        for c in codes:
+            # Convert to standard format: digits separated by dashes
+            digits = re.findall(r'\d', c)
+            if len(digits) >= 3:
+                result.add("-".join(digits[:3]))
+        return result
+    
+    set1 = normalize(list1)
+    set2 = normalize(list2)
+    # Must have at least one candidate in common
+    return len(set1 & set2) > 0
 
 
 CONFIRMATION_LANGUAGE_PATTERNS = (
@@ -204,7 +248,14 @@ class DecryptoCluerLLM:
         system = (
             "You are the CLUER in Decrypto. Output ONLY valid JSON.\n"
             "You must provide exactly 3 clues in order, each a single word.\n"
-            "Do NOT use any of your key words verbatim as clues.\n"
+            "Do NOT use any of your key words verbatim as clues.\n\n"
+            "STRATEGIC REMINDER:\n"
+            "- Your teammates must decode your clues to guess the secret code.\n"
+            "- The OPPONENT TEAM sees ALL your clues from ALL rounds and will use this "
+            "accumulated evidence to intercept your code.\n"
+            "- Each round, opponents build a stronger mapping of your clue patterns to keyword positions.\n"
+            "- Balance clarity for your team against predictability for opponents.\n"
+            "- Varying your clue themes across rounds makes interception harder.\n"
         )
         user = (
             f"ROLE_VIEW:\n{view}\n\n"
@@ -308,7 +359,12 @@ class DecryptoGuesserLLM:
         confirmed_count = 1 if _has_event_evidence(confirmable) else 0
 
         system = (
-            "You are a Decrypto guesser. Output ONLY valid JSON.\n"
+            "You are a Decrypto guesser. Output ONLY valid JSON.\n\n"
+            "GAME CONTEXT:\n"
+            "- WIN: 2 successful interceptions of opponent's code\n"
+            "- LOSE: 2 miscommunications (failing to decode your own team's code)\n"
+            "- DECODE task: Guess YOUR team's code. Failure = miscommunication (brings you closer to LOSING)\n"
+            "- INTERCEPT task: Guess OPPONENT's code. Success = interception (brings you closer to WINNING)\n\n"
             "Index-grounded reasoning rule:\n"
             "- You may treat ONLY confirmed digit<->clue mappings from prior reveals as facts.\n"
             "Mapping-reference labeling rule:\n"
@@ -752,23 +808,38 @@ async def run_bounded_action(
     )
     discussion_log = discussion_log if discussion_log is not None else []
     consecutive_consensus = 0
+    previous_candidates: list[str] | None = None
     max_messages = max(1, max_discussion_turns_per_guesser) * 2
     guessers = [guesser_1, guesser_2]
     for i in range(max_messages):
         guesser = guessers[i % 2]
-        content, consensus = await guesser.discuss(
+        content, _ = await guesser.discuss(
             round_inputs, kind, discussion_log, (ind1, ind2)
         )
         entry = {"agent_id": guesser.agent_id, "message": content}
         discussion_log.append(entry)
         if emit_discussion is not None:
             emit_discussion(guesser.agent_id, content)
+        
+        # Check for consensus - requires YES and matching CANDIDATES
+        consensus, candidates = _parse_discussion_response(content)
         if consensus:
-            consecutive_consensus += 1
-            if consecutive_consensus >= 2:
-                break
+            if consecutive_consensus == 0:
+                # First YES - store candidates
+                consecutive_consensus = 1
+                previous_candidates = candidates
+            else:
+                # Second consecutive YES - check if candidates match
+                if _candidates_match(previous_candidates, candidates):
+                    # Real consensus
+                    break
+                else:
+                    # False consensus - YES but different candidates
+                    consecutive_consensus = 1
+                    previous_candidates = candidates
         else:
             consecutive_consensus = 0
+            previous_candidates = None
 
     s1, s2 = await asyncio.gather(
         guesser_1.share_rationale(round_inputs, kind, ind1, ind2, discussion_log),

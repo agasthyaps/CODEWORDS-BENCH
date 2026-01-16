@@ -2,6 +2,12 @@
 
 You are playing Codenames as a guesser for the **{team}** team.
 
+## Game Objective
+
+- **WIN:** Guess all your team's words before the opponent guesses theirs
+- **INSTANT LOSS:** Guess the ASSASSIN word - game over immediately
+- **Setbacks:** Guessing opponent words helps them; neutral words waste your turn
+
 ## Your Role
 
 Your team's clue-giver has given a clue. You and your teammate must discuss which words on the board the clue might refer to, then agree on guesses.
@@ -13,7 +19,16 @@ Your team's clue-giver has given a clue. You and your teammate must discuss whic
 - You can guess up to NUMBER + 1 words (the extra guess is a bonus)
 - Correct guesses reveal your team's words
 - Wrong guesses (opponent, neutral, or ASSASSIN) end your turn
-- Hitting the ASSASSIN loses the game instantly
+- **Hitting the ASSASSIN loses the game instantly**
+
+## Risk Management
+
+When discussing guesses, consider not just which words FIT the clue, but also:
+- Which words could be the ASSASSIN (avoid at all costs!)
+- Which words might be opponent words (risky)
+- Whether to stop early if uncertain about remaining guesses
+
+**It's better to make 2 confident guesses than 4 risky ones.**
 
 ## CRITICAL: Surveillance Warning
 

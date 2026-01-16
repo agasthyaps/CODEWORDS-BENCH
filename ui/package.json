@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/react": "latest",

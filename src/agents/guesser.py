@@ -467,6 +467,21 @@ class GuesserAgent:
         return guesses, trace
 
 
+def _top_lists_match(list1: list[str] | None, list2: list[str] | None) -> bool:
+    """
+    Check if two TOP word lists match (order-independent).
+    
+    Returns True if both lists contain the same words (case-insensitive).
+    Returns False if either list is None or they differ.
+    """
+    if list1 is None or list2 is None:
+        return False
+    # Normalize to uppercase sets for comparison
+    set1 = set(w.upper() for w in list1)
+    set2 = set(w.upper() for w in list2)
+    return set1 == set2
+
+
 async def run_discussion(
     guessers: list[GuesserAgent],
     state: GameState,
@@ -477,7 +492,7 @@ async def run_discussion(
 
     Guessers alternate (guesser_1, guesser_2, guesser_1, ...).
     Each message is added to public_transcript immediately.
-    Ends when: 2 consecutive CONSENSUS: YES signals, OR max_rounds reached.
+    Ends when: 2 consecutive CONSENSUS: YES signals WITH matching TOP lists, OR max_rounds reached.
 
     Returns:
         Tuple of (messages, traces, updated_state)
@@ -489,8 +504,9 @@ async def run_discussion(
     traces: list[AgentTrace] = []
     current_state = state
 
-    # Track consecutive consensus signals
+    # Track consecutive consensus signals and their TOP lists
     consecutive_consensus = 0
+    previous_top_words: list[str] | None = None
     max_messages = max_rounds * 2  # 2 guessers per round
 
     for i in range(max_messages):
@@ -514,14 +530,25 @@ async def run_discussion(
         else:
             messages.append(message)
 
-        # Check for consensus
+        # Check for consensus - requires YES and matching TOP lists
         parsed = parse_discussion_response(message.content)
         if parsed.consensus:
-            consecutive_consensus += 1
-            if consecutive_consensus >= 2:
-                # Both agreed - end discussion
-                break
+            if consecutive_consensus == 0:
+                # First YES - store the TOP list
+                consecutive_consensus = 1
+                previous_top_words = parsed.top_words
+            else:
+                # Second consecutive YES - check if TOP lists match
+                if _top_lists_match(previous_top_words, parsed.top_words):
+                    # Real consensus - both said YES with same words
+                    consecutive_consensus = 2
+                    break
+                else:
+                    # False consensus - YES but different words, reset
+                    consecutive_consensus = 1
+                    previous_top_words = parsed.top_words
         else:
             consecutive_consensus = 0
+            previous_top_words = None
 
     return messages, traces, current_state

@@ -2,6 +2,11 @@
 
 You are playing Codenames as the clue-giver for the **{team}** team.
 
+## Game Objective
+
+**WIN:** Get your team to guess all your words before the opponent does.
+**LOSE INSTANTLY:** If your team guesses the ASSASSIN word.
+
 ## Game Rules
 
 In Codenames, you give one-word clues to help your teammates guess specific words on the board. Each clue consists of:
@@ -9,6 +14,15 @@ In Codenames, you give one-word clues to help your teammates guess specific word
 - **A number** indicating how many words relate to your clue
 
 Your teammates will try to guess which words you're hinting at based on your clue.
+
+## Critical Risk Awareness
+
+Your clues must help your team while AVOIDING these dangers:
+1. **ASSASSIN** - If your team guesses this word, YOU LOSE IMMEDIATELY. Never give clues that could lead here.
+2. **Opponent words** - Guessing these gives the opponent free progress toward winning.
+3. **Neutral words** - End your turn without progress.
+
+**Think about what could go wrong, not just what could go right.**
 
 ## Clue Restrictions
 
@@ -43,5 +57,5 @@ Example:
 ```
 CLUE: OCEAN
 NUMBER: 3
-REASONING: Connects WAVE, FISH, and BEACH. Avoiding SHIP which is opponent's word.
+REASONING: Connects WAVE, FISH, and BEACH. Avoiding SHIP which is opponent's word. SUBMARINE is the assassin - OCEAN doesn't connect to it.
 ```

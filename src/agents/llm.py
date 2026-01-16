@@ -60,36 +60,67 @@ class OpenRouterProvider(LLMProvider):
         messages: list[dict[str, str]],
         temperature: float = 0.7,
         max_tokens: int = 1024,
+        max_retries: int = 3,
     ) -> LLMResponse:
-        """Generate a completion using OpenRouter."""
+        """Generate a completion using OpenRouter with retry logic."""
+        import asyncio
+        import logging
+        
+        logger = logging.getLogger("llm")
         start_time = time.perf_counter()
+        last_error: Exception | None = None
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                },
-                timeout=60.0,
-            )
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.api_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": self.model,
+                            "messages": messages,
+                            "temperature": temperature,
+                            "max_tokens": max_tokens,
+                        },
+                        timeout=120.0,  # Increased timeout
+                    )
 
-            # Check for errors with detailed message
-            if response.status_code != 200:
-                try:
-                    error_data = response.json()
-                    error_msg = error_data.get("error", {}).get("message", response.text)
-                except Exception:
-                    error_msg = response.text
-                raise RuntimeError(f"OpenRouter API error ({response.status_code}): {error_msg}")
+                    # Check for errors with detailed message
+                    if response.status_code != 200:
+                        try:
+                            error_data = response.json()
+                            error_msg = error_data.get("error", {}).get("message", response.text)
+                        except Exception:
+                            error_msg = response.text
+                        
+                        # Retry on 5xx errors or rate limits
+                        if response.status_code >= 500 or response.status_code == 429:
+                            last_error = RuntimeError(f"OpenRouter API error ({response.status_code}): {error_msg}")
+                            if attempt < max_retries - 1:
+                                wait_time = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+                                logger.warning(f"API error {response.status_code}, retrying in {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                                await asyncio.sleep(wait_time)
+                                continue
+                        raise RuntimeError(f"OpenRouter API error ({response.status_code}): {error_msg}")
 
-            data = response.json()
+                    data = response.json()
+                    break  # Success, exit retry loop
+                    
+            except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ConnectError, httpx.TimeoutException) as e:
+                # Network errors - retry with backoff
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    logger.warning(f"Network error ({type(e).__name__}), retrying in {wait_time}s (attempt {attempt + 1}/{max_retries}): {e}")
+                    await asyncio.sleep(wait_time)
+                    continue
+                raise RuntimeError(f"Network error after {max_retries} attempts: {e}") from e
+        else:
+            # All retries exhausted
+            raise RuntimeError(f"Failed after {max_retries} attempts") from last_error
 
         latency_ms = (time.perf_counter() - start_time) * 1000
 

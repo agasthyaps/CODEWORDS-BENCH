@@ -375,21 +375,33 @@ def compute_team_metrics(
         if discussions_by_turn else 0
     )
 
-    # Consensus rate: check turn traces for consensus
+    # Consensus rate: check turn traces for real consensus (both YES + matching TOP lists)
     team_turns = [t for t in turn_traces if t.team == team]
     turns_with_consensus = 0
 
+    def _top_lists_match(list1: list[str] | None, list2: list[str] | None) -> bool:
+        """Check if two TOP word lists match (order-independent)."""
+        if list1 is None or list2 is None:
+            return False
+        set1 = set(w.upper() for w in list1)
+        set2 = set(w.upper() for w in list2)
+        return set1 == set2
+
     for turn_trace in team_turns:
-        # Check if discussion traces indicate consensus
-        if turn_trace.discussion_traces:
-            # Look for consecutive CONSENSUS: YES in the last messages
-            last_traces = turn_trace.discussion_traces[-2:] if len(turn_trace.discussion_traces) >= 2 else turn_trace.discussion_traces
-            consensus_found = all(
+        # Check if discussion traces indicate real consensus
+        if turn_trace.discussion_traces and len(turn_trace.discussion_traces) >= 2:
+            # Look for consecutive CONSENSUS: YES with matching TOP lists
+            last_traces = turn_trace.discussion_traces[-2:]
+            both_said_yes = all(
                 trace.parsed_result and trace.parsed_result.get("consensus", False)
                 for trace in last_traces
             )
-            if consensus_found:
-                turns_with_consensus += 1
+            if both_said_yes:
+                # Verify TOP lists match
+                top1 = last_traces[0].parsed_result.get("top_words") if last_traces[0].parsed_result else None
+                top2 = last_traces[1].parsed_result.get("top_words") if last_traces[1].parsed_result else None
+                if _top_lists_match(top1, top2):
+                    turns_with_consensus += 1
 
     consensus_rate = turns_with_consensus / len(team_turns) if team_turns else 0.0
 

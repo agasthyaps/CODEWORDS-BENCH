@@ -10,7 +10,7 @@ type Props = {
 export default function ModelPicker({ models, value, onChange, label }: Props) {
   const options = models.map((m) => (
     <option key={m.model_id} value={m.model_id}>
-      {m.name} ({m.model_id})
+      {m.name}
     </option>
   ));
 

@@ -133,20 +133,38 @@ def check_winner(
     Returns (winner_team, reason) where reason is one of:
     - interceptions
     - miscommunications
+    - tie_interceptions (both reached 2 interceptions)
+    - tie_miscommunications (both reached 2 miscommunications)
     - survived
     - max_rounds
+    
+    Winner is None for ties and survived outcomes.
     """
     r = counters["red"]
     b = counters["blue"]
 
-    if r.own_interceptions >= 2:
+    # Check for interception wins/ties
+    red_intercept_win = r.own_interceptions >= 2
+    blue_intercept_win = b.own_interceptions >= 2
+    
+    if red_intercept_win and blue_intercept_win:
+        # Both reached 2 interceptions - tie
+        return None, "tie_interceptions"
+    if red_intercept_win:
         return "red", "interceptions"
-    if b.own_interceptions >= 2:
+    if blue_intercept_win:
         return "blue", "interceptions"
 
-    if r.own_miscommunications >= 2:
+    # Check for miscommunication losses/ties
+    red_miscomm_loss = r.own_miscommunications >= 2
+    blue_miscomm_loss = b.own_miscommunications >= 2
+    
+    if red_miscomm_loss and blue_miscomm_loss:
+        # Both reached 2 miscommunications - tie
+        return None, "tie_miscommunications"
+    if red_miscomm_loss:
         return "blue", "miscommunications"
-    if b.own_miscommunications >= 2:
+    if blue_miscomm_loss:
         return "red", "miscommunications"
 
     if round_number >= max_rounds:
