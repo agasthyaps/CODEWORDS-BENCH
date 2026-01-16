@@ -256,6 +256,7 @@ class DecryptoEpisodeRecord(BaseModel):
     winner: TeamKey | None = None
     result_reason: Literal["interceptions", "miscommunications", "survived", "max_rounds", "tie_interceptions", "tie_miscommunications"] | None = None
     scores: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     def to_filename(self) -> str:
         ts = self.timestamp.strftime("%Y%m%d_%H%M%S")
@@ -276,4 +277,3 @@ class DecryptoEpisodeRecord(BaseModel):
         with open(fp, "w") as f:
             json.dump(data, f, indent=2)
         return str(fp)
-

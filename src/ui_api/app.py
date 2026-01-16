@@ -282,6 +282,28 @@ def _build_decrypto_team(
     }
 
 
+def _decrypto_team_metadata(
+    model_map: dict[str, Any],
+    team_key: TeamKey,
+    config: dict[str, str | None],
+) -> dict[str, Any]:
+    cluer_model = model_map[config["cluer"]].model_id
+    g1_model = model_map[config["guesser_1"]].model_id
+    g2_key = config["guesser_2"] or config["guesser_1"]
+    g2_model = model_map[g2_key].model_id
+    return {
+        "type": "llm",
+        "cluer_model": cluer_model,
+        "guesser_1_model": g1_model,
+        "guesser_2_model": g2_model,
+        "agent_models": {
+            f"{team_key}_cluer": cluer_model,
+            f"{team_key}_guesser_1": g1_model,
+            f"{team_key}_guesser_2": g2_model,
+        },
+    }
+
+
 async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
     try:
         model_map = _load_model_map()
@@ -467,6 +489,10 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
         selection = _resolve_team_selection(req.team_selection, allow_single=False)
         red_team = _build_decrypto_team(model_map, "red", selection["red"])
         blue_team = _build_decrypto_team(model_map, "blue", selection["blue"])
+        metadata = {
+            "red_team": _decrypto_team_metadata(model_map, "red", selection["red"]),
+            "blue_team": _decrypto_team_metadata(model_map, "blue", selection["blue"]),
+        }
 
         cfg = DecryptoConfig(seed=req.seed, max_rounds=req.max_rounds)
         game_id, keys, code_sequences = create_decrypto_game(cfg)
@@ -684,6 +710,7 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
             winner=winner,
             result_reason=reason,  # type: ignore[arg-type]
             scores={},
+            metadata=metadata,
         )
         from src.decrypto.metrics import compute_episode_scores
 
