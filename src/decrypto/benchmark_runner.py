@@ -129,11 +129,16 @@ async def run_single_game(
 
     async def run_cluer_fn(round_inputs, team: TeamKey):
         agent = red_team.cluer if team == "red" else blue_team.cluer
-        return await agent.generate(round_inputs, team)
+        # agent.generate returns (ClueSet, trace_data, scratchpad_addition)
+        # but orchestrator expects (ClueSet, trace_data)
+        clue_set, trace_data, _scratchpad = await agent.generate(round_inputs, team)
+        return clue_set, trace_data
 
     async def run_action_fn(round_inputs, team: TeamKey, opponent_team: TeamKey, kind: str):
         acting = red_team if team == "red" else blue_team
-        return await run_bounded_action(
+        # run_bounded_action returns (ActionLog, scratchpad_additions_dict)
+        # but orchestrator expects just ActionLog
+        action_log, _scratchpad_adds = await run_bounded_action(
             round_inputs,
             team,
             opponent_team,
@@ -141,6 +146,7 @@ async def run_single_game(
             acting.g1,
             acting.g2,
         )
+        return action_log
 
     start = time.time()
     metadata = {
