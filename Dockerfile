@@ -37,8 +37,8 @@ RUN mkdir -p /app/benchmark_results
 ENV BENCHMARK_DATA_DIR=/app/benchmark_results
 ENV PYTHONUNBUFFERED=1
 
-# Expose port (Railway uses dynamic PORT env var)
+# Expose port
 EXPOSE 8000
 
 # Run the API server (Railway injects PORT env var)
-CMD ["sh", "-c", "uvicorn src.ui_api.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD uvicorn src.ui_api.app:app --host 0.0.0.0 --port ${PORT:-8000}
