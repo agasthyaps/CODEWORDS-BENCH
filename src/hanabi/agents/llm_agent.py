@@ -68,11 +68,11 @@ def _format_played_cards(played: dict[str, int]) -> str:
     return " | ".join(parts)
 
 
-def _format_recent_actions(history: list[dict[str, Any]], limit: int = 10) -> str:
-    """Format recent action history."""
+def _format_recent_actions(history: list[dict[str, Any]], limit: int = 30) -> str:
+    """Format recent action history (default: ~10 rounds with 3 players)."""
     if not history:
         return "  (no actions yet)"
-    
+
     recent = history[-limit:]
     lines = []
     for h in recent:
