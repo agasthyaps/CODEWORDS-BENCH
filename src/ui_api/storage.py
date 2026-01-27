@@ -7,8 +7,9 @@ from typing import Any, Literal
 
 from src.runner.episode import ExtendedEpisodeRecord
 from src.decrypto.models import DecryptoEpisodeRecord
+from src.hanabi.models import HanabiEpisodeRecord
 
-GameType = Literal["codenames", "decrypto"]
+GameType = Literal["codenames", "decrypto", "hanabi"]
 
 
 def _repo_root() -> Path:
@@ -27,6 +28,7 @@ def ensure_storage() -> None:
     base = _base_dir()
     (base / "codenames").mkdir(parents=True, exist_ok=True)
     (base / "decrypto").mkdir(parents=True, exist_ok=True)
+    (base / "hanabi").mkdir(parents=True, exist_ok=True)
     (base / "batches").mkdir(parents=True, exist_ok=True)
     (base / "stats").mkdir(parents=True, exist_ok=True)
 
@@ -41,10 +43,15 @@ def save_decrypto_episode(episode: DecryptoEpisodeRecord) -> str:
     return episode.save(str(_game_dir("decrypto")))
 
 
+def save_hanabi_episode(episode: HanabiEpisodeRecord) -> str:
+    ensure_storage()
+    return episode.save(str(_game_dir("hanabi")))
+
+
 def list_replays() -> list[dict[str, Any]]:
     ensure_storage()
     replays: list[dict[str, Any]] = []
-    for game_type in ("codenames", "decrypto"):
+    for game_type in ("codenames", "decrypto", "hanabi"):
         for path in sorted(_game_dir(game_type).glob("*.json")):
             replays.append(
                 {

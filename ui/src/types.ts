@@ -1,4 +1,4 @@
-export type GameType = "codenames" | "decrypto";
+export type GameType = "codenames" | "decrypto" | "hanabi";
 
 export interface ModelInfo {
   model_id: string;
@@ -47,4 +47,54 @@ export interface ScratchpadEntry {
   addition: string;
   turn: number;
   timestamp: number;
+}
+
+// Hanabi types
+export interface HanabiCard {
+  color: string;
+  number: number;
+}
+
+export interface HanabiCardKnowledge {
+  known_color: string | null;
+  known_number: number | null;
+  possible_colors: string[];
+  possible_numbers: number[];
+}
+
+export interface HanabiTurnPayload {
+  turn_number: number;
+  player_id: string;
+  action: {
+    action_type: "play" | "discard" | "hint";
+    card_position?: number;
+    target_player?: string;
+    hint_type?: "color" | "number";
+    hint_value?: string | number;
+  };
+  result: {
+    success: boolean;
+    message: string;
+    card_played?: HanabiCard;
+    card_discarded?: HanabiCard;
+    was_playable?: boolean;
+    positions_touched?: number[];
+  };
+  rationale: string;
+  hint_tokens: number;
+  fuse_tokens: number;
+  score: number;
+}
+
+export interface HanabiInitPayload {
+  game_type: "hanabi";
+  config: {
+    num_players: number;
+    hand_size: number;
+    max_hints: number;
+    max_fuses: number;
+    seed: number | null;
+  };
+  player_order: string[];
+  episode_id: string;
 }

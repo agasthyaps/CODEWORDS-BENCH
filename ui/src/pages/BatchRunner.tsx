@@ -9,7 +9,7 @@ type Props = {
 };
 
 type SeedMode = "random" | "fixed" | "list";
-type BatchGameType = "codenames" | "decrypto" | "both";
+type BatchGameType = "codenames" | "decrypto" | "hanabi" | "both";
 
 type GameResult = {
   game_index: number;
@@ -37,7 +37,9 @@ const GAME_DEFAULTS = {
     max_rounds: 8,
     max_discussion_turns_per_guesser: 2,
   },
-  // Future games add their defaults here
+  hanabi: {
+    num_players: 3,
+  },
 } as const;
 
 export default function BatchRunner({ models, defaultModel }: Props) {
@@ -64,6 +66,9 @@ export default function BatchRunner({ models, defaultModel }: Props) {
   const [maxRounds, setMaxRounds] = useState<number>(GAME_DEFAULTS.decrypto.max_rounds);
   const [maxDiscussionTurns, setMaxDiscussionTurns] = useState<number>(GAME_DEFAULTS.decrypto.max_discussion_turns_per_guesser);
   
+  // Hanabi player models (3 players)
+  const [hanabiPlayers, setHanabiPlayers] = useState<string[]>([defaultModel, defaultModel, defaultModel]);
+  
   // UI state
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [progress, setProgress] = useState({ completed: 0, total: 0 });
@@ -74,7 +79,8 @@ export default function BatchRunner({ models, defaultModel }: Props) {
   useEffect(() => {
     setRed(baseTeam);
     setBlue(baseTeam);
-  }, [baseTeam]);
+    setHanabiPlayers([defaultModel, defaultModel, defaultModel]);
+  }, [baseTeam, defaultModel]);
 
   // Parse seed list from input
   const parsedSeedList = useMemo(() => {
@@ -104,19 +110,24 @@ export default function BatchRunner({ models, defaultModel }: Props) {
     
     const payload: any = {
       game_type: gameType,
-      team_selection: buildSelection(),
       seed_mode: seedMode,
       count: seedMode !== "list" ? count : undefined,
       fixed_seed: seedMode === "fixed" ? fixedSeed : undefined,
       seed_list: seedMode === "list" ? parsedSeedList : undefined,
-      // Codenames options
-      codenames_mode: codenamesMode,
-      max_discussion_rounds: maxDiscussionRounds,
-      max_turns: maxTurns,
-      // Decrypto options
-      max_rounds: maxRounds,
-      max_discussion_turns_per_guesser: maxDiscussionTurns,
     };
+    
+    // Game-specific configuration
+    if (gameType === "hanabi") {
+      payload.player_models = hanabiPlayers;
+    } else {
+      // Codenames/Decrypto use team selection
+      payload.team_selection = buildSelection();
+      payload.codenames_mode = codenamesMode;
+      payload.max_discussion_rounds = maxDiscussionRounds;
+      payload.max_turns = maxTurns;
+      payload.max_rounds = maxRounds;
+      payload.max_discussion_turns_per_guesser = maxDiscussionTurns;
+    }
     
     try {
       const { job_id } = await startBatch(payload);
@@ -193,8 +204,8 @@ export default function BatchRunner({ models, defaultModel }: Props) {
             >
               <option value="codenames">Codenames</option>
               <option value="decrypto">Decrypto</option>
-              <option value="both">Both (comparative)</option>
-              {/* Future: <option value="hanabi">Hanabi</option> */}
+              <option value="hanabi">Hanabi</option>
+              <option value="both">Both (CN+DC comparative)</option>
             </select>
           </div>
           
@@ -371,20 +382,50 @@ export default function BatchRunner({ models, defaultModel }: Props) {
           {error && <div className="error-banner">{error}</div>}
         </div>
         
-        {/* Team Pickers */}
+        {/* Team/Player Pickers */}
         <div className="batch-teams">
-          <ModelPicker 
-            models={models} 
-            value={red} 
-            onChange={setRed} 
-            label="Red Team" 
-          />
-          <ModelPicker 
-            models={models} 
-            value={blue} 
-            onChange={setBlue} 
-            label="Blue Team" 
-          />
+          {gameType === "hanabi" ? (
+            // Hanabi: 3 individual players
+            <div className="hanabi-players-batch">
+              <h4>Players</h4>
+              {hanabiPlayers.map((model, idx) => (
+                <div key={idx} className="form-row">
+                  <label>Player {idx + 1}</label>
+                  <select
+                    value={model}
+                    onChange={(e) => {
+                      const newPlayers = [...hanabiPlayers];
+                      newPlayers[idx] = e.target.value;
+                      setHanabiPlayers(newPlayers);
+                    }}
+                    disabled={status === "running"}
+                  >
+                    {models.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.short_name || m.id}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          ) : (
+            // Codenames/Decrypto: two teams
+            <>
+              <ModelPicker 
+                models={models} 
+                value={red} 
+                onChange={setRed} 
+                label="Red Team" 
+              />
+              <ModelPicker 
+                models={models} 
+                value={blue} 
+                onChange={setBlue} 
+                label="Blue Team" 
+              />
+            </>
+          )}
         </div>
       </div>
       
@@ -422,7 +463,7 @@ export default function BatchRunner({ models, defaultModel }: Props) {
               >
                 <span className="game-index">#{result.game_index + 1}</span>
                 <span className={`game-type-badge ${result.game_type}`}>
-                  {result.game_type === "codenames" ? "CN" : "DC"}
+                  {result.game_type === "codenames" ? "CN" : result.game_type === "decrypto" ? "DC" : "HB"}
                 </span>
                 <span className="game-seed">seed: {result.seed}</span>
                 <span className={`game-status ${result.status}`}>

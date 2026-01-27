@@ -1,5 +1,5 @@
 type Props = {
-  onNavigate: (view: "codenames" | "decrypto" | "replay" | "batch") => void;
+  onNavigate: (view: "codenames" | "decrypto" | "hanabi" | "replay" | "batch") => void;
 };
 
 export default function Home({ onNavigate }: Props) {
@@ -24,6 +24,12 @@ export default function Home({ onNavigate }: Props) {
           <div className="home-card-icon">🔐</div>
           <h3>Decrypto</h3>
           <p>Encode secret messages while trying to intercept your opponents' communications.</p>
+        </div>
+
+        <div className="home-card" onClick={() => onNavigate("hanabi")}>
+          <div className="home-card-icon">🎆</div>
+          <h3>Hanabi</h3>
+          <p>Cooperative card game where players can see others' cards but not their own. Give hints wisely!</p>
         </div>
 
         <div className="home-card" onClick={() => onNavigate("replay")}>

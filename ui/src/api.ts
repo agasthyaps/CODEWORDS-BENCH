@@ -42,6 +42,20 @@ export async function startDecrypto(payload: {
   return res.json();
 }
 
+export async function startHanabi(payload: {
+  player_models: string[];
+  seed?: number;
+  event_delay_ms: number;
+}) {
+  const res = await fetch(`${API_BASE}/hanabi/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to start hanabi");
+  return res.json();
+}
+
 export async function startBatch(payload: any) {
   const res = await fetch(`${API_BASE}/batch/start`, {
     method: "POST",

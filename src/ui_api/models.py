@@ -54,10 +54,11 @@ class BatchStartRequest(BaseModel):
     Game types:
     - "codenames": Run only Codenames games
     - "decrypto": Run only Decrypto games
-    - "both": Run both games for each seed (comparative analysis)
+    - "hanabi": Run only Hanabi games
+    - "both": Run both Codenames and Decrypto for each seed (comparative analysis)
     """
-    game_type: Literal["codenames", "decrypto", "both"]
-    team_selection: TeamSelection
+    game_type: Literal["codenames", "decrypto", "hanabi", "both"]
+    team_selection: TeamSelection | None = None  # For codenames/decrypto
     
     # Seed configuration
     seed_mode: Literal["random", "fixed", "list"] = "random"
@@ -73,14 +74,24 @@ class BatchStartRequest(BaseModel):
     # Decrypto-specific options  
     max_rounds: int = 8
     max_discussion_turns_per_guesser: int = 2
+    
+    # Hanabi-specific options
+    player_models: list[str] | None = None  # 3 model IDs for Hanabi players
 
 
 class JobStartResponse(BaseModel):
     job_id: str
 
 
+class HanabiStartRequest(BaseModel):
+    """Request to start a Hanabi game with 3 players."""
+    player_models: list[str]  # 3 model IDs for the players
+    seed: int | None = None
+    event_delay_ms: int = 0
+
+
 class ReplaySummary(BaseModel):
     replay_id: str
-    game_type: Literal["codenames", "decrypto"]
+    game_type: Literal["codenames", "decrypto", "hanabi"]
     filename: str
     timestamp: str | None = None

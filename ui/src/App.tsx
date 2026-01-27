@@ -5,10 +5,11 @@ import { useTheme } from "./hooks/useTheme";
 import Home from "./pages/Home";
 import CodenamesViewer from "./pages/CodenamesViewer";
 import DecryptoViewer from "./pages/DecryptoViewer";
+import HanabiViewer from "./pages/HanabiViewer";
 import ReplayViewer from "./pages/ReplayViewer";
 import BatchRunner from "./pages/BatchRunner";
 
-type View = "home" | "codenames" | "decrypto" | "replay" | "batch";
+type View = "home" | "codenames" | "decrypto" | "hanabi" | "replay" | "batch";
 
 export default function App() {
   const [view, setView] = useState<View>("home");
@@ -49,6 +50,12 @@ export default function App() {
               Decrypto
             </button>
             <button
+              className={`nav-btn ${view === "hanabi" ? "active" : ""}`}
+              onClick={() => setView("hanabi")}
+            >
+              Hanabi
+            </button>
+            <button
               className={`nav-btn ${view === "replay" ? "active" : ""}`}
               onClick={() => setView("replay")}
             >
@@ -80,6 +87,9 @@ export default function App() {
       )}
       {view === "decrypto" && (
         <DecryptoViewer models={models} defaultModel={firstModel} />
+      )}
+      {view === "hanabi" && (
+        <HanabiViewer models={models} defaultModel={firstModel} />
       )}
       {view === "replay" && <ReplayViewer />}
       {view === "batch" && (

@@ -55,6 +55,7 @@ from .models import (
     BatchStartRequest,
     CodenamesStartRequest,
     DecryptoStartRequest,
+    HanabiStartRequest,
     JobStartResponse,
     ReplaySummary,
     TeamRoleConfig,
@@ -68,6 +69,7 @@ from .storage import (
     load_stats_report,
     save_codenames_episode,
     save_decrypto_episode,
+    save_hanabi_episode,
     save_batch_log,
 )
 
@@ -929,9 +931,23 @@ async def _run_batch_job(job: Job, req: BatchStartRequest) -> None:
                         "error": sub_job.error,
                     })
                 
-                # Future games: add elif branches here
-                # elif game_type == "hanabi":
-                #     ...
+                elif game_type == "hanabi":
+                    if not req.player_models or len(req.player_models) != 3:
+                        raise ValueError("Hanabi requires exactly 3 player_models")
+                    sub_job = Job(job_id=f"{job.job_id}-{game_idx}")
+                    await _run_hanabi_job(
+                        sub_job,
+                        HanabiStartRequest(
+                            player_models=req.player_models,
+                            seed=seed,
+                            event_delay_ms=0,
+                        ),
+                    )
+                    game_result.update({
+                        "replay_id": sub_job.replay_id,
+                        "status": sub_job.status,
+                        "error": sub_job.error,
+                    })
                 
                 else:
                     raise ValueError(f"Unknown game_type: {game_type}")
@@ -1002,13 +1018,119 @@ async def decrypto_events(job_id: str) -> StreamingResponse:
     return StreamingResponse(_sse_stream(job), media_type="text/event-stream")
 
 
+async def _run_hanabi_job(job: Job, req: HanabiStartRequest) -> None:
+    """Run a Hanabi game with 3 LLM players."""
+    try:
+        from src.hanabi.models import HanabiConfig
+        from src.hanabi.orchestrator import run_episode
+        from src.hanabi.agents.llm_agent import HanabiPlayerLLM
+        from src.hanabi.metrics import compute_episode_metrics
+        
+        model_map = _load_model_map()
+        
+        if len(req.player_models) != 3:
+            raise ValueError(f"Hanabi requires exactly 3 players, got {len(req.player_models)}")
+        
+        # Initialize agent state manager for scratchpads
+        agent_states = AgentStateManager()
+        
+        # Create players
+        players: list[HanabiPlayerLLM] = []
+        player_metadata: dict[str, str] = {}
+        for i, model_id in enumerate(req.player_models):
+            model = model_map[model_id]
+            provider = create_provider(
+                model.provider,
+                model.model_id,
+                base_url=model.base_url,
+            )
+            player_id = f"player_{i + 1}"
+            players.append(HanabiPlayerLLM(
+                provider=provider,
+                player_id=player_id,
+                temperature=0.7,
+            ))
+            player_metadata[player_id] = model.model_id
+        
+        # Create game config
+        config = HanabiConfig(
+            num_players=3,
+            hand_size=5,
+            seed=req.seed,
+        )
+        
+        # Emit function to stream events
+        async def emit_event(event_type: str, data: dict[str, Any]) -> None:
+            await _emit(job, event_type, data)
+            if req.event_delay_ms > 0:
+                await asyncio.sleep(req.event_delay_ms / 1000)
+        
+        def sync_emit(event_type: str, data: dict[str, Any]) -> None:
+            asyncio.create_task(emit_event(event_type, data))
+        
+        # Run the episode
+        episode = await run_episode(
+            config=config,
+            players=players,
+            agent_states=agent_states,
+            emit_fn=sync_emit,
+            metadata={"player_models": player_metadata},
+        )
+        
+        # Save episode
+        replay_id = save_hanabi_episode(episode)
+        job.replay_id = replay_id.split("/")[-1]
+        
+        # Emit done event
+        metrics = compute_episode_metrics(episode)
+        await _emit(
+            job,
+            "done",
+            {
+                "replay_id": job.replay_id,
+                "final_score": episode.final_score,
+                "game_over_reason": episode.game_over_reason,
+                "total_turns": len(episode.turns),
+                "metrics": metrics,
+                "agent_scratchpads": episode.agent_scratchpads,
+            },
+        )
+        
+        # Stats analysis (optional - can be added later)
+        logger.info("Hanabi game completed: %s with score %d", job.replay_id, episode.final_score)
+        job.status = "done"
+        
+    except Exception as exc:
+        job.status = "error"
+        job.error = str(exc)
+        await _emit(job, "job_error", {"error": str(exc)})
+    finally:
+        await _close(job)
+
+
+@app.post("/hanabi/start", response_model=JobStartResponse)
+async def start_hanabi(req: HanabiStartRequest, background: BackgroundTasks) -> JobStartResponse:
+    ensure_storage()
+    job_id = str(uuid.uuid4())[:8]
+    job = Job(job_id=job_id)
+    _jobs[job_id] = job
+    background.add_task(_run_hanabi_job, job, req)
+    return JobStartResponse(job_id=job_id)
+
+
+@app.get("/hanabi/{job_id}/events")
+async def hanabi_events(job_id: str) -> StreamingResponse:
+    job = _job(job_id)
+    return StreamingResponse(_sse_stream(job), media_type="text/event-stream")
+
+
 @app.get("/replays", response_model=list[ReplaySummary])
 def get_replays() -> list[dict[str, Any]]:
     return list_replays()
 
 
 @app.get("/replays/{game_type}/{replay_id}")
-def get_replay(game_type: Literal["codenames", "decrypto"], replay_id: str) -> dict[str, Any]:
+def get_replay(game_type: Literal["codenames", "decrypto", "hanabi"], replay_id: str) -> dict[str, Any]:
     try:
         return load_replay(game_type, replay_id)
     except FileNotFoundError:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, Field
 
 
@@ -52,17 +54,27 @@ class AgentStateManager:
             self._states[agent_id] = AgentState(agent_id=agent_id)
         return self._states[agent_id]
     
-    def get_scratchpad(self, agent_id: str) -> str:
-        """Get scratchpad content for an agent.
+    def get_scratchpad(self, agent_id: str, max_entries: int = 3) -> str:
+        """Get scratchpad content for an agent, limited to recent entries.
         
         Args:
             agent_id: Unique identifier for the agent
+            max_entries: Maximum number of recent entries to return (default 3)
             
         Returns:
-            Scratchpad content, or empty string if agent has no state
+            Recent scratchpad content, or empty string if agent has no state
         """
         state = self._states.get(agent_id)
-        return state.scratchpad if state else ""
+        if not state or not state.scratchpad:
+            return ""
+        
+        # Split by turn markers, keeping the marker with each entry
+        entries = re.split(r'(?=\[Turn \d+\])', state.scratchpad)
+        entries = [e.strip() for e in entries if e.strip()]
+        
+        # Return only the last max_entries
+        recent = entries[-max_entries:] if len(entries) > max_entries else entries
+        return "\n".join(recent)
     
     def get_all_states(self) -> dict[str, AgentState]:
         """Get all agent states.

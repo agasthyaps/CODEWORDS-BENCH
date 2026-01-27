@@ -2130,3 +2130,438 @@ button.small {
     flex-direction: row;
   }
 }
+
+/* ============================================
+   Hanabi Styles
+   ============================================ */
+
+/* Hanabi color scheme */
+:root {
+  --hanabi-red: #e53935;
+  --hanabi-yellow: #fdd835;
+  --hanabi-green: #43a047;
+  --hanabi-blue: #1e88e5;
+  --hanabi-white: #e0e0e0;
+  --hanabi-unknown: #424242;
+}
+
+[data-theme="dark"] {
+  --hanabi-red: #ef5350;
+  --hanabi-yellow: #ffee58;
+  --hanabi-green: #66bb6a;
+  --hanabi-blue: #42a5f5;
+  --hanabi-white: #f5f5f5;
+  --hanabi-unknown: #616161;
+}
+
+.game-type-badge.hanabi {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+/* Hanabi layout */
+.layout.hanabi {
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: 20px;
+}
+
+.hanabi-log {
+  max-height: 600px;
+}
+
+.hanabi-center {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Hanabi header */
+.hanabi-header .player-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.hanabi-header .separator {
+  color: var(--text-muted);
+  margin: 0 4px;
+}
+
+.hanabi-score {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.fuse-count {
+  color: var(--warning);
+}
+
+/* Hanabi board */
+.hanabi-board {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid var(--border);
+}
+
+.hanabi-board .game-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.score-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.score-display .score-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.score-display .score-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Tokens */
+.tokens {
+  display: flex;
+  gap: 24px;
+}
+
+.token-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.token-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.token-value {
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+
+.token-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.deck-count {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Hands section */
+.hands-section {
+  margin-bottom: 20px;
+}
+
+.other-hands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.player-hand {
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 200px;
+}
+
+.player-hand.active {
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 12px var(--accent-subtle);
+}
+
+.player-hand.viewer {
+  border: 2px dashed var(--border);
+}
+
+.player-hand.my-hand {
+  background: var(--bg-inset);
+  border: 2px dashed var(--text-muted);
+}
+
+.player-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.turn-indicator {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.viewer-indicator {
+  color: var(--text-muted);
+}
+
+.hand-cards {
+  display: flex;
+  gap: 6px;
+}
+
+.hand-positions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.position-label {
+  width: 40px;
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Hanabi cards */
+.hanabi-card {
+  width: 40px;
+  height: 56px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.hanabi-card.small {
+  width: 28px;
+  height: 40px;
+  font-size: 14px;
+}
+
+.hanabi-card.hanabi-red {
+  background: var(--hanabi-red);
+  color: white;
+}
+
+.hanabi-card.hanabi-yellow {
+  background: var(--hanabi-yellow);
+  color: #333;
+}
+
+.hanabi-card.hanabi-green {
+  background: var(--hanabi-green);
+  color: white;
+}
+
+.hanabi-card.hanabi-blue {
+  background: var(--hanabi-blue);
+  color: white;
+}
+
+.hanabi-card.hanabi-white {
+  background: var(--hanabi-white);
+  color: #333;
+}
+
+.hanabi-card.hanabi-unknown {
+  background: var(--hanabi-unknown);
+  color: white;
+}
+
+.hanabi-card.knowledge {
+  flex-direction: column;
+}
+
+.card-unknown {
+  font-size: 24px;
+  opacity: 0.7;
+}
+
+.knowledge-hints {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 8px;
+}
+
+.possible-colors {
+  display: flex;
+  gap: 2px;
+}
+
+.color-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.color-dot.hanabi-red { background: var(--hanabi-red); }
+.color-dot.hanabi-yellow { background: var(--hanabi-yellow); }
+.color-dot.hanabi-green { background: var(--hanabi-green); }
+.color-dot.hanabi-blue { background: var(--hanabi-blue); }
+.color-dot.hanabi-white { background: var(--hanabi-white); }
+
+.possible-numbers {
+  font-size: 8px;
+  opacity: 0.8;
+}
+
+/* Table section */
+.table-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* Played stacks */
+.played-stacks h4,
+.discard-pile h4 {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 8px 0;
+}
+
+.stacks {
+  display: flex;
+  gap: 8px;
+}
+
+.stack {
+  width: 48px;
+  height: 64px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.stack.hanabi-red { background: var(--hanabi-red); color: white; }
+.stack.hanabi-yellow { background: var(--hanabi-yellow); color: #333; }
+.stack.hanabi-green { background: var(--hanabi-green); color: white; }
+.stack.hanabi-blue { background: var(--hanabi-blue); color: white; }
+.stack.hanabi-white { background: var(--hanabi-white); color: #333; }
+
+.stack-label {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.stack-value {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+/* Discard pile */
+.discard-pile {
+  background: var(--bg-inset);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.discard-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.discard-group {
+  display: flex;
+  gap: 8px;
+}
+
+.color-label {
+  font-weight: 600;
+  width: 20px;
+}
+
+.color-label.hanabi-red { color: var(--hanabi-red); }
+.color-label.hanabi-yellow { color: var(--hanabi-yellow); }
+.color-label.hanabi-green { color: var(--hanabi-green); }
+.color-label.hanabi-blue { color: var(--hanabi-blue); }
+.color-label.hanabi-white { color: var(--text-muted); }
+
+.discard-group .numbers {
+  color: var(--text-secondary);
+}
+
+.discard-pile .empty {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Win banner variants for Hanabi */
+.win-banner.excellent {
+  background: linear-gradient(135deg, var(--success-bg) 0%, var(--accent-subtle) 100%);
+  border: 1px solid var(--success);
+}
+
+.win-banner.good {
+  background: var(--success-bg);
+  border: 1px solid var(--success);
+}
+
+.win-banner.poor {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning);
+}
+
+.win-banner .reason-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
+/* Chat panel for Hanabi */
+.chat-panel[data-variant="hanabi"] .chat-entry {
+  font-family: 'SF Mono', Menlo, Monaco, monospace;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-left: 3px solid transparent;
+}
+
+.chat-panel[data-variant="hanabi"] .chat-entry:nth-child(odd) {
+  background: var(--bg-elevated);
+}
+
+@media (max-width: 900px) {
+  .layout.hanabi {
+    grid-template-columns: 1fr;
+  }
+  
+  .hanabi-log {
+    order: 2;
+  }
+  
+  .hanabi-center {
+    order: 1;
+  }
+  
+  .table-section {
+    grid-template-columns: 1fr;
+  }
+}
