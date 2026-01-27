@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from src.engine import Team, CardType, Clue, Guess, Pass, DiscussionMessage
 
@@ -11,6 +11,7 @@ from .models import TeamMetrics, EpisodeMetrics, AggregateMetrics
 
 if TYPE_CHECKING:
     from src.runner import ExtendedEpisodeRecord
+    from src.runner.orchestrator import TurnTraces
 
 
 def compute_team_metrics(
@@ -152,6 +153,9 @@ def compute_team_metrics(
 
     consensus_rate = turns_with_consensus / len(team_turns) if team_turns else 0.0
 
+    # ToM metrics: Cluer Surprise and Interpretability
+    tom_metrics = compute_tom_metrics(episode, team)
+
     return TeamMetrics(
         team=team,
         words_cleared=words_cleared,
@@ -168,7 +172,147 @@ def compute_team_metrics(
         avg_discussion_rounds=avg_discussion_rounds,
         consensus_rate=consensus_rate,
         avg_discussion_length=avg_discussion_length,
+        avg_cluer_surprise=tom_metrics.get("avg_surprise"),
+        avg_clue_interpretability=tom_metrics.get("avg_interpretability"),
+        top1_match_rate=tom_metrics.get("top1_match_rate"),
     )
+
+
+def compute_cluer_surprise(
+    predicted_success: float | None,
+    actual_guesses: list[dict],
+    predicted_targets: list[str] | None,
+) -> float | None:
+    """
+    Compute Brier score for cluer's prediction accuracy.
+    
+    Brier score = (predicted_success - actual_outcome)^2
+    Lower is better (0 = perfect calibration).
+    
+    Args:
+        predicted_success: Cluer's predicted probability of success (0.0-1.0)
+        actual_guesses: List of guess events from the turn
+        predicted_targets: List of words the cluer expected to be guessed
+    
+    Returns:
+        Brier score or None if no prediction available
+    """
+    if predicted_success is None:
+        return None
+    
+    # Compute actual outcome: 1.0 if all predicted targets were guessed correctly
+    if not actual_guesses:
+        actual_outcome = 0.0
+    elif predicted_targets:
+        # Check if all predicted targets were guessed correctly
+        correct_guesses = {g.get("word", "").upper() for g in actual_guesses if g.get("correct", False)}
+        predicted_set = {t.upper() for t in predicted_targets}
+        actual_outcome = 1.0 if predicted_set.issubset(correct_guesses) else 0.0
+    else:
+        # No predicted targets - check if any correct guesses
+        actual_outcome = 1.0 if any(g.get("correct", False) for g in actual_guesses) else 0.0
+    
+    return (predicted_success - actual_outcome) ** 2
+
+
+def compute_clue_interpretability(
+    predicted_targets: list[str] | None,
+    actual_guesses: list[dict],
+) -> dict[str, Any]:
+    """
+    Compute how well guessers interpreted the cluer's intended meaning.
+    
+    Args:
+        predicted_targets: Cluer's intended target words (in order)
+        actual_guesses: List of guess events from the turn
+    
+    Returns:
+        dict with:
+            - jaccard: Set overlap / union (0.0-1.0)
+            - top1_match: Whether first guess matched first target
+    """
+    if not predicted_targets or not actual_guesses:
+        return {"jaccard": None, "top1_match": None}
+    
+    # Get actual guessed words (in order)
+    guessed_words = [g.get("word", "").upper() for g in actual_guesses]
+    predicted_upper = [t.upper() for t in predicted_targets]
+    
+    # Jaccard similarity (set-based)
+    predicted_set = set(predicted_upper)
+    guessed_set = set(guessed_words)
+    
+    intersection = len(predicted_set & guessed_set)
+    union = len(predicted_set | guessed_set)
+    jaccard = intersection / union if union > 0 else 0.0
+    
+    # Top-1 match (order-sensitive)
+    top1_match = (
+        guessed_words[0] == predicted_upper[0]
+        if guessed_words and predicted_upper
+        else False
+    )
+    
+    return {"jaccard": jaccard, "top1_match": top1_match}
+
+
+def compute_tom_metrics(
+    episode: "ExtendedEpisodeRecord",
+    team: Team,
+) -> dict[str, float | None]:
+    """
+    Compute Theory of Mind metrics for a team.
+    
+    Args:
+        episode: The episode record
+        team: The team to compute metrics for
+    
+    Returns:
+        dict with avg_surprise, avg_interpretability, top1_match_rate
+    """
+    turn_traces = episode.turn_traces
+    transcript = episode.public_transcript
+    
+    # Filter to team's turns
+    team_turns = [t for t in turn_traces if t.team == team]
+    
+    surprises: list[float] = []
+    interpretabilities: list[float] = []
+    top1_matches: list[bool] = []
+    
+    for turn_trace in team_turns:
+        turn_num = turn_trace.turn_number
+        clue_trace = turn_trace.clue_trace
+        
+        # Get cluer's predictions
+        predicted_success = getattr(clue_trace, 'predicted_success', None)
+        predicted_targets = getattr(clue_trace, 'predicted_targets', None)
+        
+        # Get actual guesses for this turn
+        turn_guesses = [
+            e for e in transcript
+            if e.get("turn_number") == turn_num
+            and e.get("team") == team.value
+            and e.get("event_type") == "guess"
+        ]
+        
+        # Compute surprise (Brier score)
+        surprise = compute_cluer_surprise(predicted_success, turn_guesses, predicted_targets)
+        if surprise is not None:
+            surprises.append(surprise)
+        
+        # Compute interpretability
+        interp = compute_clue_interpretability(predicted_targets, turn_guesses)
+        if interp["jaccard"] is not None:
+            interpretabilities.append(interp["jaccard"])
+        if interp["top1_match"] is not None:
+            top1_matches.append(interp["top1_match"])
+    
+    return {
+        "avg_surprise": sum(surprises) / len(surprises) if surprises else None,
+        "avg_interpretability": sum(interpretabilities) / len(interpretabilities) if interpretabilities else None,
+        "top1_match_rate": sum(top1_matches) / len(top1_matches) if top1_matches else None,
+    }
 
 
 def compute_coordination_score(metrics: TeamMetrics) -> float:

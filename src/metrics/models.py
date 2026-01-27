@@ -31,6 +31,11 @@ class TeamMetrics(BaseModel):
     consensus_rate: float  # % of turns with explicit consensus
     avg_discussion_length: int  # Total chars across discussions
 
+    # ToM metrics (Theory of Mind)
+    avg_cluer_surprise: float | None = None  # Avg Brier score: (predicted - actual)^2
+    avg_clue_interpretability: float | None = None  # Avg Jaccard similarity of targets vs guesses
+    top1_match_rate: float | None = None  # % of turns where first guess matched first target
+
 
 class EpisodeMetrics(BaseModel):
     """Metrics for a complete episode."""

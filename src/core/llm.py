@@ -334,6 +334,9 @@ def create_provider(
         provider_kwargs["model"] = model
     if api_key:
         provider_kwargs["api_key"] = api_key
-    provider_kwargs.update(kwargs)
+    # Only pass non-None kwargs to avoid overriding provider defaults
+    for key, value in kwargs.items():
+        if value is not None:
+            provider_kwargs[key] = value
 
     return provider_cls(**provider_kwargs)

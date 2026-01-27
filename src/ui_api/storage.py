@@ -73,16 +73,23 @@ def load_replay(game_type: GameType, replay_id: str) -> dict[str, Any]:
 
 def save_stats_report(replay_id: str, report: dict[str, Any]) -> Path:
     ensure_storage()
-    stats_path = _base_dir() / "stats" / f"{replay_id}.json"
+    # Remove .json extension if present to avoid double extension
+    base_name = replay_id.removesuffix(".json")
+    stats_path = _base_dir() / "stats" / f"{base_name}.json"
     with open(stats_path, "w") as f:
         json.dump(report, f, indent=2)
     return stats_path
 
 
 def load_stats_report(replay_id: str) -> dict[str, Any] | None:
-    stats_path = _base_dir() / "stats" / f"{replay_id}.json"
+    # Remove .json extension if present to avoid double extension
+    base_name = replay_id.removesuffix(".json")
+    stats_path = _base_dir() / "stats" / f"{base_name}.json"
     if not stats_path.exists():
-        return None
+        # Try with original name in case of old files
+        stats_path = _base_dir() / "stats" / f"{replay_id}.json"
+        if not stats_path.exists():
+            return None
     with open(stats_path, "r") as f:
         return json.load(f)
 

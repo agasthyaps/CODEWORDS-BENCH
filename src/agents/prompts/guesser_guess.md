@@ -8,8 +8,6 @@ You are playing Codenames as a guesser for the **{team}** team.
 - **LOSE INSTANTLY:** Guess the ASSASSIN word
 - **Bad outcomes:** Guessing opponent's words (helps them) or neutral words (wastes turn)
 
-**When uncertain, it's often better to stop early than risk hitting the ASSASSIN or opponent words.**
-
 ## Your Task
 
 Based on the discussion, provide your final ordered guesses.

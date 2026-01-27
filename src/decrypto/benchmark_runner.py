@@ -122,7 +122,7 @@ async def run_single_game(
     episodes_dir: Path,
 ) -> tuple[DecryptoEpisodeRecord, DecryptoBenchmarkResult]:
     decrypto_config = DecryptoConfig(max_rounds=8, seed=seed)
-    game_id, keys, code_sequences = create_game(decrypto_config)
+    game_id, actual_seed, keys, code_sequences = create_game(decrypto_config)
 
     red_team = _build_team("red", matchup.red_team, temperature)
     blue_team = _build_team("blue", matchup.blue_team, temperature)

@@ -12,7 +12,7 @@ from src.runner.episode import ExtendedEpisodeRecord
 
 from .storage import save_stats_report
 
-GameType = Literal["codenames", "decrypto"]
+GameType = Literal["codenames", "decrypto", "hanabi"]
 
 
 def _repo_root() -> Path:
@@ -38,6 +38,22 @@ def _build_payload(game_type: GameType, episode: dict[str, Any]) -> dict[str, An
             "winner": episode.get("winner"),
             "turns": episode.get("total_turns"),
             "team_metadata": episode.get("metadata", {}),
+            "episode": episode,
+        }
+    elif game_type == "hanabi":
+        from src.hanabi.metrics import compute_episode_metrics as compute_hanabi_metrics
+        from src.hanabi.models import HanabiEpisodeRecord
+        
+        parsed_hanabi = HanabiEpisodeRecord.model_validate(episode)
+        hanabi_metrics = compute_hanabi_metrics(parsed_hanabi)
+        return {
+            "game_type": "hanabi",
+            "final_score": episode.get("final_score"),
+            "max_score": 25,
+            "game_over_reason": episode.get("game_over_reason"),
+            "total_turns": len(episode.get("turns", [])),
+            "metrics": hanabi_metrics,
+            "player_models": episode.get("metadata", {}).get("player_models", {}),
             "episode": episode,
         }
     return {
@@ -80,6 +96,15 @@ not to optimize their play through better prompts or structures.
 - Teams decode own codes; opponents attempt interception
 - **What to observe**: How do cluers balance being understood by teammates vs. not being intercepted?
   Do models track patterns across rounds? How do they update beliefs about opponent keywords?
+
+### Hanabi
+- Cooperative card game: 3 players work together to build fireworks (score 0-25)
+- Critical twist: Players can see OTHER players' cards but NOT their own
+- Players give hints (spend tokens) or play/discard cards based on received hints
+- **What to observe**: How do models reason about what others can see that they cannot?
+  Do they give helpful hints anticipating the recipient's knowledge state?
+  How do they handle uncertainty about their own hand?
+  Do they develop implicit conventions for hint meanings?
 
 ## What to Look For
 - **Spontaneous perspective-taking**: Does the cluer mention considering what guessers might think?

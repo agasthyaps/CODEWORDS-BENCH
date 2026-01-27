@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import random
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+def _random_seed() -> int:
+    """Generate a random seed for reproducibility."""
+    return random.randint(0, 2**31 - 1)
 
 
 TeamKey = Literal["red", "blue"]
@@ -147,8 +153,16 @@ class RoundInputs(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     game_id: str
-    seed: int
+    seed: int = Field(default_factory=_random_seed)
     round_number: int
+
+    @field_validator("seed", mode="before")
+    @classmethod
+    def _coerce_seed(cls, v: Any) -> int:
+        """Convert None to a random seed."""
+        if v is None:
+            return _random_seed()
+        return v
 
     # Keys (private by team; visibility filters decide what to show)
     keys: dict[TeamKey, tuple[str, str, str, str]]

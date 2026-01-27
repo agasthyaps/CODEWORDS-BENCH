@@ -173,12 +173,15 @@ def check_winner(
     return None, None
 
 
-def create_game(config: DecryptoConfig) -> tuple[str, dict[TeamKey, tuple[str, str, str, str]], dict[TeamKey, tuple[tuple[int, int, int], ...]]]:
+def create_game(config: DecryptoConfig) -> tuple[str, int, dict[TeamKey, tuple[str, str, str, str]], dict[TeamKey, tuple[tuple[int, int, int], ...]]]:
     """
-    Create a new deterministic game: game_id, keys, and per-team code sequences.
+    Create a new deterministic game: game_id, seed, keys, and per-team code sequences.
 
     Note: codes are pre-generated for determinism. We use distinct seeds per team
     derived from the game seed to avoid perfectly mirrored code order.
+    
+    Returns:
+        Tuple of (game_id, seed, keys, code_sequences)
     """
     # Generate random seed if none provided
     seed = config.seed if config.seed is not None else random.randint(0, 2**31 - 1)
@@ -195,5 +198,5 @@ def create_game(config: DecryptoConfig) -> tuple[str, dict[TeamKey, tuple[str, s
         CodeTriple.validate_digits(t)  # type: ignore[arg-type]
 
     game_id = str(uuid.uuid4())[:8]
-    return game_id, keys, {"red": red_seq, "blue": blue_seq}
+    return game_id, seed, keys, {"red": red_seq, "blue": blue_seq}
 

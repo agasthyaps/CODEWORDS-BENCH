@@ -60,7 +60,7 @@ async def _stub_run_action_fn(round_inputs: RoundInputs, team: str, opponent: st
 @pytest.mark.asyncio
 async def test_episode_determinism_same_inputs_same_outputs() -> None:
     cfg = DecryptoConfig(max_rounds=2, seed=42)
-    _game_id, keys, code_sequences = create_game(cfg)
+    _game_id, _seed, keys, code_sequences = create_game(cfg)
 
     fixed_ts = datetime(2020, 1, 1, tzinfo=timezone.utc)
 

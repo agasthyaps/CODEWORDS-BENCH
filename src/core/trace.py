@@ -27,3 +27,7 @@ class AgentTrace(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     reasoning_trace: str | None = None  # For reasoning models (o1, extended thinking)
+    
+    # Prediction tracking for ToM metrics (Cluer only)
+    predicted_success: float | None = None  # 0.0-1.0 confidence in guesser success
+    predicted_targets: list[str] | None = None  # Expected guesser picks in order

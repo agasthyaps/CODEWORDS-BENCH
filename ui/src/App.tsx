@@ -8,8 +8,9 @@ import DecryptoViewer from "./pages/DecryptoViewer";
 import HanabiViewer from "./pages/HanabiViewer";
 import ReplayViewer from "./pages/ReplayViewer";
 import BatchRunner from "./pages/BatchRunner";
+import BenchmarkMonitor from "./pages/BenchmarkMonitor";
 
-type View = "home" | "codenames" | "decrypto" | "hanabi" | "replay" | "batch";
+type View = "home" | "codenames" | "decrypto" | "hanabi" | "replay" | "batch" | "benchmark";
 
 export default function App() {
   const [view, setView] = useState<View>("home");
@@ -67,6 +68,12 @@ export default function App() {
             >
               Batch
             </button>
+            <button
+              className={`nav-btn ${view === "benchmark" ? "active" : ""}`}
+              onClick={() => setView("benchmark")}
+            >
+              Benchmark
+            </button>
           </nav>
           <button
             className="theme-toggle"
@@ -94,6 +101,9 @@ export default function App() {
       {view === "replay" && <ReplayViewer />}
       {view === "batch" && (
         <BatchRunner models={models} defaultModel={firstModel} />
+      )}
+      {view === "benchmark" && (
+        <BenchmarkMonitor models={models} />
       )}
     </div>
   );

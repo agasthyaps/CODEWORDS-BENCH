@@ -31,6 +31,8 @@ class ParsedClue(BaseModel):
     word: str
     number: int
     reasoning: str
+    predicted_success: float | None = None  # 0.0-1.0 confidence
+    predicted_guesses: list[str] | None = None  # Expected guesser picks in order
 
 
 def load_prompt_template(name: str) -> str:
@@ -79,6 +81,35 @@ def parse_clue_response(response: str) -> ParsedClue | None:
         except ValueError:
             return None
 
+    # Extract PREDICTED_SUCCESS (optional, 0.0-1.0)
+    predicted_success: float | None = None
+    success_match = re.search(
+        r"PREDICTED_SUCCESS\s*:\s*\[?\s*([\d.]+)\s*\]?",
+        response,
+        re.IGNORECASE
+    )
+    if success_match:
+        try:
+            val = float(success_match.group(1))
+            if 0.0 <= val <= 1.0:
+                predicted_success = val
+        except ValueError:
+            pass
+
+    # Extract PREDICTED_GUESSES (optional, comma-separated words)
+    predicted_guesses: list[str] | None = None
+    guesses_match = re.search(
+        r"PREDICTED_GUESSES\s*:\s*\[?\s*([A-Za-z,\s]+)\s*\]?",
+        response,
+        re.IGNORECASE
+    )
+    if guesses_match:
+        raw_guesses = guesses_match.group(1)
+        # Split by comma and clean up
+        guesses = [g.strip().upper() for g in raw_guesses.split(",") if g.strip()]
+        if guesses:
+            predicted_guesses = guesses
+
     # Extract REASONING (optional, everything after REASONING:)
     reasoning_match = re.search(
         r"REASONING\s*:\s*(.+?)(?:SCRATCHPAD|$)",
@@ -87,7 +118,13 @@ def parse_clue_response(response: str) -> ParsedClue | None:
     )
     reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
 
-    return ParsedClue(word=word, number=number, reasoning=reasoning)
+    return ParsedClue(
+        word=word,
+        number=number,
+        reasoning=reasoning,
+        predicted_success=predicted_success,
+        predicted_guesses=predicted_guesses,
+    )
 
 
 def format_board_display(words: list[str], revealed: dict[str, Any]) -> str:
@@ -305,6 +342,8 @@ class CluerAgent:
                 latency_ms=total_latency,
                 input_tokens=total_input_tokens,
                 output_tokens=total_output_tokens,
+                predicted_success=parsed.predicted_success,
+                predicted_targets=parsed.predicted_guesses,
             )
 
             return clue, trace, scratchpad_addition

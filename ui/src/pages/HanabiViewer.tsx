@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { openEventStream, startHanabi } from "../api";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { fetchStats, openEventStream, startHanabi } from "../api";
 import HanabiBoard from "../components/HanabiBoard";
 import ChatPanel from "../components/ChatPanel";
 import ScratchpadPanel from "../components/ScratchpadPanel";
@@ -51,6 +53,9 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
   const [scratchpadEntries, setScratchpadEntries] = useState<ScratchpadEntry[]>([]);
   const [finalScore, setFinalScore] = useState<number | null>(null);
   const [gameOverReason, setGameOverReason] = useState<string | null>(null);
+  const [analysis, setAnalysis] = useState<string | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [replayId, setReplayId] = useState<string | null>(null);
 
   useEffect(() => {
     setPlayerModels([defaultModel, defaultModel, defaultModel]);
@@ -65,6 +70,9 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
     setScratchpadEntries([]);
     setFinalScore(null);
     setGameOverReason(null);
+    setAnalysis(null);
+    setAnalysisLoading(false);
+    setReplayId(null);
     setGameState(INITIAL_GAME_STATE);
 
     try {
@@ -150,12 +158,42 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
         }]);
       });
 
-      stream.addEventListener("done", (ev: MessageEvent) => {
+      stream.addEventListener("done", async (ev: MessageEvent) => {
         const payload = JSON.parse(ev.data);
         setStatus("finished");
         setFinalScore(payload.final_score);
         setGameOverReason(payload.game_over_reason);
+        if (payload.replay_id) {
+          setReplayId(payload.replay_id);
+          setAnalysisLoading(true);
+          // Poll for stats since stream closes before stats event arrives
+          const start = Date.now();
+          const poll = async () => {
+            try {
+              const stats = await fetchStats(payload.replay_id);
+              if (stats?.analysis) {
+                setAnalysis(stats.analysis);
+                setAnalysisLoading(false);
+                return;
+              }
+            } catch {
+              // keep polling
+            }
+            if (Date.now() - start < 120000) {
+              setTimeout(poll, 2000);
+            } else {
+              setAnalysisLoading(false);
+            }
+          };
+          poll();
+        }
         stream.close();
+      });
+
+      stream.addEventListener("stats", (ev: MessageEvent) => {
+        const payload = JSON.parse(ev.data);
+        setAnalysis(payload.analysis || null);
+        setAnalysisLoading(false);
       });
 
       stream.addEventListener("job_error", (ev: MessageEvent) => {
@@ -356,6 +394,23 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
             <ScratchpadPanel entries={scratchpadEntries} isRunning={isRunning} />
           )}
         </>
+      )}
+
+      {/* Analysis Panel */}
+      {status === "finished" && (analysisLoading || analysis) && (
+        <div className="analysis-panel" style={{ marginTop: 24 }}>
+          <h3>🧠 Opus Analysis</h3>
+          {analysisLoading && !analysis && (
+            <div className="analysis-loading">
+              <span className="spinner" /> Analyzing game transcript...
+            </div>
+          )}
+          {analysis && (
+            <div className="analysis-content">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{analysis}</ReactMarkdown>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Finished state - allow restart */}

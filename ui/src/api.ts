@@ -87,3 +87,67 @@ export async function fetchStats(replayId: string) {
 export function openEventStream(path: string) {
   return new EventSource(`${API_BASE}${path}`);
 }
+
+// Cloud Benchmark APIs
+
+export async function startBenchmark(payload: {
+  experiment_name: string;
+  model_ids: string[];
+  seed_count?: number;
+  seed_list?: number[];
+  run_codenames?: boolean;
+  run_decrypto?: boolean;
+  run_hanabi?: boolean;
+  codenames_concurrency?: number;
+  decrypto_concurrency?: number;
+  hanabi_concurrency?: number;
+  codenames_mode?: string;
+  codenames_max_turns?: number;
+  codenames_max_discussion_rounds?: number;
+  decrypto_max_rounds?: number;
+  decrypto_max_discussion_turns?: number;
+  interim_analysis_batch_size?: number;
+  max_retries?: number;
+  temperature?: number;
+}) {
+  const res = await fetch(`${API_BASE}/benchmark/start`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: "Failed to start benchmark" }));
+    throw new Error(error.detail || "Failed to start benchmark");
+  }
+  return res.json();
+}
+
+export async function fetchBenchmarkStatus() {
+  const res = await fetch(`${API_BASE}/benchmark/status`);
+  if (!res.ok) throw new Error("Failed to get benchmark status");
+  return res.json();
+}
+
+export async function pauseBenchmark() {
+  const res = await fetch(`${API_BASE}/benchmark/pause`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to pause benchmark");
+  return res.json();
+}
+
+export async function fetchBenchmarkFindings() {
+  const res = await fetch(`${API_BASE}/benchmark/findings`);
+  if (!res.ok) throw new Error("Failed to get findings");
+  return res.json();
+}
+
+export async function fetchBenchmarkFinding(findingId: string) {
+  const res = await fetch(`${API_BASE}/benchmark/findings/${findingId}`);
+  if (!res.ok) throw new Error("Failed to get finding");
+  return res.json();
+}
+
+export async function fetchExperiments() {
+  const res = await fetch(`${API_BASE}/benchmark/experiments`);
+  if (!res.ok) throw new Error("Failed to get experiments");
+  return res.json();
+}

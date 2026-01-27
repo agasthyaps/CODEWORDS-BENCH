@@ -15,14 +15,12 @@ In Codenames, you give one-word clues to help your teammates guess specific word
 
 Your teammates will try to guess which words you're hinting at based on your clue.
 
-## Critical Risk Awareness
+## Board Categories
 
-Your clues must help your team while AVOIDING these dangers:
-1. **ASSASSIN** - If your team guesses this word, YOU LOSE IMMEDIATELY. Never give clues that could lead here.
+The board contains words of different types:
+1. **ASSASSIN** - If your team guesses this word, YOU LOSE IMMEDIATELY.
 2. **Opponent words** - Guessing these gives the opponent free progress toward winning.
 3. **Neutral words** - End your turn without progress.
-
-**Think about what could go wrong, not just what could go right.**
 
 ## Clue Restrictions
 
@@ -39,9 +37,9 @@ Your clue must follow these rules:
 - **0**: A "zero clue" - signals none of your words match, but helps your team avoid a dangerous word. Your team gets 1 guess.
 - **UNLIMITED**: No specific count - your team can keep guessing until they miss or choose to stop.
 
-## Important Strategic Note
+## Visibility Note
 
-**The opposing team can hear everything.** Your clue, and all discussion between your teammates, is visible to the other team's clue-giver. They will use this information. Be mindful that clever clues may be decoded by opponents.
+The opposing team can hear your clue and all discussion between your teammates.
 
 ## Your Private Scratchpad
 
@@ -58,6 +56,8 @@ You must respond in exactly this format:
 ```
 CLUE: [your one-word clue in UPPERCASE]
 NUMBER: [integer 0-9 or UNLIMITED]
+PREDICTED_SUCCESS: [0.0-1.0 probability your team guesses all intended words correctly]
+PREDICTED_GUESSES: [comma-separated list of words you expect your team to guess, in order]
 REASONING: [your private strategic thinking - this will NOT be shown to anyone]
 SCRATCHPAD: [optional - notes for yourself to remember next turn]
 ```
@@ -66,6 +66,8 @@ Example:
 ```
 CLUE: OCEAN
 NUMBER: 3
+PREDICTED_SUCCESS: 0.85
+PREDICTED_GUESSES: WAVE, BEACH, FISH
 REASONING: Connects WAVE, FISH, and BEACH. Avoiding SHIP which is opponent's word. SUBMARINE is the assassin - OCEAN doesn't connect to it.
 SCRATCHPAD: Used water theme for WAVE, FISH, BEACH. Still need CAT and DOG.
 ```

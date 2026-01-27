@@ -13,6 +13,7 @@ from typing import Any, AsyncGenerator, Literal
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 from src.agents import AgentConfig, CluerAgent, GuesserAgent, create_provider
@@ -53,8 +54,13 @@ from src.runner.orchestrator import run_clue_phase, TurnTraces
 
 from .models import (
     BatchStartRequest,
+    BenchmarkStartRequest,
+    BenchmarkStatusResponse,
     CodenamesStartRequest,
     DecryptoStartRequest,
+    FindingDetail,
+    FindingSummary,
+    GameTypeProgressResponse,
     HanabiStartRequest,
     JobStartResponse,
     ReplaySummary,
@@ -551,7 +557,7 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
         agent_states = AgentStateManager()
 
         cfg = DecryptoConfig(seed=req.seed, max_rounds=req.max_rounds)
-        game_id, keys, code_sequences = create_decrypto_game(cfg)
+        game_id, actual_seed, keys, code_sequences = create_decrypto_game(cfg)
 
         await _emit(
             job,
@@ -572,7 +578,7 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
         for r in range(1, cfg.max_rounds + 1):
             base_inputs = RoundInputs(
                 game_id=game_id,
-                seed=cfg.seed,
+                seed=actual_seed,
                 round_number=r,
                 keys=keys,
                 current_codes={
@@ -794,10 +800,10 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
         }
 
         episode = DecryptoEpisodeRecord(
-            episode_id=f"{req.seed:04d}-{game_id}",
+            episode_id=f"{actual_seed:04d}-{game_id}",
             config=cfg,
             game_id=game_id,
-            seed=cfg.seed,
+            seed=actual_seed,
             keys=keys,
             code_sequences=code_sequences,
             rounds=tuple(history),
@@ -1060,7 +1066,12 @@ async def _run_hanabi_job(job: Job, req: HanabiStartRequest) -> None:
         )
         
         # Emit function to stream events
+        # Note: We filter out "done" events from the orchestrator because we need
+        # to emit our own "done" with replay_id after saving the episode
         async def emit_event(event_type: str, data: dict[str, Any]) -> None:
+            if event_type == "done":
+                # Skip orchestrator's done event - we'll emit our own with replay_id
+                return
             await _emit(job, event_type, data)
             if req.event_delay_ms > 0:
                 await asyncio.sleep(req.event_delay_ms / 1000)
@@ -1069,6 +1080,7 @@ async def _run_hanabi_job(job: Job, req: HanabiStartRequest) -> None:
             asyncio.create_task(emit_event(event_type, data))
         
         # Run the episode
+        print("[HANABI] Starting run_episode", flush=True)
         episode = await run_episode(
             config=config,
             players=players,
@@ -1076,13 +1088,16 @@ async def _run_hanabi_job(job: Job, req: HanabiStartRequest) -> None:
             emit_fn=sync_emit,
             metadata={"player_models": player_metadata},
         )
+        print(f"[HANABI] run_episode completed, score={episode.final_score}, reason={episode.game_over_reason}", flush=True)
         
         # Save episode
         replay_id = save_hanabi_episode(episode)
         job.replay_id = replay_id.split("/")[-1]
+        print(f"[HANABI] Saved episode as {job.replay_id}", flush=True)
         
         # Emit done event
         metrics = compute_episode_metrics(episode)
+        print("[HANABI] Computed metrics, emitting done event", flush=True)
         await _emit(
             job,
             "done",
@@ -1095,12 +1110,29 @@ async def _run_hanabi_job(job: Job, req: HanabiStartRequest) -> None:
                 "agent_scratchpads": episode.agent_scratchpads,
             },
         )
+        print("[HANABI] done event emitted", flush=True)
         
-        # Stats analysis (optional - can be added later)
-        logger.info("Hanabi game completed: %s with score %d", job.replay_id, episode.final_score)
+        # Stats analysis with Opus
+        print(f"[HANABI] Submitting stats to Opus for {job.replay_id}", flush=True)
+        try:
+            report = await analyze_and_save(
+                game_type="hanabi",
+                replay_id=job.replay_id,
+                episode=episode.model_dump(mode="json"),
+            )
+            print(f"[HANABI] Received stats for {job.replay_id}", flush=True)
+            await _emit(job, "stats", report)
+        except Exception as stats_exc:
+            print(f"[HANABI] Stats analysis failed: {stats_exc}", flush=True)
+            import traceback
+            traceback.print_exc()
+            # Don't fail the job, just skip stats
         job.status = "done"
         
     except Exception as exc:
+        print(f"[HANABI] Job failed with exception: {exc}", flush=True)
+        import traceback
+        traceback.print_exc()
         job.status = "error"
         job.error = str(exc)
         await _emit(job, "job_error", {"error": str(exc)})
@@ -1156,3 +1188,245 @@ async def start_batch(req: BatchStartRequest, background: BackgroundTasks) -> Jo
 async def batch_events(job_id: str) -> StreamingResponse:
     job = _job(job_id)
     return StreamingResponse(_sse_stream(job), media_type="text/event-stream")
+
+
+# =============================================================================
+# Cloud Benchmark Endpoints
+# =============================================================================
+
+from src.cloud_benchmark import (
+    CloudBenchmarkConfig,
+    CloudBenchmarkRunner,
+    BenchmarkState,
+)
+from src.cloud_benchmark.analysis import list_findings, load_finding
+
+# Global runner instance
+_benchmark_runner: CloudBenchmarkRunner | None = None
+_benchmark_task: asyncio.Task | None = None
+
+
+@app.post("/benchmark/start")
+async def start_benchmark(
+    req: BenchmarkStartRequest, background: BackgroundTasks
+) -> dict[str, Any]:
+    """Start or resume a cloud benchmark run."""
+    global _benchmark_runner, _benchmark_task
+
+    # Check if already running
+    if _benchmark_runner and _benchmark_task and not _benchmark_task.done():
+        raise HTTPException(409, "Benchmark already running")
+
+    # Check existing state
+    existing = BenchmarkState.load(req.experiment_name)
+    if existing and existing.status == "running":
+        raise HTTPException(409, "Benchmark already running (check state)")
+
+    # Create config
+    config = CloudBenchmarkConfig(
+        experiment_name=req.experiment_name,
+        model_ids=req.model_ids,
+        seed_count=req.seed_count,
+        seed_list=req.seed_list,
+        run_codenames=req.run_codenames,
+        run_decrypto=req.run_decrypto,
+        run_hanabi=req.run_hanabi,
+        codenames_concurrency=req.codenames_concurrency,
+        decrypto_concurrency=req.decrypto_concurrency,
+        hanabi_concurrency=req.hanabi_concurrency,
+        codenames_mode=req.codenames_mode,
+        codenames_max_turns=req.codenames_max_turns,
+        codenames_max_discussion_rounds=req.codenames_max_discussion_rounds,
+        decrypto_max_rounds=req.decrypto_max_rounds,
+        decrypto_max_discussion_turns=req.decrypto_max_discussion_turns,
+        interim_analysis_batch_size=req.interim_analysis_batch_size,
+        max_retries=req.max_retries,
+        temperature=req.temperature,
+    )
+
+    # Create runner
+    _benchmark_runner = CloudBenchmarkRunner(config)
+
+    # Start in background
+    async def run_benchmark():
+        try:
+            await _benchmark_runner.run()
+        except Exception as e:
+            logger.exception(f"Benchmark failed: {e}")
+
+    _benchmark_task = asyncio.create_task(run_benchmark())
+
+    return {
+        "experiment_name": req.experiment_name,
+        "status": "started",
+        "codenames_total": _benchmark_runner.state.codenames.total_games,
+        "decrypto_total": _benchmark_runner.state.decrypto.total_games,
+        "hanabi_total": _benchmark_runner.state.hanabi.total_games,
+    }
+
+
+@app.get("/benchmark/status")
+def benchmark_status() -> BenchmarkStatusResponse:
+    """Get current benchmark status."""
+    if not _benchmark_runner:
+        return BenchmarkStatusResponse(status="idle")
+
+    state = _benchmark_runner.state
+
+    codenames_progress = None
+    decrypto_progress = None
+    hanabi_progress = None
+
+    if _benchmark_runner.config.run_codenames:
+        codenames_progress = GameTypeProgressResponse(
+            total=state.codenames.total_games,
+            completed=state.codenames.completed_games,
+            failed=state.codenames.failed_games,
+            running=state.codenames.running_games,
+        )
+
+    if _benchmark_runner.config.run_decrypto:
+        decrypto_progress = GameTypeProgressResponse(
+            total=state.decrypto.total_games,
+            completed=state.decrypto.completed_games,
+            failed=state.decrypto.failed_games,
+            running=state.decrypto.running_games,
+        )
+
+    if _benchmark_runner.config.run_hanabi:
+        hanabi_progress = GameTypeProgressResponse(
+            total=state.hanabi.total_games,
+            completed=state.hanabi.completed_games,
+            failed=state.hanabi.failed_games,
+            running=state.hanabi.running_games,
+        )
+
+    return BenchmarkStatusResponse(
+        status=state.status,
+        experiment_name=state.experiment_name,
+        started_at=state.started_at.isoformat() if state.started_at else None,
+        codenames=codenames_progress,
+        decrypto=decrypto_progress,
+        hanabi=hanabi_progress,
+        findings_count=state.findings_count,
+        last_error=state.last_error,
+    )
+
+
+@app.get("/benchmark/events")
+async def benchmark_events() -> StreamingResponse:
+    """SSE stream of benchmark events."""
+    if not _benchmark_runner:
+        raise HTTPException(404, "No benchmark running")
+
+    async def event_generator():
+        queue = _benchmark_runner.event_queue
+        while True:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=30)
+                data = event.model_dump(mode="json")
+                yield f"event: {event.event_type.value}\ndata: {json.dumps(data)}\n\n"
+
+                # Stop on terminal events
+                if event.event_type.value in ("benchmark_complete", "benchmark_paused", "benchmark_error"):
+                    break
+            except asyncio.TimeoutError:
+                # Send keepalive
+                yield f": keepalive\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@app.post("/benchmark/pause")
+def pause_benchmark() -> dict[str, str]:
+    """Request graceful pause of the benchmark."""
+    if not _benchmark_runner:
+        raise HTTPException(404, "No benchmark running")
+
+    _benchmark_runner.request_pause()
+    return {"status": "pause_requested"}
+
+
+@app.get("/benchmark/findings")
+def get_benchmark_findings() -> list[FindingSummary]:
+    """List all interim findings for the current benchmark."""
+    if not _benchmark_runner:
+        return []
+
+    output_dir = _benchmark_runner.config.get_output_path()
+    findings = list_findings(output_dir)
+
+    return [
+        FindingSummary(
+            finding_id=f.finding_id,
+            game_type=f.game_type,
+            batch_number=f.batch_number,
+            games_analyzed=f.games_analyzed,
+            timestamp=f.timestamp.isoformat(),
+            preview=f.analysis[:200] + "..." if len(f.analysis) > 200 else f.analysis,
+        )
+        for f in findings
+    ]
+
+
+@app.get("/benchmark/findings/{finding_id}")
+def get_benchmark_finding(finding_id: str) -> FindingDetail:
+    """Get a specific finding by ID."""
+    if not _benchmark_runner:
+        raise HTTPException(404, "No benchmark running")
+
+    output_dir = _benchmark_runner.config.get_output_path()
+    finding = load_finding(output_dir, finding_id)
+
+    if not finding:
+        raise HTTPException(404, f"Finding not found: {finding_id}")
+
+    return FindingDetail(
+        finding_id=finding.finding_id,
+        game_type=finding.game_type,
+        batch_number=finding.batch_number,
+        games_analyzed=finding.games_analyzed,
+        timestamp=finding.timestamp.isoformat(),
+        summary_metrics=finding.summary_metrics,
+        analysis=finding.analysis,
+        model=finding.model,
+        usage=finding.usage,
+    )
+
+
+@app.get("/benchmark/experiments")
+def list_experiments() -> list[dict[str, Any]]:
+    """List all available experiments (for resuming)."""
+    from src.cloud_benchmark.config import get_data_dir
+
+    data_dir = get_data_dir()
+    if not data_dir.exists():
+        return []
+
+    experiments = []
+    for exp_dir in data_dir.iterdir():
+        if exp_dir.is_dir():
+            state_path = exp_dir / "benchmark_state.json"
+            if state_path.exists():
+                state = BenchmarkState.load(exp_dir.name)
+                if state:
+                    experiments.append({
+                        "experiment_name": state.experiment_name,
+                        "status": state.status,
+                        "started_at": state.started_at.isoformat() if state.started_at else None,
+                        "total_completed": state.total_completed(),
+                        "total_failed": state.total_failed(),
+                        "findings_count": state.findings_count,
+                    })
+
+    return sorted(experiments, key=lambda x: x.get("started_at", ""), reverse=True)
+
+
+# =============================================================================
+# Static File Serving (Production)
+# =============================================================================
+
+# Serve built UI in production (must be last to not override API routes)
+_ui_dist = Path(__file__).parent.parent.parent / "ui" / "dist"
+if _ui_dist.exists():
+    app.mount("/", StaticFiles(directory=_ui_dist, html=True), name="ui")

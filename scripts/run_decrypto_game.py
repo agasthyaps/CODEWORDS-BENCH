@@ -97,7 +97,7 @@ async def main() -> None:
     args = parser.parse_args()
 
     cfg = DecryptoConfig(seed=args.seed, max_rounds=args.max_rounds)
-    game_id, keys, code_sequences = create_game(cfg)
+    game_id, actual_seed, keys, code_sequences = create_game(cfg)
     
     # Initialize agent state manager for scratchpads
     agent_states = AgentStateManager()
@@ -132,8 +132,8 @@ async def main() -> None:
     blue = _team("blue", args.blue_cluer, args.blue_guesser_1, args.blue_guesser_2)
 
     _p(f"\n{Colors.BOLD}{'=' * 60}{Colors.RESET}")
-    _p(f"{Colors.BOLD}DECRYPTO GAME - Episode decrypto-{args.seed}-{game_id}{Colors.RESET}")
-    _p(f"Seed: {args.seed} | Max rounds: {args.max_rounds}")
+    _p(f"{Colors.BOLD}DECRYPTO GAME - Episode decrypto-{actual_seed}-{game_id}{Colors.RESET}")
+    _p(f"Seed: {actual_seed} | Max rounds: {args.max_rounds}")
     _p(f"{Colors.RED}Red:{Colors.RESET} cluer={args.red_cluer} g1={args.red_guesser_1} g2={args.red_guesser_2}")
     _p(f"{Colors.BLUE}Blue:{Colors.RESET} cluer={args.blue_cluer} g1={args.blue_guesser_1} g2={args.blue_guesser_2}")
     if args.show_keys and not args.quiet:
@@ -151,7 +151,7 @@ async def main() -> None:
 
         base_inputs = RoundInputs(
             game_id=game_id,
-            seed=cfg.seed,
+            seed=actual_seed,
             round_number=r,
             keys=keys,
             current_codes={"red": code_sequences["red"][r - 1], "blue": code_sequences["blue"][r - 1]},
@@ -306,11 +306,11 @@ async def main() -> None:
     }
 
     episode = DecryptoEpisodeRecord(
-        episode_id=f"decrypto-{args.seed}-{game_id}",
+        episode_id=f"decrypto-{actual_seed}-{game_id}",
         timestamp=datetime.utcnow(),
         config=cfg,
         game_id=game_id,
-        seed=cfg.seed,
+        seed=actual_seed,
         keys=keys,
         code_sequences=code_sequences,
         rounds=tuple(round_logs),

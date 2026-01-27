@@ -12,6 +12,146 @@ def _safe_mean(xs: list[float]) -> float | None:
     return sum(xs) / len(xs)
 
 
+def code_distance(guess: tuple[int, int, int], actual: tuple[int, int, int]) -> float:
+    """
+    Compute nuanced distance between two Decrypto codes.
+    
+    This metric rewards partial correctness:
+    - Exact match: 0.0
+    - Position-aware: correct digit in correct position = 0 penalty for that position
+    - Digit set: having the right digits (wrong positions) gets partial credit
+    
+    Examples:
+        code_distance((1,2,3), (1,2,3)) -> 0.0 (exact match)
+        code_distance((1,2,3), (1,4,3)) -> ~0.33 (one position wrong)
+        code_distance((1,2,3), (2,3,1)) -> ~1.0 (all positions wrong, but right digits)
+        code_distance((1,2,3), (4,4,4)) -> ~1.5 (completely wrong digits)
+    
+    Formula:
+        position_errors = sum(g != a for g,a in zip(guess, actual)) / 3
+        digit_set_penalty = 0.5 * (1 - |intersection| / 3)
+        return position_errors + digit_set_penalty
+    
+    Args:
+        guess: The guessed code tuple (e.g., (1, 4, 3))
+        actual: The actual code tuple (e.g., (1, 2, 3))
+    
+    Returns:
+        Distance score in [0.0, 1.5] range. Lower is better.
+    """
+    # Position errors: 0, 1, 2, or 3 positions wrong -> normalized to [0, 1]
+    position_errors = sum(g != a for g, a in zip(guess, actual)) / 3.0
+    
+    # Digit set overlap: how many of the guessed digits appear in actual (regardless of position)
+    guess_set = set(guess)
+    actual_set = set(actual)
+    intersection_size = len(guess_set & actual_set)
+    
+    # Penalty for missing digits: 0 if all 3 match, 0.5 if none match
+    digit_set_penalty = 0.5 * (1.0 - intersection_size / 3.0)
+    
+    return position_errors + digit_set_penalty
+
+
+def compute_adaptation_rate(episode: DecryptoEpisodeRecord) -> dict[str, Any]:
+    """
+    Track how intercept quality improves over rounds.
+    
+    Measures learning rate: as teams observe more clue-code pairs from opponents,
+    their intercept guesses should get closer to correct (even if not exact).
+    
+    Returns:
+        - per_round_distance: Average code distance per round (by team)
+        - improvement_slope: Linear regression slope (negative = improving)
+        - rounds_to_first_intercept: How many rounds until first successful intercept
+        - partial_credit_scores: Average distance accounting for near-misses
+    """
+    # Track intercept distances per round for each team
+    distances_by_round: dict[TeamKey, list[tuple[int, float]]] = {"red": [], "blue": []}
+    first_intercept_round: dict[TeamKey, int | None] = {"red": None, "blue": None}
+    
+    for r in episode.rounds:
+        round_num = r.round_number
+        acts = _team_actions(r)
+        
+        for team in ("red", "blue"):
+            intercept_action = acts.get((team, "intercept"))
+            if intercept_action is None:
+                continue
+                
+            # Skip uninformed intercepts (round 1)
+            if getattr(intercept_action, "uninformed", False):
+                continue
+            
+            # Get the guess and actual code
+            guess = intercept_action.consensus.guess if intercept_action.consensus else None
+            
+            # Get opponent's actual code for this round
+            opponent = "blue" if team == "red" else "red"
+            clue_action = acts.get((opponent, "clue"))
+            if clue_action is None or guess is None:
+                continue
+            
+            actual_code = clue_action.code  # The code being encoded
+            
+            # Ensure both are tuples of 3 ints
+            if isinstance(guess, (list, tuple)) and len(guess) == 3:
+                guess_tuple = tuple(int(g) for g in guess)
+                actual_tuple = tuple(int(a) for a in actual_code)
+                
+                dist = code_distance(guess_tuple, actual_tuple)
+                distances_by_round[team].append((round_num, dist))
+                
+                # Track first successful intercept
+                if intercept_action.correct and first_intercept_round[team] is None:
+                    first_intercept_round[team] = round_num
+    
+    # Compute per-round averages and improvement slope
+    result: dict[str, Any] = {
+        "per_round_distance": {"red": {}, "blue": {}},
+        "improvement_slope": {"red": None, "blue": None},
+        "rounds_to_first_intercept": first_intercept_round,
+        "partial_credit_scores": {"red": None, "blue": None},
+    }
+    
+    for team in ("red", "blue"):
+        data = distances_by_round[team]
+        if not data:
+            continue
+        
+        # Group by round
+        by_round: dict[int, list[float]] = {}
+        for round_num, dist in data:
+            if round_num not in by_round:
+                by_round[round_num] = []
+            by_round[round_num].append(dist)
+        
+        # Per-round averages
+        for round_num, dists in by_round.items():
+            result["per_round_distance"][team][round_num] = sum(dists) / len(dists)
+        
+        # Overall partial credit score (average distance, inverted so higher = better)
+        all_distances = [d for _, d in data]
+        result["partial_credit_scores"][team] = 1.0 - (sum(all_distances) / len(all_distances) / 1.5)
+        
+        # Linear regression for improvement slope
+        if len(data) >= 2:
+            rounds = [r for r, _ in data]
+            dists = [d for _, d in data]
+            n = len(data)
+            
+            mean_r = sum(rounds) / n
+            mean_d = sum(dists) / n
+            
+            numerator = sum((r - mean_r) * (d - mean_d) for r, d in zip(rounds, dists))
+            denominator = sum((r - mean_r) ** 2 for r in rounds)
+            
+            if denominator > 0:
+                result["improvement_slope"][team] = numerator / denominator
+    
+    return result
+
+
 def brier(p: float, y01: float) -> float:
     return (p - y01) ** 2
 
@@ -106,6 +246,9 @@ def compute_episode_scores(episode: DecryptoEpisodeRecord) -> dict[str, Any]:
             if decode_action is not None:
                 by_state[bucket][team].append(1.0 if decode_action.correct else 0.0)
 
+    # Compute adaptation rate metrics
+    adaptation_metrics = compute_adaptation_rate(episode)
+    
     return {
         "outcomes": {
             "decode_success_rate": {t: _safe_mean(decode_success[t]) for t in ("red", "blue")},
@@ -126,5 +269,10 @@ def compute_episode_scores(episode: DecryptoEpisodeRecord) -> dict[str, Any]:
                 bucket: {t: _safe_mean(by_state[bucket][t]) for t in ("red", "blue")}
                 for bucket in sorted(by_state.keys())
             },
+            # Nuanced adaptation metrics
+            "intercept_distance_by_round": adaptation_metrics["per_round_distance"],
+            "improvement_slope": adaptation_metrics["improvement_slope"],
+            "rounds_to_first_intercept": adaptation_metrics["rounds_to_first_intercept"],
+            "partial_credit_scores": adaptation_metrics["partial_credit_scores"],
         },
     }

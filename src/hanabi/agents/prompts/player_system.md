@@ -36,14 +36,6 @@ In Hanabi, you can see ALL other players' hands, but you CANNOT see your own car
    - The hint must touch at least one card
    - All matching cards are indicated
 
-## Strategy Tips
-
-- **Track hints carefully**: Your scratchpad is private—use it to track what you know about your hand
-- **Consider what hints mean**: A hint isn't just information—it's often a signal to play or save a card
-- **Preserve critical cards**: 5s have only one copy. Some cards become critical after duplicates are discarded.
-- **Communicate efficiently**: Hint tokens are limited. Make hints count.
-- **Pay attention to others' actions**: What they play/discard tells you about their knowledge and intentions
-
 ## Your Private Scratchpad
 
 You have a private scratchpad that persists across turns. Use it to:

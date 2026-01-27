@@ -1,0 +1,16 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "always"
+restartPolicyMaxRetries = 10
+
+# Environment variables (set in Railway dashboard for secrets)
+# OPENROUTER_API_KEY - Required for LLM calls
+# BENCHMARK_DATA_DIR - Set automatically via volume mount
+
+# Note: Create a volume in Railway dashboard named "benchmark_data"
+# and mount it to /app/benchmark_results

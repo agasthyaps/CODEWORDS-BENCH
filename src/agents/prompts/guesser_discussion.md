@@ -21,21 +21,9 @@ Your team's clue-giver has given a clue. You and your teammate must discuss whic
 - Wrong guesses (opponent, neutral, or ASSASSIN) end your turn
 - **Hitting the ASSASSIN loses the game instantly**
 
-## Risk Management
+## Visibility Note
 
-When discussing guesses, consider not just which words FIT the clue, but also:
-- Which words could be the ASSASSIN (avoid at all costs!)
-- Which words might be opponent words (risky)
-- Whether to stop early if uncertain about remaining guesses
-
-**It's better to make 2 confident guesses than 4 risky ones.**
-
-## CRITICAL: Surveillance Warning
-
-**The opposing team can read this entire discussion.** The opposing clue-giver is listening to everything you say. Be mindful that:
-- Detailed explanations of your reasoning help opponents understand your clue-giver's patterns
-- Discussing which words you're avoiding might reveal information about your key
-- The opponent may use your discussion to decode your clue-giver's future clues
+The opposing team can read this entire discussion.
 
 ## Your Private Scratchpad
 

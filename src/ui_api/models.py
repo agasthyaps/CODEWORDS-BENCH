@@ -95,3 +95,89 @@ class ReplaySummary(BaseModel):
     game_type: Literal["codenames", "decrypto", "hanabi"]
     filename: str
     timestamp: str | None = None
+
+
+# Cloud Benchmark Models
+
+class BenchmarkStartRequest(BaseModel):
+    """Request to start a cloud benchmark run."""
+
+    experiment_name: str
+
+    # Models to benchmark (by model_id from models.json)
+    model_ids: list[str]
+
+    # Seeds
+    seed_count: int = 30
+    seed_list: list[int] | None = None
+
+    # Game type toggles
+    run_codenames: bool = True
+    run_decrypto: bool = True
+    run_hanabi: bool = True
+
+    # Concurrency
+    codenames_concurrency: int = 2
+    decrypto_concurrency: int = 2
+    hanabi_concurrency: int = 1
+
+    # Game-specific settings
+    codenames_mode: GameMode = GameMode.STANDARD
+    codenames_max_turns: int = 50
+    codenames_max_discussion_rounds: int = 3
+    decrypto_max_rounds: int = 8
+    decrypto_max_discussion_turns: int = 2
+
+    # Analysis
+    interim_analysis_batch_size: int = 10
+
+    # Error handling
+    max_retries: int = 3
+    temperature: float = 0.7
+
+
+class GameTypeProgressResponse(BaseModel):
+    """Progress for a single game type."""
+
+    total: int
+    completed: int
+    failed: int
+    running: int
+
+
+class BenchmarkStatusResponse(BaseModel):
+    """Response for benchmark status."""
+
+    status: Literal["idle", "running", "paused", "complete", "error"]
+    experiment_name: str | None = None
+    started_at: str | None = None
+    codenames: GameTypeProgressResponse | None = None
+    decrypto: GameTypeProgressResponse | None = None
+    hanabi: GameTypeProgressResponse | None = None
+    findings_count: int = 0
+    last_error: str | None = None
+
+
+class FindingSummary(BaseModel):
+    """Summary of an interim finding."""
+
+    finding_id: str
+    game_type: Literal["codenames", "decrypto", "hanabi"]
+    batch_number: int
+    games_analyzed: int
+    timestamp: str
+    preview: str  # First ~200 chars
+
+
+class FindingDetail(BaseModel):
+    """Full details of an interim finding."""
+
+    finding_id: str
+    game_type: Literal["codenames", "decrypto", "hanabi"]
+    batch_number: int
+    games_analyzed: int
+    timestamp: str
+    summary_metrics: dict
+    analysis: str
+    model: str
+    usage: dict | None = None
