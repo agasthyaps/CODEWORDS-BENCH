@@ -8,7 +8,7 @@ import {
 } from "../api";
 import CodenamesBoard from "../components/CodenamesBoard";
 import ChatPanel from "../components/ChatPanel";
-import { ModelInfo, TeamRoleConfig, TeamSelection } from "../types";
+import { ModelInfo, TeamRoleConfig, TeamSelection, ClueGenerationMode } from "../types";
 
 type Props = {
   models: ModelInfo[];
@@ -31,6 +31,7 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
   const [mode, setMode] = useState("STANDARD");
   const [seed, setSeed] = useState<number | undefined>(undefined);
   const [eventDelay, setEventDelay] = useState(0);
+  const [clueGenMode, setClueGenMode] = useState<ClueGenerationMode>("standard");
   const [boardWords, setBoardWords] = useState<string[]>([]);
   const [keyByWord, setKeyByWord] = useState<Record<string, string>>({});
   const [revealed, setRevealed] = useState<Record<string, string>>({});
@@ -72,6 +73,7 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
       max_discussion_rounds: 3,
       max_turns: 50,
       event_delay_ms: eventDelay,
+      clue_generation_mode: clueGenMode,
     });
 
     const stream = openEventStream(`/codenames/${job_id}/events`);
@@ -201,6 +203,13 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
                   value={eventDelay}
                   onChange={(e) => setEventDelay(Number(e.target.value))}
                 />
+              </div>
+              <div className="form-row-compact">
+                <label>Clue Strategy</label>
+                <select value={clueGenMode} onChange={(e) => setClueGenMode(e.target.value as ClueGenerationMode)}>
+                  <option value="standard">Standard (Generate then Predict)</option>
+                  <option value="deliberate">Deliberate (Brainstorm then Choose)</option>
+                </select>
               </div>
             </div>
             <div className="settings-section">

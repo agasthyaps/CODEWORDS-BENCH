@@ -240,8 +240,15 @@ class DecryptoCluerLLM:
     provider: LLMProvider
     model_id: str
     temperature: float = 0.7
+    clue_generation_mode: str = "standard"  # "standard" | "deliberate"
 
     async def generate(self, round_inputs: RoundInputs, team: TeamKey) -> tuple[ClueSet, dict[str, Any]]:
+        """Generate clues - branches based on clue_generation_mode."""
+        if self.clue_generation_mode == "deliberate":
+            return await self._generate_deliberate(round_inputs, team)
+        return await self._generate_standard(round_inputs, team)
+
+    async def _generate_standard(self, round_inputs: RoundInputs, team: TeamKey) -> tuple[ClueSet, dict[str, Any]]:
         view = view_for_cluer(round_inputs, team)
         assert_view_safe(view)
 
@@ -340,6 +347,110 @@ class DecryptoCluerLLM:
 
         # Failure: return placeholder clues + empty annotations (will likely hurt performance but preserves run continuity).
         return ClueSet(clues=("CLUEA", "CLUEB", "CLUEC")), {"cluer_annotations": {}}
+
+    async def _generate_deliberate(self, round_inputs: RoundInputs, team: TeamKey) -> tuple[ClueSet, dict[str, Any]]:
+        """
+        Generate clues using deliberate mode (brainstorm then choose).
+        
+        In this mode, the model first considers multiple candidate clue sets,
+        predicts team/opponent outcomes for each, then chooses the best one.
+        """
+        view = view_for_cluer(round_inputs, team)
+        assert_view_safe(view)
+
+        system = (
+            "You are the CLUER in Decrypto using DELIBERATE mode. Output ONLY valid JSON.\n"
+            "You must consider multiple candidate clue sets before choosing the best one.\n"
+            "Do NOT use any of your key words verbatim as clues.\n\n"
+            "STRATEGIC REMINDER:\n"
+            "- Your teammates must decode your clues to guess the secret code.\n"
+            "- The OPPONENT TEAM sees ALL your clues from ALL rounds and will use this "
+            "accumulated evidence to intercept your code.\n"
+            "- Each round, opponents build a stronger mapping of your clue patterns to keyword positions.\n"
+            "- Balance clarity for your team against predictability for opponents.\n"
+        )
+        user = (
+            f"ROLE_VIEW:\n{view}\n\n"
+            "DELIBERATE MODE: Consider multiple clue set options before choosing.\n\n"
+            "Return JSON with schema:\n"
+            "{\n"
+            '  \"candidates\": [\n'
+            '    {\n'
+            '      \"clues\": [\"CLUE1\",\"CLUE2\",\"CLUE3\"],\n'
+            '      \"p_team_correct\": 0.0-1.0,\n'
+            '      \"p_intercept\": 0.0-1.0,\n'
+            '      \"rationale\": \"why this set might work\"\n'
+            '    },\n'
+            '    ... (2-4 candidates)\n'
+            '  ],\n'
+            '  \"chosen_index\": 0,\n'
+            '  \"clues\": [\"CLUE1\",\"CLUE2\",\"CLUE3\"],\n'
+            '  \"annotations\": {\n'
+            '     \"intended_mapping\": {\"2\":\"<KEYWORD>\", ...},\n'
+            '     \"slot_themes\": {\"1\":\"short theme\", \"2\":\"short theme\", \"3\":\"short theme\", \"4\":\"short theme\"},\n'
+            '     \"predicted_team_guess\": [d1,d2,d3],\n'
+            '     \"p_team_correct\": 0.0-1.0,\n'
+            '     \"p_intercept\": 0.0-1.0,\n'
+            '     \"deliberation_mode\": true\n'
+            "  }\n"
+            "}\n"
+        )
+
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+        def _validate(obj: dict[str, Any]) -> tuple[ClueSet, dict[str, Any]] | None:
+            clues = obj.get("clues")
+            if not isinstance(clues, list) or len(clues) != 3:
+                return None
+            clue_words: list[str] = []
+            for c in clues:
+                if not isinstance(c, str):
+                    return None
+                w = c.strip().upper()
+                if not w or " " in w or len(w) > 32:
+                    return None
+                clue_words.append(w)
+
+            key_words = set(view["key"])
+            if any(w in key_words for w in clue_words):
+                return None
+
+            ann = obj.get("annotations")
+            if not isinstance(ann, dict):
+                return None
+            ptc = parse_confidence_01(ann.get("p_team_correct"))
+            pi = parse_confidence_01(ann.get("p_intercept"))
+            if ptc is None or pi is None:
+                return None
+            ptg = ann.get("predicted_team_guess")
+            if parse_code_triple(ptg) is None:
+                return None
+            
+            # Add deliberation metadata
+            ann["deliberation_mode"] = True
+            candidates = obj.get("candidates", [])
+            if isinstance(candidates, list):
+                ann["candidates_considered"] = candidates
+            
+            return ClueSet(clues=tuple(clue_words)), {"cluer_annotations": ann}
+
+        # Parse + single repair retry
+        resp1 = await self.provider.complete(messages=messages, temperature=self.temperature)
+        obj1 = parse_json_object_strict(resp1.content)
+        parsed = _validate(obj1) if obj1 else None
+        if parsed is not None:
+            return parsed
+
+        messages.append({"role": "assistant", "content": resp1.content})
+        messages.append({"role": "user", "content": repair_user_message("cluer", "invalid schema")})
+        resp2 = await self.provider.complete(messages=messages, temperature=self.temperature)
+        obj2 = parse_json_object_strict(resp2.content)
+        parsed2 = _validate(obj2) if obj2 else None
+        if parsed2 is not None:
+            return parsed2
+
+        # Failure: return placeholder clues + empty annotations
+        return ClueSet(clues=("CLUEA", "CLUEB", "CLUEC")), {"cluer_annotations": {"deliberation_mode": True}}
 
 
 @dataclass(frozen=True)

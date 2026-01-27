@@ -1,4 +1,6 @@
 export type GameType = "codenames" | "decrypto";
+export type ClueGenerationMode = "standard" | "deliberate";
+export type BatchClueGenerationMode = "standard" | "deliberate" | "split";
 
 export interface ModelInfo {
   model_id: string;

@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm";
 import { fetchStats, openEventStream, startDecrypto } from "../api";
 import DecryptoBoard from "../components/DecryptoBoard";
 import ChatPanel from "../components/ChatPanel";
-import { ModelInfo, TeamRoleConfig, TeamSelection } from "../types";
+import { ModelInfo, TeamRoleConfig, TeamSelection, ClueGenerationMode } from "../types";
 
 type Props = {
   models: ModelInfo[];
@@ -42,6 +42,7 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
   const [seed, setSeed] = useState(0);
   const [eventDelay, setEventDelay] = useState(0);
   const [maxDiscussionTurns, setMaxDiscussionTurns] = useState(2);
+  const [clueGenMode, setClueGenMode] = useState<ClueGenerationMode>("standard");
   const [keys, setKeys] = useState<{ red: string[]; blue: string[] }>({ red: [], blue: [] });
   const [rounds, setRounds] = useState<any[]>([]);
   const [status, setStatus] = useState("idle");
@@ -95,6 +96,7 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
       max_rounds: 8,
       max_discussion_turns_per_guesser: maxDiscussionTurns,
       event_delay_ms: eventDelay,
+      clue_generation_mode: clueGenMode,
     });
 
     const stream = openEventStream(`/decrypto/${job_id}/events`);
@@ -336,6 +338,13 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
                   value={maxDiscussionTurns}
                   onChange={(e) => setMaxDiscussionTurns(Number(e.target.value))}
                 />
+              </div>
+              <div className="form-row-compact">
+                <label>Clue Strategy</label>
+                <select value={clueGenMode} onChange={(e) => setClueGenMode(e.target.value as ClueGenerationMode)}>
+                  <option value="standard">Standard (Generate then Predict)</option>
+                  <option value="deliberate">Deliberate (Brainstorm then Choose)</option>
+                </select>
               </div>
             </div>
             <div className="settings-section">

@@ -7,6 +7,11 @@ from pydantic import BaseModel, Field
 
 from src.engine import GameMode
 
+# Clue generation mode: controls order of clue generation vs ToM prediction
+ClueGenerationMode = Literal["standard", "deliberate"]
+# For batch runs, "split" runs half in each mode for A/B comparison
+BatchClueGenerationMode = Literal["standard", "deliberate", "split"]
+
 
 class ModelInfo(BaseModel):
     id: str
@@ -32,6 +37,7 @@ class CodenamesStartRequest(BaseModel):
     max_discussion_rounds: int = 3
     max_turns: int = 50
     event_delay_ms: int = 0
+    clue_generation_mode: ClueGenerationMode = "standard"
 
 
 class DecryptoStartRequest(BaseModel):
@@ -40,6 +46,7 @@ class DecryptoStartRequest(BaseModel):
     max_rounds: int = 8
     max_discussion_turns_per_guesser: int = 2
     event_delay_ms: int = 0
+    clue_generation_mode: ClueGenerationMode = "standard"
 
 
 class BatchStartRequest(BaseModel):
@@ -56,6 +63,7 @@ class BatchStartRequest(BaseModel):
     max_rounds: int = 8
     max_discussion_turns_per_guesser: int = 2
     event_delay_ms: int = 0
+    clue_generation_mode: BatchClueGenerationMode = "standard"
 
 
 class JobStartResponse(BaseModel):

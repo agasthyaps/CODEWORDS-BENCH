@@ -177,6 +177,7 @@ def _build_codenames_team(
     config: dict[str, str | None],
     *,
     temperature: float = 0.7,
+    clue_generation_mode: str = "standard",
 ) -> TeamAgents:
     team_key = team.value.lower()
     cluer_model = model_map[config["cluer"]]
@@ -206,6 +207,7 @@ def _build_codenames_team(
             team=team,
             agent_id=f"{team_key}_cluer",
             temperature=temperature,
+            clue_generation_mode=clue_generation_mode,
         ),
         cluer_provider,
     )
@@ -240,6 +242,7 @@ def _build_decrypto_team(
     config: dict[str, str | None],
     *,
     temperature: float = 0.7,
+    clue_generation_mode: str = "standard",
 ) -> dict[str, Any]:
     cluer_model = model_map[config["cluer"]]
     g1_model = model_map[config["guesser_1"]]
@@ -266,6 +269,7 @@ def _build_decrypto_team(
             provider=cluer_provider,
             model_id=cluer_model.model_id,
             temperature=temperature,
+            clue_generation_mode=clue_generation_mode,
         ),
         "g1": DecryptoGuesserLLM(
             provider=g1_provider,
@@ -310,8 +314,15 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
         selection = _resolve_team_selection(
             req.team_selection, allow_single=req.mode == GameMode.SINGLE_GUESSER
         )
-        red_team = _build_codenames_team(model_map, Team.RED, selection["red"])
-        blue_team = _build_codenames_team(model_map, Team.BLUE, selection["blue"])
+        clue_gen_mode = req.clue_generation_mode
+        red_team = _build_codenames_team(
+            model_map, Team.RED, selection["red"],
+            clue_generation_mode=clue_gen_mode,
+        )
+        blue_team = _build_codenames_team(
+            model_map, Team.BLUE, selection["blue"],
+            clue_generation_mode=clue_gen_mode,
+        )
         game_config = GameConfig.for_mode(req.mode, seed=req.seed)
         state = create_game(config=game_config)
 
@@ -349,7 +360,14 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
             # Prediction step (for ToM): cluer predicts teammate guesses before discussion
             prediction_trace = None
             try:
-                if hasattr(team_agents.cluer, "predict_guesses") and state.current_clue is not None:
+                if clue_gen_mode == "deliberate":
+                    # In deliberate mode, synthesize prediction from the clue trace
+                    if hasattr(team_agents.cluer, "synthesize_prediction_trace"):
+                        prediction_trace = team_agents.cluer.synthesize_prediction_trace(
+                            clue_trace, state
+                        )
+                elif hasattr(team_agents.cluer, "predict_guesses") and state.current_clue is not None:
+                    # Standard mode: call predict_guesses separately
                     prediction_trace = await team_agents.cluer.predict_guesses(state, state.current_clue)
             except Exception:
                 # Prediction should never crash the game; store nothing on failure.
@@ -450,6 +468,7 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
                 "red_team": selection["red"],
                 "blue_team": selection["blue"],
                 "max_discussion_rounds": req.max_discussion_rounds,
+                "clue_generation_mode": clue_gen_mode,
             },
         )
         path = save_codenames_episode(episode)
@@ -487,11 +506,19 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
     try:
         model_map = _load_model_map()
         selection = _resolve_team_selection(req.team_selection, allow_single=False)
-        red_team = _build_decrypto_team(model_map, "red", selection["red"])
-        blue_team = _build_decrypto_team(model_map, "blue", selection["blue"])
+        clue_gen_mode = req.clue_generation_mode
+        red_team = _build_decrypto_team(
+            model_map, "red", selection["red"],
+            clue_generation_mode=clue_gen_mode,
+        )
+        blue_team = _build_decrypto_team(
+            model_map, "blue", selection["blue"],
+            clue_generation_mode=clue_gen_mode,
+        )
         metadata = {
             "red_team": _decrypto_team_metadata(model_map, "red", selection["red"]),
             "blue_team": _decrypto_team_metadata(model_map, "blue", selection["blue"]),
+            "clue_generation_mode": clue_gen_mode,
         }
 
         cfg = DecryptoConfig(seed=req.seed, max_rounds=req.max_rounds)
@@ -773,6 +800,13 @@ async def _run_batch_job(job: Job, req: BatchStartRequest) -> None:
                     raise ValueError("random batch requires model_pool")
                 selection = _sample_team(req.model_pool)
 
+            # Determine clue generation mode for this game
+            # "split" mode: first half standard, second half deliberate
+            if req.clue_generation_mode == "split":
+                game_clue_mode = "standard" if idx < req.count // 2 else "deliberate"
+            else:
+                game_clue_mode = req.clue_generation_mode
+
             if req.game_type == "codenames":
                 sub_job = Job(job_id=f"{job.job_id}-{idx}")
                 await _run_codenames_job(
@@ -784,6 +818,7 @@ async def _run_batch_job(job: Job, req: BatchStartRequest) -> None:
                         max_discussion_rounds=req.max_discussion_rounds,
                         max_turns=req.max_turns,
                         event_delay_ms=req.event_delay_ms,
+                        clue_generation_mode=game_clue_mode,
                     ),
                 )
                 results.append({"replay_id": sub_job.replay_id, "status": sub_job.status})
@@ -797,6 +832,7 @@ async def _run_batch_job(job: Job, req: BatchStartRequest) -> None:
                         max_rounds=req.max_rounds,
                         max_discussion_turns_per_guesser=req.max_discussion_turns_per_guesser,
                         event_delay_ms=req.event_delay_ms,
+                        clue_generation_mode=game_clue_mode,
                     ),
                 )
                 results.append({"replay_id": sub_job.replay_id, "status": sub_job.status})

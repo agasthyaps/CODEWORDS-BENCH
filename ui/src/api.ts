@@ -1,4 +1,4 @@
-import { GameType, ReplaySummary, TeamSelection } from "./types";
+import { GameType, ReplaySummary, TeamSelection, ClueGenerationMode, BatchClueGenerationMode } from "./types";
 
 const API_BASE =
   import.meta.env.VITE_API_BASE || "http://localhost:8000";
@@ -16,6 +16,7 @@ export async function startCodenames(payload: {
   max_discussion_rounds: number;
   max_turns: number;
   event_delay_ms: number;
+  clue_generation_mode?: ClueGenerationMode;
 }) {
   const res = await fetch(`${API_BASE}/codenames/start`, {
     method: "POST",
@@ -32,6 +33,7 @@ export async function startDecrypto(payload: {
   max_rounds: number;
   max_discussion_turns_per_guesser: number;
   event_delay_ms: number;
+  clue_generation_mode?: ClueGenerationMode;
 }) {
   const res = await fetch(`${API_BASE}/decrypto/start`, {
     method: "POST",

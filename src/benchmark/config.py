@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field
 
 from src.engine import Team, GameMode
 
+# Clue generation mode for benchmark experiments
+ClueGenerationMode = Literal["standard", "deliberate"]
+
 
 class TeamComposition(str, Enum):
     """Team composition types for experiments."""
@@ -75,6 +78,7 @@ class ExperimentConfig(BaseModel):
     max_retries: int = 3
     max_discussion_rounds: int = 3
     max_turns: int = 50
+    clue_generation_mode: ClueGenerationMode = "standard"
 
     # Error handling
     max_consecutive_failures: int = 5  # Skip config after this many failures

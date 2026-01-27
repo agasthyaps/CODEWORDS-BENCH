@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { openEventStream, startBatch } from "../api";
 import ModelPicker from "../components/ModelPicker";
-import { ModelInfo, TeamRoleConfig, TeamSelection } from "../types";
+import { ModelInfo, TeamRoleConfig, TeamSelection, BatchClueGenerationMode } from "../types";
 
 type Props = {
   models: ModelInfo[];
@@ -26,6 +26,7 @@ export default function BatchRunner({ models, defaultModel }: Props) {
   const [count, setCount] = useState(5);
   const [seedCount, setSeedCount] = useState(1);
   const [modelPool, setModelPool] = useState<string[]>([]);
+  const [clueGenMode, setClueGenMode] = useState<BatchClueGenerationMode>("standard");
   const [progress, setProgress] = useState({ completed: 0, total: 0 });
   const [status, setStatus] = useState<"idle" | "running" | "finished" | "error">("idle");
   const [results, setResults] = useState<any[]>([]);
@@ -63,6 +64,7 @@ export default function BatchRunner({ models, defaultModel }: Props) {
       max_turns: 50,
       max_rounds: 8,
       event_delay_ms: 0,
+      clue_generation_mode: clueGenMode,
     };
     const { job_id } = await startBatch(payload);
     const stream = openEventStream(`/batch/${job_id}/events`);
@@ -134,6 +136,14 @@ export default function BatchRunner({ models, defaultModel }: Props) {
           <div className="form-row">
             <label>Pinned teams</label>
             <input type="checkbox" checked={pinned} onChange={() => setPinned(!pinned)} />
+          </div>
+          <div className="form-row">
+            <label>Clue Strategy</label>
+            <select value={clueGenMode} onChange={(e) => setClueGenMode(e.target.value as BatchClueGenerationMode)}>
+              <option value="standard">Standard (Generate then Predict)</option>
+              <option value="deliberate">Deliberate (Brainstorm then Choose)</option>
+              <option value="split">Split (Half each for A/B comparison)</option>
+            </select>
           </div>
           {!pinned && (
             <div className="pool">
