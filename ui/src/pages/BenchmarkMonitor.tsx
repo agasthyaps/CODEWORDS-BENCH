@@ -279,16 +279,16 @@ export default function BenchmarkMonitor({ models }: Props) {
             <div className="model-grid">
               {models.map((m) => (
                 <label
-                  key={m.id}
-                  className={`model-chip ${selectedModels.includes(m.id) ? "selected" : ""}`}
+                  key={m.model_id}
+                  className={`model-chip ${selectedModels.includes(m.model_id) ? "selected" : ""}`}
                 >
                   <input
                     type="checkbox"
-                    checked={selectedModels.includes(m.id)}
-                    onChange={() => toggleModel(m.id)}
+                    checked={selectedModels.includes(m.model_id)}
+                    onChange={() => toggleModel(m.model_id)}
                     disabled={isRunning}
                   />
-                  {m.short_name || m.id.split("/").pop()}
+                  {m.name || m.model_id.split("/").pop()}
                 </label>
               ))}
             </div>
