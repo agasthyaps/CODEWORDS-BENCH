@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir -e .
 COPY src/ ./src/
 COPY config/ ./config/
 COPY scripts/ ./scripts/
+COPY words.txt ./words.txt
 
 # Copy built UI from builder stage
 COPY --from=ui-builder /app/ui/dist ./ui/dist

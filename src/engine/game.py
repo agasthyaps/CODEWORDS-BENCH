@@ -16,7 +16,7 @@ from .models import (
 def load_wordlist(path: Path | None = None) -> list[str]:
     """Load the word list from file."""
     if path is None:
-        path = Path(__file__).parent.parent.parent / "data" / "wordlist.txt"
+        path = Path(__file__).parent.parent.parent / "words.txt"
 
     with open(path, "r") as f:
         words = [line.strip().upper() for line in f if line.strip()]

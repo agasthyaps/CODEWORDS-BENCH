@@ -20,7 +20,7 @@ def _repo_root() -> Path:
 
 def load_keyword_bank(path: str | None) -> list[str]:
     if path is None:
-        path = str(_repo_root() / "data" / "wordlist.txt")
+        path = str(_repo_root() / "words.txt")
     p = Path(path)
     words = []
     with open(p, "r") as f:
