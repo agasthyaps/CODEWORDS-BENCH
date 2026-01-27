@@ -1,7 +1,9 @@
 import { GameType, ReplaySummary, TeamSelection } from "./types";
 
+// In production (same origin), use relative URLs. In dev, use localhost.
 const API_BASE =
-  import.meta.env.VITE_API_BASE || "http://localhost:8000";
+  import.meta.env.VITE_API_BASE ||
+  (window.location.hostname === "localhost" ? "http://localhost:8000" : "");
 
 export async function fetchModels() {
   const res = await fetch(`${API_BASE}/models`);
