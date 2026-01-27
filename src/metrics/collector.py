@@ -13,259 +13,6 @@ if TYPE_CHECKING:
     from src.runner import ExtendedEpisodeRecord
 
 
-def _safe_mean(values: list[float]) -> float | None:
-    if not values:
-        return None
-    return sum(values) / len(values)
-
-
-def _spearman_rank_correlation(x_ranks: list[int], y_ranks: list[int]) -> float | None:
-    """
-    Spearman correlation for rank lists (no ties assumed).
-    Returns None if fewer than 2 points.
-    """
-    n = len(x_ranks)
-    if n < 2:
-        return None
-    # Spearman rho = 1 - 6 * sum(d^2) / (n*(n^2-1))
-    d2 = 0
-    for xr, yr in zip(x_ranks, y_ranks):
-        d = xr - yr
-        d2 += d * d
-    denom = n * (n * n - 1)
-    if denom == 0:
-        return None
-    return 1.0 - (6.0 * d2) / denom
-
-
-def _compute_prediction_tom_for_team(
-    episode: "ExtendedEpisodeRecord",
-    team: Team,
-) -> tuple[
-    float | None,  # overlap@k mean
-    float | None,  # translated overlap@k mean
-    float | None,  # rank correlation mean
-    float | None,  # confusion calibration mean
-    float | None,  # format compliance rate
-    float | None,  # board-word compliance rate (top-k)
-    float | None,  # non-board rate in top-k
-    float | None,  # cluer confidence mean
-    float | None,  # cluer overconfidence rate
-    int,  # n_predictions seen (including parse failures)
-]:
-    """
-    Compute prediction-based ToM submetrics for a team.
-
-    Returns:
-        (prediction_accuracy_mean, rank_correlation_mean, confusion_calibration_mean, n_predictions)
-    """
-    # Turn traces are Pydantic models; after v1.1 they may include prediction_trace.
-    turn_traces = getattr(episode, "turn_traces", []) or []
-    transcript = episode.public_transcript
-
-    overlap_vals: list[float] = []
-    translated_overlap_vals: list[float] = []
-    rank_vals: list[float] = []
-    confusion_vals: list[float] = []
-    format_ok = 0
-    boardword_ok = 0
-    non_board_fracs: list[float] = []
-    conf_vals: list[float] = []
-    overconf_flags: list[int] = []
-    n_predictions = 0
-
-    board_words = set([w.upper() for w in episode.board.words])
-
-    for t in turn_traces:
-        if getattr(t, "team", None) != team:
-            continue
-
-        pred_trace = getattr(t, "prediction_trace", None)
-        if pred_trace is None:
-            continue
-
-        n_predictions += 1
-        if not pred_trace.parsed_result:
-            continue
-
-        predicted_guesses = pred_trace.parsed_result.get("predicted_guesses")
-        translated_guesses = (
-            pred_trace.parsed_result.get("translated_guesses")
-            if "translated_guesses" in pred_trace.parsed_result
-            else None
-        )
-        confusion_risks = pred_trace.parsed_result.get("confusion_risks", [])
-        confidence = pred_trace.parsed_result.get("confidence")
-        if not isinstance(predicted_guesses, list):
-            continue
-        format_ok += 1
-
-        if isinstance(confidence, int) and 1 <= confidence <= 5:
-            conf_vals.append(float(confidence))
-
-        turn_number = getattr(t, "turn_number", None)
-        if turn_number is None:
-            continue
-
-        # Actual guesses (order as in transcript)
-        actual_guesses: list[str] = []
-        wrong_guesses: list[str] = []
-        for event in transcript:
-            if event.get("event_type") != "guess":
-                continue
-            if event.get("team") != team.value:
-                continue
-            if event.get("turn_number") != turn_number:
-                continue
-            word = event.get("word")
-            if isinstance(word, str):
-                actual_guesses.append(word.upper())
-                if not event.get("correct", False):
-                    wrong_guesses.append(word.upper())
-
-        # If team made no guesses, treat as a vacuous prediction target.
-        if len(actual_guesses) == 0:
-            k = 0
-            topk = []
-            overlap = 1.0 if len(predicted_guesses) == 0 else 0.0
-            overlap_vals.append(overlap)
-            if isinstance(translated_guesses, list):
-                translated_overlap_vals.append(1.0 if len(translated_guesses) == 0 else 0.0)
-            boardword_ok += 1  # vacuously true
-            non_board_fracs.append(0.0)
-            if isinstance(confidence, int) and confidence >= 4 and overlap < 0.5:
-                overconf_flags.append(1)
-            else:
-                overconf_flags.append(0)
-            continue
-
-        actual_set = set(actual_guesses)
-
-        # overlap@k (recall@k) where k = number of actual guesses this turn
-        k = len(actual_guesses)
-        pred_norm = [w.upper() for w in predicted_guesses if isinstance(w, str)]
-        topk = pred_norm[:k]
-        overlap = len(set(topk).intersection(actual_set)) / len(actual_set)
-        overlap_vals.append(overlap)
-
-        # Translated overlap@k (semantic mapping to board words)
-        if isinstance(translated_guesses, list):
-            trans_norm = [w.upper() for w in translated_guesses if isinstance(w, str)]
-            trans_topk = trans_norm[:k]
-            trans_overlap = len(set(trans_topk).intersection(actual_set)) / len(actual_set)
-            translated_overlap_vals.append(trans_overlap)
-
-        # Compliance: board words only in top-k (separate from ToM)
-        if k == 0:
-            boardword_ok += 1
-            non_board_fracs.append(0.0)
-        else:
-            non_board = [w for w in topk if w not in board_words]
-            non_board_frac = len(non_board) / k
-            non_board_fracs.append(non_board_frac)
-            if len(non_board) == 0:
-                boardword_ok += 1
-
-        # Overconfidence: high confidence but low overlap@k (thresholds can be tuned later)
-        if isinstance(confidence, int) and confidence >= 4 and overlap < 0.5:
-            overconf_flags.append(1)
-        else:
-            overconf_flags.append(0)
-
-        # Rank correlation on intersection items
-        predicted_set = set(pred_norm)
-        common = [w for w in actual_guesses if w in predicted_set]
-        if len(common) >= 2:
-            pred_index = {w.upper(): i for i, w in enumerate(pred_norm)}
-            x_ranks = [pred_index[w] for w in common if w in pred_index]
-            y_ranks = [actual_guesses.index(w) for w in common if w in pred_index]
-            rho = _spearman_rank_correlation(x_ranks, y_ranks)
-            if rho is not None:
-                rank_vals.append(rho)
-
-        # Confusion calibration
-        if wrong_guesses:
-            risk_words = set()
-            if isinstance(confusion_risks, list):
-                for r in confusion_risks:
-                    if isinstance(r, dict):
-                        w = r.get("word")
-                        if isinstance(w, str):
-                            risk_words.add(w.upper())
-                    elif isinstance(r, str):
-                        risk_words.add(r.upper())
-            conf = len(risk_words.intersection(set(wrong_guesses))) / len(wrong_guesses)
-            confusion_vals.append(conf)
-
-    format_rate = (format_ok / n_predictions) if n_predictions > 0 else None
-    boardword_rate = (boardword_ok / format_ok) if format_ok > 0 else None
-    non_board_rate = _safe_mean(non_board_fracs)
-    conf_mean = _safe_mean([float(x) for x in conf_vals])
-    overconf_rate = (_safe_mean([float(x) for x in overconf_flags]) if overconf_flags else None)
-
-    return (
-        _safe_mean(overlap_vals),
-        _safe_mean(translated_overlap_vals),
-        _safe_mean(rank_vals),
-        _safe_mean(confusion_vals),
-        format_rate,
-        boardword_rate,
-        non_board_rate,
-        conf_mean,
-        overconf_rate,
-        n_predictions,
-    )
-
-
-def _pearson_corr(xs: list[float], ys: list[float]) -> float | None:
-    if len(xs) != len(ys) or len(xs) < 2:
-        return None
-    mx = sum(xs) / len(xs)
-    my = sum(ys) / len(ys)
-    vx = sum((x - mx) ** 2 for x in xs)
-    vy = sum((y - my) ** 2 for y in ys)
-    if vx == 0 or vy == 0:
-        return None
-    cov = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
-    return cov / math.sqrt(vx * vy)
-
-
-def _point_biserial_corr(xs: list[float], ys01: list[float]) -> float | None:
-    """
-    Point-biserial correlation between continuous xs and binary ys in {0,1}.
-    Equivalent to Pearson correlation when ys is coded 0/1.
-    """
-    return _pearson_corr(xs, ys01)
-
-
-def _spearman_corr(xs: list[float], ys: list[float]) -> float | None:
-    """
-    Spearman correlation via ranking (average ranks for ties).
-    """
-    if len(xs) != len(ys) or len(xs) < 2:
-        return None
-
-    def _ranks(vals: list[float]) -> list[float]:
-        # average rank for ties
-        indexed = list(enumerate(vals))
-        indexed.sort(key=lambda t: t[1])
-        ranks = [0.0] * len(vals)
-        i = 0
-        while i < len(indexed):
-            j = i
-            while j < len(indexed) and indexed[j][1] == indexed[i][1]:
-                j += 1
-            avg_rank = (i + 1 + j) / 2.0  # ranks are 1-based
-            for k in range(i, j):
-                ranks[indexed[k][0]] = avg_rank
-            i = j
-        return ranks
-
-    rx = _ranks(xs)
-    ry = _ranks(ys)
-    return _pearson_corr(rx, ry)
-
-
 def compute_team_metrics(
     episode: "ExtendedEpisodeRecord",
     team: Team,
@@ -405,66 +152,6 @@ def compute_team_metrics(
 
     consensus_rate = turns_with_consensus / len(team_turns) if team_turns else 0.0
 
-    # Theory of Mind score (v1.1+): overlap@k (mind-modeling), NOT format compliance.
-    (
-        overlap_at_k,
-        translated_overlap_at_k,
-        pred_rank,
-        pred_conf,
-        fmt_rate,
-        boardword_rate,
-        non_board_rate,
-        cluer_conf_mean,
-        cluer_overconf_rate,
-        n_pred,
-    ) = _compute_prediction_tom_for_team(episode, team)
-    # Default ToM score: translated overlap if available, else strict overlap, else fallback.
-    theory_of_mind_score = (
-        translated_overlap_at_k
-        if translated_overlap_at_k is not None
-        else (overlap_at_k if overlap_at_k is not None else clue_efficiency)
-    )
-
-    # Guesser calibration: confidence + correctness (per-turn)
-    guess_conf: list[float] = []
-    guess_success: list[float] = []
-    guess_overconf_flags: list[float] = []
-
-    # Build quick lookup: for each turn, was there any wrong guess?
-    wrong_by_turn: dict[int, bool] = {}
-    for event in transcript:
-        if event.get("event_type") != "guess":
-            continue
-        if event.get("team") != team.value:
-            continue
-        tn = event.get("turn_number")
-        if not isinstance(tn, int):
-            continue
-        if not event.get("correct", False):
-            wrong_by_turn[tn] = True
-
-    for tt in team_turns:
-        gt = getattr(tt, "guess_trace", None)
-        if gt is None or not gt.parsed_result:
-            continue
-        conf = gt.parsed_result.get("confidence")
-        if not (isinstance(conf, int) and 1 <= conf <= 5):
-            continue
-        tn = getattr(tt, "turn_number", None)
-        if not isinstance(tn, int):
-            continue
-        had_wrong = wrong_by_turn.get(tn, False)
-        success = 0.0 if had_wrong else 1.0
-        guess_conf.append(float(conf))
-        guess_success.append(success)
-        guess_overconf_flags.append(1.0 if (conf >= 4 and had_wrong) else 0.0)
-
-    guess_conf_mean = _safe_mean(guess_conf)
-    guess_overconf_rate = _safe_mean(guess_overconf_flags)
-    guess_n = len(guess_conf)
-    guess_pb = _point_biserial_corr(guess_conf, guess_success) if guess_n >= 2 else None
-    guess_spear = _spearman_corr(guess_conf, guess_success) if guess_n >= 2 else None
-
     return TeamMetrics(
         team=team,
         words_cleared=words_cleared,
@@ -481,22 +168,6 @@ def compute_team_metrics(
         avg_discussion_rounds=avg_discussion_rounds,
         consensus_rate=consensus_rate,
         avg_discussion_length=avg_discussion_length,
-        theory_of_mind_score=theory_of_mind_score,
-        tom_predictions_count=n_pred,
-        tom_overlap_at_k=overlap_at_k,
-        tom_translated_overlap_at_k=translated_overlap_at_k,
-        tom_rank_correlation=pred_rank,
-        tom_confusion_calibration=pred_conf,
-        tom_format_compliance_rate=fmt_rate,
-        tom_boardword_compliance_rate=boardword_rate,
-        tom_non_board_rate_top_k=non_board_rate,
-        cluer_confidence_mean=cluer_conf_mean,
-        cluer_overconfidence_rate=cluer_overconf_rate,
-        guesser_confidence_mean=guess_conf_mean,
-        guesser_overconfidence_rate=guess_overconf_rate,
-        guesser_confidence_correctness_n=guess_n,
-        guesser_confidence_correctness_point_biserial=guess_pb,
-        guesser_confidence_correctness_spearman=guess_spear,
     )
 
 
@@ -587,8 +258,6 @@ def compute_aggregate_metrics(
             std_turns_to_win=0.0,
             avg_coordination_score_red=0.0,
             avg_coordination_score_blue=0.0,
-            avg_theory_of_mind_red=0.0,
-            avg_theory_of_mind_blue=0.0,
             assassin_rate=0.0,
         )
 
@@ -622,12 +291,6 @@ def compute_aggregate_metrics(
     avg_coord_red = sum(coord_red) / n
     avg_coord_blue = sum(coord_blue) / n
 
-    # Theory of mind
-    tom_red = [m.red_metrics.theory_of_mind_score for m in episode_metrics]
-    tom_blue = [m.blue_metrics.theory_of_mind_score for m in episode_metrics]
-    avg_tom_red = sum(tom_red) / n
-    avg_tom_blue = sum(tom_blue) / n
-
     # Assassin rate
     assassin_hits = sum(
         1 for m in episode_metrics
@@ -653,8 +316,6 @@ def compute_aggregate_metrics(
         std_turns_to_win=std_turns,
         avg_coordination_score_red=avg_coord_red,
         avg_coordination_score_blue=avg_coord_blue,
-        avg_theory_of_mind_red=avg_tom_red,
-        avg_theory_of_mind_blue=avg_tom_blue,
         assassin_rate=assassin_rate,
         avg_clue_efficiency_red=avg_clue_eff_red,
         avg_clue_efficiency_blue=avg_clue_eff_blue,

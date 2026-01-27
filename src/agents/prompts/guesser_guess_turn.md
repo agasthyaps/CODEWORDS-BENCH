@@ -12,6 +12,10 @@ Maximum guesses: {max_guesses}
 
 {discussion_display}
 
+## Your Scratchpad
+
+{scratchpad_content}
+
 ## Your Decision
 
 Provide your final guesses based on the discussion. Order by confidence (most confident first). You may guess fewer than the maximum or PASS.
@@ -19,7 +23,6 @@ Provide your final guesses based on the discussion. Order by confidence (most co
 Format:
 ```
 GUESSES: WORD1, WORD2, WORD3
-CONFIDENCE: 1-5
-WHY_STOP: brief reason you stopped (or "N/A" if using max guesses)
 REASONING: Your private explanation
+SCRATCHPAD: [optional - notes for future turns]
 ```

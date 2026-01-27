@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 TeamKey = Literal["red", "blue"]
@@ -54,23 +54,6 @@ class CodeTriple(BaseModel):
         return cls(digits=t)  # type: ignore[arg-type]
 
 
-class CluerAnnotations(BaseModel):
-    """
-    Private cluer annotations. Must never be fed back into other agents.
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    intended_mapping: dict[str, str] | None = None  # digit -> key word
-    clue_rationale: dict[str, str] | None = None  # clue -> key word
-    predicted_team_guess: list[int] | None = None
-    p_team_correct: float | None = None
-    p_intercept: float | None = None
-    # New ToM predictions: distributions over the 24 possible codes (keys are "1-2-3")
-    opponent_decode_dist: dict[str, float] | None = None
-    opponent_intercept_dist: dict[str, float] | None = None
-
-
 class ClueSet(BaseModel):
     """Public clue set: exactly 3 clues in order."""
 
@@ -89,11 +72,6 @@ class GuesserIndependent(BaseModel):
     confidence: float | None  # required when guess is present; 0..1
     rationale: str
     parse_ok: bool
-    grounding_ok: bool = True
-    overconfident: bool = False
-    slot_hypotheses: dict[str, str] | None = None  # digit(str) -> short theme label (optional)
-    mapping_references: list["MappingReference"] = Field(default_factory=list)
-    mapping_labels_ok: bool = True
     parse_error: str | None = None
     parse_retry_used: bool = False
 
@@ -117,11 +95,6 @@ class ConsensusGuess(BaseModel):
     confidence: float | None
     rationale: str
     parse_ok: bool
-    grounding_ok: bool = True
-    overconfident: bool = False
-    slot_hypotheses: dict[str, str] | None = None
-    mapping_references: list["MappingReference"] = Field(default_factory=list)
-    mapping_labels_ok: bool = True
     parse_error: str | None = None
     parse_retry_used: bool = False
 
@@ -138,45 +111,7 @@ class ActionLog(BaseModel):
     share: tuple[GuesserShare, GuesserShare]
     consensus: ConsensusGuess
     correct: bool
-    confirmed_mapping_count: int = 0
     uninformed: bool = False
-
-
-class MappingReference(BaseModel):
-    """
-    A mapping claim referenced in reasoning.
-
-    status semantics:
-      - confirmed: must be grounded in a prior reveal (digit<->clue pairing)
-      - hypothesis: agent belief, not yet confirmed
-      - eliminated: agent belief that mapping is unlikely/ruled out
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    mapping_type: Literal["digit_clue", "digit_theme"]
-    digit: Literal["1", "2", "3", "4"]
-    value: str  # clue word (digit_clue) or theme label (digit_theme)
-    status: Literal["confirmed", "hypothesis", "eliminated"]
-    support: str | None = None  # short justification / evidence pointer (optional)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _backward_compat(cls, data: Any) -> Any:
-        """
-        Backward compatibility:
-        - Old schema used {digit, clue, status, support?} with implicit digit_clue.
-        - Accept it and convert to {mapping_type='digit_clue', value=<clue>}.
-        """
-        if isinstance(data, dict):
-            if "mapping_type" not in data:
-                # default to digit_clue
-                data = dict(data)
-                data["mapping_type"] = "digit_clue"
-            if "value" not in data and "clue" in data:
-                data = dict(data)
-                data["value"] = data.get("clue")
-        return data
 
 
 class RoundLog(BaseModel):
@@ -198,10 +133,7 @@ class RoundLog(BaseModel):
     # All four actions (2 decode + 2 intercept)
     actions: tuple[ActionLog, ActionLog, ActionLog, ActionLog]
 
-    # Structured state snapshots extracted from agent outputs (not inferred from free text).
-    round_state: dict[TeamKey, dict[str, Any]] = Field(default_factory=dict)
-
-    # Private: cluer annotations (never used to build future views)
+    # Private: cluer data (never used to build future views)
     private: dict[TeamKey, dict[str, Any]] = Field(default_factory=dict)
 
 
@@ -256,6 +188,7 @@ class DecryptoEpisodeRecord(BaseModel):
     winner: TeamKey | None = None
     result_reason: Literal["interceptions", "miscommunications", "survived", "max_rounds", "tie_interceptions", "tie_miscommunications"] | None = None
     scores: dict[str, Any] = Field(default_factory=dict)
+    agent_scratchpads: dict[str, str] = Field(default_factory=dict)  # Final scratchpad contents
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def to_filename(self) -> str:

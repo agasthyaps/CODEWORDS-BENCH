@@ -32,7 +32,7 @@ async def test_independent_guess_single_repair_retry_then_success() -> None:
         ]
     )
     g = DecryptoGuesserLLM(provider=provider, agent_id="red_g1", team="red")
-    out = await g.independent_guess(_round_inputs(), "decode")
+    out, scratchpad = await g.independent_guess(_round_inputs(), "decode")
     assert out.parse_ok is True
     assert out.guess == (1, 2, 3)
     assert out.confidence == 0.8
@@ -44,10 +44,9 @@ async def test_independent_guess_single_repair_retry_then_success() -> None:
 async def test_independent_guess_failure_after_repair() -> None:
     provider = MockProvider(responses=["NOPE", "STILL NOPE"])
     g = DecryptoGuesserLLM(provider=provider, agent_id="red_g1", team="red")
-    out = await g.independent_guess(_round_inputs(), "decode")
+    out, scratchpad = await g.independent_guess(_round_inputs(), "decode")
     assert out.parse_ok is False
     # No abstentions: should fall back to deterministic guess
     assert out.guess == (1, 2, 3)
     assert out.confidence == 0.0
     assert provider.call_count == 2
-

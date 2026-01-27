@@ -13,10 +13,69 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env")
 
 from src.agents.llm import create_provider
+from src.core.state import AgentStateManager
 from src.decrypto.agents.llm_agents import DecryptoCluerLLM, DecryptoGuesserLLM, run_bounded_action
 from src.decrypto.game import check_winner, create_game, initial_counters, update_counters_after_round
 from src.decrypto.metrics import compute_episode_scores
 from src.decrypto.models import ClueSet, DecryptoConfig, DecryptoEpisodeRecord, RoundInputs, TeamKey
+
+
+class Colors:
+    RED = "\033[91m"
+    BLUE = "\033[94m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    GRAY = "\033[90m"
+    CYAN = "\033[96m"
+    MAGENTA = "\033[95m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    RESET = "\033[0m"
+
+
+def tcol(team: TeamKey) -> str:
+    return Colors.RED if team == "red" else Colors.BLUE
+
+
+def print_scratchpad_addition(agent_id: str, addition: str, team: TeamKey):
+    """Print when an agent adds to their scratchpad."""
+    color = tcol(team)
+    # Truncate if too long
+    if len(addition) > 150:
+        addition = addition[:150] + "..."
+    print(f"{Colors.CYAN}  📝 [{agent_id} scratchpad]: {addition}{Colors.RESET}")
+
+
+def print_all_scratchpads(agent_states: AgentStateManager):
+    """Print all agent scratchpads at end of game."""
+    print(f"\n{Colors.BOLD}{'=' * 60}{Colors.RESET}")
+    print(f"{Colors.BOLD}AGENT SCRATCHPADS{Colors.RESET}")
+    print(f"{'=' * 60}")
+    
+    all_states = agent_states.get_all_states()
+    
+    if not any(s.scratchpad for s in all_states.values()):
+        print(f"{Colors.DIM}  (no agents used scratchpads){Colors.RESET}")
+        return
+    
+    for team in ["red", "blue"]:
+        color = Colors.RED if team == "red" else Colors.BLUE
+        print(f"\n{color}{Colors.BOLD}{team.upper()} TEAM:{Colors.RESET}")
+        
+        team_agents = [
+            f"{team}_cluer",
+            f"{team}_guesser_1",
+            f"{team}_guesser_2",
+        ]
+        
+        for agent_id in team_agents:
+            state = all_states.get(agent_id)
+            if state and state.scratchpad:
+                print(f"{color}  [{agent_id}]:{Colors.RESET}")
+                for line in state.scratchpad.split("\n"):
+                    print(f"{Colors.CYAN}    {line}{Colors.RESET}")
+            else:
+                print(f"{color}  [{agent_id}]: {Colors.DIM}(empty){Colors.RESET}")
 
 
 async def main() -> None:
@@ -26,6 +85,7 @@ async def main() -> None:
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output")
     parser.add_argument("--show-keys", action="store_true", help="Print both teams' keys (debug)")
     parser.add_argument("--show-annotations", action="store_true", help="Print cluer private annotations (debug)")
+    parser.add_argument("--no-scratchpads", action="store_true", help="Hide scratchpad output")
 
     parser.add_argument("--red-cluer", required=True)
     parser.add_argument("--red-guesser-1", required=True)
@@ -38,18 +98,10 @@ async def main() -> None:
 
     cfg = DecryptoConfig(seed=args.seed, max_rounds=args.max_rounds)
     game_id, keys, code_sequences = create_game(cfg)
-
-    class Colors:
-        RED = "\033[91m"
-        BLUE = "\033[94m"
-        GREEN = "\033[92m"
-        YELLOW = "\033[93m"
-        GRAY = "\033[90m"
-        BOLD = "\033[1m"
-        RESET = "\033[0m"
-
-    def tcol(team: TeamKey) -> str:
-        return Colors.RED if team == "red" else Colors.BLUE
+    
+    # Initialize agent state manager for scratchpads
+    agent_states = AgentStateManager()
+    show_scratchpads = not args.no_scratchpads
 
     def _p(x) -> None:
         if not args.quiet:
@@ -108,11 +160,28 @@ async def main() -> None:
             public_clues=None,
         )
 
-        # Clue phase (simultaneous)
-        (red_clues, red_priv), (blue_clues, blue_priv) = await asyncio.gather(
-            red["cluer"].generate(base_inputs, "red"),
-            blue["cluer"].generate(base_inputs, "blue"),
+        # Clue phase (simultaneous) with scratchpads
+        red_cluer_scratchpad = agent_states.get_scratchpad("red_cluer")
+        blue_cluer_scratchpad = agent_states.get_scratchpad("blue_cluer")
+        
+        (red_clues, red_priv, red_cluer_add), (blue_clues, blue_priv, blue_cluer_add) = await asyncio.gather(
+            red["cluer"].generate(base_inputs, "red", red_cluer_scratchpad),
+            blue["cluer"].generate(base_inputs, "blue", blue_cluer_scratchpad),
         )
+        
+        # Update cluer scratchpads
+        if red_cluer_add:
+            state = agent_states.get_or_create("red_cluer")
+            state.append_to_scratchpad(r, red_cluer_add)
+            if show_scratchpads and not args.quiet:
+                print_scratchpad_addition("red_cluer", red_cluer_add, "red")
+        
+        if blue_cluer_add:
+            state = agent_states.get_or_create("blue_cluer")
+            state.append_to_scratchpad(r, blue_cluer_add)
+            if show_scratchpads and not args.quiet:
+                print_scratchpad_addition("blue_cluer", blue_cluer_add, "blue")
+        
         if not args.quiet:
             _p(f"{Colors.RED}{Colors.BOLD}[RED CLUES]{Colors.RESET}  {' | '.join(red_clues.clues)}")
             _p(f"{Colors.BLUE}{Colors.BOLD}[BLUE CLUES]{Colors.RESET} {' | '.join(blue_clues.clues)}")
@@ -124,7 +193,26 @@ async def main() -> None:
 
         async def _run_action(team: TeamKey, opp: TeamKey, kind: str):
             acting = red if team == "red" else blue
-            return await run_bounded_action(round_inputs, team, opp, kind, acting["g1"], acting["g2"])
+            # Get scratchpads for guessers
+            g1_scratchpad = agent_states.get_scratchpad(f"{team}_guesser_1")
+            g2_scratchpad = agent_states.get_scratchpad(f"{team}_guesser_2")
+            
+            action, scratchpad_adds = await run_bounded_action(
+                round_inputs, team, opp, kind, 
+                acting["g1"], acting["g2"],
+                g1_scratchpad, g2_scratchpad
+            )
+            
+            # Update guesser scratchpads
+            if scratchpad_adds:
+                for agent_id, addition in scratchpad_adds.items():
+                    if addition:
+                        state = agent_states.get_or_create(agent_id)
+                        state.append_to_scratchpad(r, addition)
+                        if show_scratchpads and not args.quiet:
+                            print_scratchpad_addition(agent_id, addition, team)
+            
+            return action
 
         # Run all four actions off the same frozen snapshot (no reveal yet).
         red_decode, blue_decode, red_intercept, blue_intercept = await asyncio.gather(
@@ -210,6 +298,13 @@ async def main() -> None:
         winner = None
         result_reason = "max_rounds"
 
+    # Collect final scratchpad contents
+    agent_scratchpads = {
+        agent_id: agent_state.scratchpad
+        for agent_id, agent_state in agent_states.get_all_states().items()
+        if agent_state.scratchpad
+    }
+
     episode = DecryptoEpisodeRecord(
         episode_id=f"decrypto-{args.seed}-{game_id}",
         timestamp=datetime.utcnow(),
@@ -222,6 +317,7 @@ async def main() -> None:
         winner=winner,
         result_reason=result_reason,  # type: ignore[arg-type]
         scores={},
+        agent_scratchpads=agent_scratchpads,
     )
     episode = episode.model_copy(update={"scores": compute_episode_scores(episode)})
 
@@ -233,8 +329,11 @@ async def main() -> None:
     _p(f"Rounds played: {len(episode.rounds)}")
     _p(f"Scores: {episode.scores}")
     _p(f"{Colors.BOLD}{'=' * 60}{Colors.RESET}")
+    
+    # Print all scratchpads at end
+    if show_scratchpads and not args.quiet:
+        print_all_scratchpads(agent_states)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-

@@ -12,7 +12,8 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 from src.engine import GameConfig, Team, GameMode, Phase, create_game, CardType
 from src.agents import AgentConfig, CluerAgent, GuesserAgent, create_provider
 from src.runner import TeamAgents, ExtendedEpisodeRecord
-from src.runner.orchestrator import run_clue_phase, run_discussion_phase, run_guess_phase, TurnTraces
+from src.runner.orchestrator import TurnTraces
+from src.core.state import AgentStateManager
 from src.metrics import compute_episode_metrics, export_metrics
 from src.benchmark import load_model_farm
 
@@ -24,7 +25,10 @@ class Colors:
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     GRAY = "\033[90m"
+    CYAN = "\033[96m"
+    MAGENTA = "\033[95m"
     BOLD = "\033[1m"
+    DIM = "\033[2m"
     RESET = "\033[0m"
 
 
@@ -108,6 +112,44 @@ def print_turn_header(turn_number: int, team: Team):
     print(f"{color}{Colors.BOLD}{'─' * 60}{Colors.RESET}")
 
 
+def print_scratchpad_addition(agent_id: str, addition: str, team: Team):
+    """Print when an agent adds to their scratchpad."""
+    color = team_color(team)
+    # Truncate if too long
+    if len(addition) > 150:
+        addition = addition[:150] + "..."
+    print(f"{Colors.CYAN}  📝 [{agent_id} scratchpad]: {addition}{Colors.RESET}")
+
+
+def print_scratchpads(agent_states: AgentStateManager, red_team: TeamAgents, blue_team: TeamAgents):
+    """Print all agent scratchpads at end of game."""
+    print(f"\n{Colors.BOLD}{'=' * 60}{Colors.RESET}")
+    print(f"{Colors.BOLD}AGENT SCRATCHPADS{Colors.RESET}")
+    print(f"{'=' * 60}")
+    
+    all_states = agent_states.get_all_states()
+    
+    if not any(s.scratchpad for s in all_states.values()):
+        print(f"{Colors.DIM}  (no agents used scratchpads){Colors.RESET}")
+        return
+    
+    for team, team_agents in [("RED", red_team), ("BLUE", blue_team)]:
+        color = Colors.RED if team == "RED" else Colors.BLUE
+        print(f"\n{color}{Colors.BOLD}{team} TEAM:{Colors.RESET}")
+        
+        for agent in [team_agents.cluer, team_agents.guesser_1, team_agents.guesser_2]:
+            if agent is None:
+                continue
+            agent_id = agent.config.agent_id
+            state = all_states.get(agent_id)
+            if state and state.scratchpad:
+                print(f"{color}  [{agent_id}]:{Colors.RESET}")
+                for line in state.scratchpad.split("\n"):
+                    print(f"{Colors.CYAN}    {line}{Colors.RESET}")
+            else:
+                print(f"{color}  [{agent_id}]: {Colors.DIM}(empty){Colors.RESET}")
+
+
 def create_llm_team(
     team: Team,
     cluer_model: str,
@@ -154,18 +196,21 @@ async def run_verbose_episode(
     max_turns: int = 50,
     max_discussion_rounds: int = 3,
     show_board: bool = True,
-) -> ExtendedEpisodeRecord:
+    show_scratchpads: bool = True,
+) -> tuple[ExtendedEpisodeRecord, AgentStateManager]:
     """Run an episode with verbose output."""
     import uuid
     from datetime import datetime
-    from src.engine import create_game, GameMode, DiscussionMessage
-    from src.runner.orchestrator import transition_to_guessing
+    from src.engine import create_game, GameMode, DiscussionMessage, transition_to_guessing, process_guess, process_pass
 
     episode_id = str(uuid.uuid4())[:8]
     start_time = datetime.utcnow()
 
     state = create_game(config=config)
     all_traces = []
+    
+    # Initialize agent state manager for scratchpads
+    agent_states = AgentStateManager()
 
     skip_discussion = config.mode == GameMode.SINGLE_GUESSER
 
@@ -187,54 +232,101 @@ async def run_verbose_episode(
 
         print_turn_header(turn_count, team)
 
-        # Clue phase
-        state, clue_trace, should_continue = await run_clue_phase(team_agents.cluer, state)
+        # Clue phase with scratchpad
+        cluer = team_agents.cluer
+        cluer_scratchpad = agent_states.get_scratchpad(cluer.config.agent_id)
+        
+        clue, clue_trace, clue_scratchpad_add = await cluer.generate_clue(state, cluer_scratchpad)
+        
+        # Update scratchpad if agent added to it
+        if clue_scratchpad_add:
+            agent_state = agent_states.get_or_create(cluer.config.agent_id)
+            agent_state.append_to_scratchpad(turn_count, clue_scratchpad_add)
+            if show_scratchpads:
+                print_scratchpad_addition(cluer.config.agent_id, clue_scratchpad_add, team)
 
-        if not should_continue:
+        if clue is None:
             print(f"  {team.value} passed their turn.")
+            from src.engine import end_turn
+            state = end_turn(state)
             traces = TurnTraces(
                 turn_number=turn_count,
                 team=team,
                 clue_trace=clue_trace,
-                prediction_trace=None,
                 discussion_traces=[],
                 guess_trace=None,
             )
             all_traces.append(traces)
             continue
 
-        # Print the clue
-        if state.current_clue:
-            print_clue(team, state.current_clue.word, state.current_clue.number)
+        # Apply clue to state
+        from src.engine import apply_clue
+        state = apply_clue(state, clue.word, clue.number)
 
-        # Prediction step (for ToM): cluer predicts teammate guesses before discussion
-        prediction_trace = None
-        try:
-            if hasattr(team_agents.cluer, "predict_guesses") and state.current_clue is not None:
-                prediction_trace = await team_agents.cluer.predict_guesses(state, state.current_clue)
-        except Exception:
-            prediction_trace = None
+        # Print the clue
+        print_clue(team, clue.word, clue.number)
 
         # Discussion phase
         guessers = team_agents.get_guessers()
+        discussion_traces = []
 
         if not skip_discussion and len(guessers) >= 2:
             print(f"{team_color(team)}{Colors.BOLD}[DISCUSSION]{Colors.RESET}")
 
-            from src.agents import run_discussion
-            messages, discussion_traces, state = await run_discussion(
-                guessers, state, max_discussion_rounds
-            )
+            # Run discussion manually to capture scratchpads
+            from src.agents.guesser import parse_discussion_response
+            messages = []
+            consecutive_consensus = 0
+            previous_top_words = None
+            max_messages = max_discussion_rounds * 2
 
-            # Print discussion messages
-            for msg in messages:
-                print_discussion(msg.agent_id, msg.content, team)
+            for i in range(max_messages):
+                guesser = guessers[i % 2]
+                guesser_scratchpad = agent_states.get_scratchpad(guesser.config.agent_id)
+                
+                message, trace, scratchpad_add = await guesser.discuss(state, messages, guesser_scratchpad)
+                discussion_traces.append(trace)
+                
+                # Update scratchpad
+                if scratchpad_add:
+                    agent_state = agent_states.get_or_create(guesser.config.agent_id)
+                    agent_state.append_to_scratchpad(turn_count, scratchpad_add)
+                    if show_scratchpads:
+                        print_scratchpad_addition(guesser.config.agent_id, scratchpad_add, team)
 
-            from src.engine import transition_to_guessing
+                # Add to state and messages
+                from src.engine import add_discussion_message
+                state = add_discussion_message(state, message.agent_id, message.content)
+                actual_message = state.public_transcript[-1]
+                if isinstance(actual_message, DiscussionMessage):
+                    messages.append(actual_message)
+                else:
+                    messages.append(message)
+
+                print_discussion(message.agent_id, message.content, team)
+
+                # Check for consensus
+                parsed = parse_discussion_response(message.content)
+                if parsed.consensus:
+                    if consecutive_consensus == 0:
+                        consecutive_consensus = 1
+                        previous_top_words = parsed.top_words
+                    else:
+                        # Check if TOP lists match
+                        set1 = set(w.upper() for w in (previous_top_words or []))
+                        set2 = set(w.upper() for w in (parsed.top_words or []))
+                        if set1 == set2:
+                            consecutive_consensus = 2
+                            break
+                        else:
+                            consecutive_consensus = 1
+                            previous_top_words = parsed.top_words
+                else:
+                    consecutive_consensus = 0
+                    previous_top_words = None
+
             state = transition_to_guessing(state)
         else:
-            discussion_traces = []
-            from src.engine import transition_to_guessing
             state = transition_to_guessing(state)
 
         # Guess phase
@@ -246,9 +338,19 @@ async def run_verbose_episode(
             if isinstance(e, DiscussionMessage) and e.turn_number == turn_number
         ]
 
-        guesses, guess_trace = await team_agents.primary_guesser.make_guesses(state, discussion_messages)
-
-        from src.engine import process_guess, process_pass
+        guesser = team_agents.primary_guesser
+        guesser_scratchpad = agent_states.get_scratchpad(guesser.config.agent_id)
+        
+        guesses, guess_trace, guess_scratchpad_add = await guesser.make_guesses(
+            state, discussion_messages, guesser_scratchpad
+        )
+        
+        # Update scratchpad
+        if guess_scratchpad_add:
+            agent_state = agent_states.get_or_create(guesser.config.agent_id)
+            agent_state.append_to_scratchpad(turn_count, guess_scratchpad_add)
+            if show_scratchpads:
+                print_scratchpad_addition(guesser.config.agent_id, guess_scratchpad_add, team)
 
         if not guesses:
             print(f"  {team.value} passed without guessing.")
@@ -279,7 +381,6 @@ async def run_verbose_episode(
             turn_number=turn_count,
             team=team,
             clue_trace=clue_trace,
-            prediction_trace=prediction_trace,
             discussion_traces=discussion_traces,
             guess_trace=guess_trace,
         )
@@ -303,6 +404,17 @@ async def run_verbose_episode(
 
     if show_board:
         print_board(state)
+    
+    # Print all scratchpads at end
+    if show_scratchpads:
+        print_scratchpads(agent_states, red_team, blue_team)
+
+    # Collect final scratchpad contents
+    agent_scratchpads = {
+        agent_id: agent_state.scratchpad
+        for agent_id, agent_state in agent_states.get_all_states().items()
+        if agent_state.scratchpad
+    }
 
     from src.engine import Board
     episode = ExtendedEpisodeRecord(
@@ -315,13 +427,14 @@ async def run_verbose_episode(
         turn_traces=all_traces,
         winner=state.winner,
         total_turns=turn_count,
+        agent_scratchpads=agent_scratchpads,
         metadata={
             "red_team": {"model": red_team.cluer.config.model},
             "blue_team": {"model": blue_team.cluer.config.model},
         },
     )
 
-    return episode
+    return episode, agent_states
 
 
 async def main():
@@ -385,6 +498,7 @@ Examples:
     parser.add_argument("--seed", type=int, default=42, help="Random seed for board generation")
     parser.add_argument("--quiet", "-q", action="store_true", help="Minimal output (no board display)")
     parser.add_argument("--max-turns", type=int, default=30, help="Maximum turns before draw")
+    parser.add_argument("--no-scratchpads", action="store_true", help="Hide scratchpad output")
     args = parser.parse_args()
 
     # Map mode string to enum
@@ -477,12 +591,16 @@ Examples:
     print(f"  Guesser2: {blue_guesser_2}")
     print(f"\nMode: {args.mode} | Seed: {args.seed}")
 
-    episode = await run_verbose_episode(
+    red_team = create_llm_team(Team.RED, red_cluer, red_guesser_1, red_guesser_2, base_url_by_model=base_url_by_model)
+    blue_team = create_llm_team(Team.BLUE, blue_cluer, blue_guesser_1, blue_guesser_2, base_url_by_model=base_url_by_model)
+
+    episode, agent_states = await run_verbose_episode(
         config=config,
-        red_team=create_llm_team(Team.RED, red_cluer, red_guesser_1, red_guesser_2, base_url_by_model=base_url_by_model),
-        blue_team=create_llm_team(Team.BLUE, blue_cluer, blue_guesser_1, blue_guesser_2, base_url_by_model=base_url_by_model),
+        red_team=red_team,
+        blue_team=blue_team,
         max_turns=args.max_turns,
         show_board=not args.quiet,
+        show_scratchpads=not args.no_scratchpads,
     )
 
     # Print metrics summary

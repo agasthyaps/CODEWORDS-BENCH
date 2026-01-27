@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from src.agents.llm import LLMProvider
+from src.core.parsing import extract_scratchpad
 
 from ..models import (
     ActionLog,
@@ -14,7 +15,6 @@ from ..models import (
     ConsensusGuess,
     GuesserIndependent,
     GuesserShare,
-    MappingReference,
     RoundLog,
     RoundInputs,
     TeamKey,
@@ -36,7 +36,6 @@ from ..visibility import (
 
 
 def _format_history(view: dict[str, Any]) -> str:
-    # Keep it deterministic and compact; JSON string of prior rounds is stable via model_dump(mode="json").
     rounds = view.get("history_rounds", [])
     if not rounds:
         return "[]"
@@ -78,10 +77,9 @@ def _parse_discussion_response(text: str) -> tuple[bool, list[str] | None]:
     
     # Extract CANDIDATES: 1-3-4, 2-4-1
     candidates = None
-    match = re.search(r"CANDIDATES\s*:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+    match = re.search(r"CANDIDATES\s*:\s*(.+?)(?:\n|SCRATCHPAD|$)", text, re.IGNORECASE)
     if match:
         raw = match.group(1).strip()
-        # Split by comma and normalize
         candidates = [c.strip().replace(" ", "") for c in raw.split(",") if c.strip()]
     
     return consensus, candidates
@@ -90,15 +88,12 @@ def _parse_discussion_response(text: str) -> tuple[bool, list[str] | None]:
 def _candidates_match(list1: list[str] | None, list2: list[str] | None) -> bool:
     """
     Check if two CANDIDATES lists share at least one common code.
-    Order-independent comparison.
     """
     if list1 is None or list2 is None:
         return False
-    # Normalize codes (remove spaces, dashes consistent)
     def normalize(codes: list[str]) -> set[str]:
         result = set()
         for c in codes:
-            # Convert to standard format: digits separated by dashes
             digits = re.findall(r'\d', c)
             if len(digits) >= 3:
                 result.add("-".join(digits[:3]))
@@ -106,16 +101,7 @@ def _candidates_match(list1: list[str] | None, list2: list[str] | None) -> bool:
     
     set1 = normalize(list1)
     set2 = normalize(list2)
-    # Must have at least one candidate in common
     return len(set1 & set2) > 0
-
-
-CONFIRMATION_LANGUAGE_PATTERNS = (
-    re.compile(r"\bconfirmed\b", re.IGNORECASE),
-    re.compile(r"\blocked\b", re.IGNORECASE),
-    re.compile(r"\bwe know\b", re.IGNORECASE),
-)
-GROUNDING_PENALTY_CAP = 0.49
 
 
 def _index_actions(round_log: RoundLog) -> dict[tuple[TeamKey, str], Any]:
@@ -125,85 +111,9 @@ def _index_actions(round_log: RoundLog) -> dict[tuple[TeamKey, str], Any]:
     return out
 
 
-def _event_backed_confirmable_clues(
-    round_inputs: RoundInputs,
-    team: TeamKey,
-    kind: str,
-) -> dict[str, set[str]]:
-    opp: TeamKey = "blue" if team == "red" else "red"
-    subject: TeamKey = team if kind == "decode" else opp
-    confirmable: dict[str, set[str]] = {str(d): set() for d in range(1, 5)}
-
-    for rr in round_inputs.history_rounds:
-        acts = _index_actions(rr)
-        if kind == "decode":
-            decoded_ok = bool(getattr(acts.get((team, "decode")), "correct", False))
-            intercepted_by_opp = bool(getattr(acts.get((opp, "intercept")), "correct", False))
-            if not (decoded_ok or intercepted_by_opp):
-                continue
-        else:
-            intercepted_ok = bool(getattr(acts.get((team, "intercept")), "correct", False))
-            opp_decode = acts.get((opp, "decode"))
-            opp_miscomm = opp_decode is not None and not bool(getattr(opp_decode, "correct", False))
-            if not (intercepted_ok or opp_miscomm):
-                continue
-
-        clueset = rr.public_clues.get(subject)
-        code = rr.reveal_true_codes.get(subject)
-        if clueset is None or code is None:
-            continue
-        for clue_word, d in zip(clueset.clues, code):
-            confirmable[str(int(d))].add(str(clue_word).strip().upper())
-
-    return confirmable
-
-
-def _has_event_evidence(confirmable: dict[str, set[str]]) -> bool:
-    return any(confirmable[d] for d in confirmable)
-
-
-def _is_event_backed_confirmed_ref(ref: MappingReference, confirmable: dict[str, set[str]]) -> bool:
-    if getattr(ref, "status", None) != "confirmed":
-        return False
-    if getattr(ref, "mapping_type", None) != "digit_clue":
-        return False
-    d = getattr(ref, "digit", None)
-    v = getattr(ref, "value", None)
-    if not (isinstance(d, str) and isinstance(v, str)):
-        return False
-    return v.strip().upper() in confirmable.get(d, set())
-
-
-def _has_event_backed_confirmed_refs(refs: list[MappingReference], confirmable: dict[str, set[str]]) -> bool:
-    return any(_is_event_backed_confirmed_ref(ref, confirmable) for ref in refs)
-
-
-def _has_unbacked_confirmed_refs(refs: list[MappingReference], confirmable: dict[str, set[str]]) -> bool:
-    for ref in refs:
-        if getattr(ref, "status", None) != "confirmed":
-            continue
-        if not _is_event_backed_confirmed_ref(ref, confirmable):
-            return True
-    return False
-
-
-def _uses_unbacked_confirmation_language(rationale: str, has_event_backed_confirmed: bool) -> bool:
-    if not rationale or has_event_backed_confirmed:
-        return False
-    return any(pat.search(rationale) for pat in CONFIRMATION_LANGUAGE_PATTERNS)
-
-
-def _apply_grounding_penalty(confidence: float | None, violation: bool) -> float | None:
-    if confidence is None or not violation:
-        return confidence
-    return min(float(confidence), GROUNDING_PENALTY_CAP)
-
-
 def _reveal_summary_for_team(history_rounds: list[dict[str, Any]], team: TeamKey, key: list[str] | None) -> list[dict[str, Any]]:
     """
     Build a structured reveal summary suitable for the next-round prompt.
-    Includes: true code, clues used, and explicit clue->digit mapping.
-    For decode (key is provided), also includes digit->keyword table.
     """
     out: list[dict[str, Any]] = []
     for rr in history_rounds:
@@ -240,17 +150,25 @@ class DecryptoCluerLLM:
     provider: LLMProvider
     model_id: str
     temperature: float = 0.7
-    clue_generation_mode: str = "standard"  # "standard" | "deliberate"
 
-    async def generate(self, round_inputs: RoundInputs, team: TeamKey) -> tuple[ClueSet, dict[str, Any]]:
-        """Generate clues - branches based on clue_generation_mode."""
-        if self.clue_generation_mode == "deliberate":
-            return await self._generate_deliberate(round_inputs, team)
-        return await self._generate_standard(round_inputs, team)
-
-    async def _generate_standard(self, round_inputs: RoundInputs, team: TeamKey) -> tuple[ClueSet, dict[str, Any]]:
+    async def generate(
+        self,
+        round_inputs: RoundInputs,
+        team: TeamKey,
+        scratchpad_content: str = "",
+    ) -> tuple[ClueSet, dict[str, Any], str | None]:
+        """
+        Generate clues for the round.
+        
+        Returns:
+            (ClueSet, trace_data, scratchpad_addition)
+        """
         view = view_for_cluer(round_inputs, team)
         assert_view_safe(view)
+
+        scratchpad_section = ""
+        if scratchpad_content:
+            scratchpad_section = f"\n\nYour scratchpad from previous rounds:\n{scratchpad_content}\n"
 
         system = (
             "You are the CLUER in Decrypto. Output ONLY valid JSON.\n"
@@ -262,28 +180,25 @@ class DecryptoCluerLLM:
             "accumulated evidence to intercept your code.\n"
             "- Each round, opponents build a stronger mapping of your clue patterns to keyword positions.\n"
             "- Balance clarity for your team against predictability for opponents.\n"
-            "- Varying your clue themes across rounds makes interception harder.\n"
+            "- Varying your clue themes across rounds makes interception harder.\n\n"
+            "You have a private scratchpad. To add notes for future rounds, include:\n"
+            "SCRATCHPAD: [your notes]\n"
+            "at the end of your JSON output (outside the JSON)."
         )
         user = (
-            f"ROLE_VIEW:\n{view}\n\n"
+            f"ROLE_VIEW:\n{view}\n"
+            f"{scratchpad_section}\n"
             "Return JSON with schema:\n"
             "{\n"
             '  \"clues\": [\"CLUE1\",\"CLUE2\",\"CLUE3\"],\n'
-            '  \"annotations\": {\n'
-            '     \"intended_mapping\": {\"2\":\"<KEYWORD>\", ...},\n'
-            '     \"slot_themes\": {\"1\":\"short theme\", \"2\":\"short theme\", \"3\":\"short theme\", \"4\":\"short theme\"},\n'
-            '     \"predicted_team_guess\": [d1,d2,d3],\n'
-            '     \"p_team_correct\": 0.0-1.0,\n'
-            '     \"p_intercept\": 0.0-1.0\n'
-            "     ,\"opponent_decode_dist\": {\"1-2-3\": 0.0417, \"1-2-4\": 0.0417, \"...\": 0.0417},\n"
-            "     \"opponent_intercept_dist\": {\"1-2-3\": 0.0417, \"1-2-4\": 0.0417, \"...\": 0.0417}\n"
-            "  }\n"
-            "}\n"
+            '  \"reasoning\": \"brief explanation of your clue choices\"\n'
+            "}\n\n"
+            "You may add SCRATCHPAD: notes after the JSON."
         )
 
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
-        def _validate(obj: dict[str, Any]) -> tuple[ClueSet, dict[str, Any]] | None:
+        def _validate(obj: dict[str, Any]) -> ClueSet | None:
             clues = obj.get("clues")
             if not isinstance(clues, list) or len(clues) != 3:
                 return None
@@ -300,157 +215,29 @@ class DecryptoCluerLLM:
             if any(w in key_words for w in clue_words):
                 return None
 
-            ann = obj.get("annotations")
-            if not isinstance(ann, dict):
-                return None
-            ptc = parse_confidence_01(ann.get("p_team_correct"))
-            pi = parse_confidence_01(ann.get("p_intercept"))
-            if ptc is None or pi is None:
-                return None
-            ptg = ann.get("predicted_team_guess")
-            if parse_code_triple(ptg) is None:
-                return None
-            # slot_themes is optional and free-form; keep as-is if present.
-            # opponent_*_dist are optional; validate shape if present.
-            for k in ("opponent_decode_dist", "opponent_intercept_dist"):
-                dist = ann.get(k)
-                if dist is None:
-                    continue
-                if not isinstance(dist, dict):
-                    return None
-                # accept partial distributions but require numeric probs in [0,1]
-                for kk, vv in dist.items():
-                    if not isinstance(kk, str):
-                        return None
-                    if not isinstance(vv, (int, float)):
-                        return None
-                    p = float(vv)
-                    if not (0.0 <= p <= 1.0):
-                        return None
+            return ClueSet(clues=tuple(clue_words))
 
-            return ClueSet(clues=tuple(clue_words)), {"cluer_annotations": ann}
-
-        # Parse + single repair retry
         resp1 = await self.provider.complete(messages=messages, temperature=self.temperature)
-        obj1 = parse_json_object_strict(resp1.content)
-        parsed = _validate(obj1) if obj1 else None
-        if parsed is not None:
-            return parsed
-
-        messages.append({"role": "assistant", "content": resp1.content})
-        messages.append({"role": "user", "content": repair_user_message("cluer", "invalid schema")})
-        resp2 = await self.provider.complete(messages=messages, temperature=self.temperature)
-        obj2 = parse_json_object_strict(resp2.content)
-        parsed2 = _validate(obj2) if obj2 else None
-        if parsed2 is not None:
-            return parsed2
-
-        # Failure: return placeholder clues + empty annotations (will likely hurt performance but preserves run continuity).
-        return ClueSet(clues=("CLUEA", "CLUEB", "CLUEC")), {"cluer_annotations": {}}
-
-    async def _generate_deliberate(self, round_inputs: RoundInputs, team: TeamKey) -> tuple[ClueSet, dict[str, Any]]:
-        """
-        Generate clues using deliberate mode (brainstorm then choose).
+        scratchpad_addition = extract_scratchpad(resp1.content)
         
-        In this mode, the model first considers multiple candidate clue sets,
-        predicts team/opponent outcomes for each, then chooses the best one.
-        """
-        view = view_for_cluer(round_inputs, team)
-        assert_view_safe(view)
-
-        system = (
-            "You are the CLUER in Decrypto using DELIBERATE mode. Output ONLY valid JSON.\n"
-            "You must consider multiple candidate clue sets before choosing the best one.\n"
-            "Do NOT use any of your key words verbatim as clues.\n\n"
-            "STRATEGIC REMINDER:\n"
-            "- Your teammates must decode your clues to guess the secret code.\n"
-            "- The OPPONENT TEAM sees ALL your clues from ALL rounds and will use this "
-            "accumulated evidence to intercept your code.\n"
-            "- Each round, opponents build a stronger mapping of your clue patterns to keyword positions.\n"
-            "- Balance clarity for your team against predictability for opponents.\n"
-        )
-        user = (
-            f"ROLE_VIEW:\n{view}\n\n"
-            "DELIBERATE MODE: Consider multiple clue set options before choosing.\n\n"
-            "Return JSON with schema:\n"
-            "{\n"
-            '  \"candidates\": [\n'
-            '    {\n'
-            '      \"clues\": [\"CLUE1\",\"CLUE2\",\"CLUE3\"],\n'
-            '      \"p_team_correct\": 0.0-1.0,\n'
-            '      \"p_intercept\": 0.0-1.0,\n'
-            '      \"rationale\": \"why this set might work\"\n'
-            '    },\n'
-            '    ... (2-4 candidates)\n'
-            '  ],\n'
-            '  \"chosen_index\": 0,\n'
-            '  \"clues\": [\"CLUE1\",\"CLUE2\",\"CLUE3\"],\n'
-            '  \"annotations\": {\n'
-            '     \"intended_mapping\": {\"2\":\"<KEYWORD>\", ...},\n'
-            '     \"slot_themes\": {\"1\":\"short theme\", \"2\":\"short theme\", \"3\":\"short theme\", \"4\":\"short theme\"},\n'
-            '     \"predicted_team_guess\": [d1,d2,d3],\n'
-            '     \"p_team_correct\": 0.0-1.0,\n'
-            '     \"p_intercept\": 0.0-1.0,\n'
-            '     \"deliberation_mode\": true\n'
-            "  }\n"
-            "}\n"
-        )
-
-        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-
-        def _validate(obj: dict[str, Any]) -> tuple[ClueSet, dict[str, Any]] | None:
-            clues = obj.get("clues")
-            if not isinstance(clues, list) or len(clues) != 3:
-                return None
-            clue_words: list[str] = []
-            for c in clues:
-                if not isinstance(c, str):
-                    return None
-                w = c.strip().upper()
-                if not w or " " in w or len(w) > 32:
-                    return None
-                clue_words.append(w)
-
-            key_words = set(view["key"])
-            if any(w in key_words for w in clue_words):
-                return None
-
-            ann = obj.get("annotations")
-            if not isinstance(ann, dict):
-                return None
-            ptc = parse_confidence_01(ann.get("p_team_correct"))
-            pi = parse_confidence_01(ann.get("p_intercept"))
-            if ptc is None or pi is None:
-                return None
-            ptg = ann.get("predicted_team_guess")
-            if parse_code_triple(ptg) is None:
-                return None
-            
-            # Add deliberation metadata
-            ann["deliberation_mode"] = True
-            candidates = obj.get("candidates", [])
-            if isinstance(candidates, list):
-                ann["candidates_considered"] = candidates
-            
-            return ClueSet(clues=tuple(clue_words)), {"cluer_annotations": ann}
-
-        # Parse + single repair retry
-        resp1 = await self.provider.complete(messages=messages, temperature=self.temperature)
         obj1 = parse_json_object_strict(resp1.content)
-        parsed = _validate(obj1) if obj1 else None
-        if parsed is not None:
-            return parsed
+        clueset = _validate(obj1) if obj1 else None
+        if clueset is not None:
+            return clueset, {"reasoning": obj1.get("reasoning", "")}, scratchpad_addition
 
+        # Single repair retry
         messages.append({"role": "assistant", "content": resp1.content})
         messages.append({"role": "user", "content": repair_user_message("cluer", "invalid schema")})
         resp2 = await self.provider.complete(messages=messages, temperature=self.temperature)
+        scratchpad_addition = extract_scratchpad(resp2.content) or scratchpad_addition
+        
         obj2 = parse_json_object_strict(resp2.content)
-        parsed2 = _validate(obj2) if obj2 else None
-        if parsed2 is not None:
-            return parsed2
+        clueset2 = _validate(obj2) if obj2 else None
+        if clueset2 is not None:
+            return clueset2, {"reasoning": obj2.get("reasoning", "")}, scratchpad_addition
 
-        # Failure: return placeholder clues + empty annotations
-        return ClueSet(clues=("CLUEA", "CLUEB", "CLUEC")), {"cluer_annotations": {"deliberation_mode": True}}
+        # Failure: return placeholder clues
+        return ClueSet(clues=("CLUEA", "CLUEB", "CLUEC")), {}, scratchpad_addition
 
 
 @dataclass(frozen=True)
@@ -460,14 +247,27 @@ class DecryptoGuesserLLM:
     team: TeamKey
     temperature: float = 0.7
 
-    async def independent_guess(self, round_inputs: RoundInputs, kind: str) -> GuesserIndependent:
+    async def independent_guess(
+        self,
+        round_inputs: RoundInputs,
+        kind: str,
+        scratchpad_content: str = "",
+    ) -> tuple[GuesserIndependent, str | None]:
+        """
+        Make an independent guess.
+        
+        Returns:
+            (GuesserIndependent, scratchpad_addition)
+        """
         if kind == "decode":
             view = view_for_guesser_decode(round_inputs, self.team)
         else:
             view = view_for_guesser_intercept(round_inputs, self.team)
         assert_view_safe(view)
-        confirmable = _event_backed_confirmable_clues(round_inputs, self.team, kind)
-        confirmed_count = 1 if _has_event_evidence(confirmable) else 0
+
+        scratchpad_section = ""
+        if scratchpad_content:
+            scratchpad_section = f"\n\nYour scratchpad from previous rounds:\n{scratchpad_content}\n"
 
         system = (
             "You are a Decrypto guesser. Output ONLY valid JSON.\n\n"
@@ -476,15 +276,11 @@ class DecryptoGuesserLLM:
             "- LOSE: 2 miscommunications (failing to decode your own team's code)\n"
             "- DECODE task: Guess YOUR team's code. Failure = miscommunication (brings you closer to LOSING)\n"
             "- INTERCEPT task: Guess OPPONENT's code. Success = interception (brings you closer to WINNING)\n\n"
-            "Index-grounded reasoning rule:\n"
-            "- You may treat ONLY confirmed digit<->clue mappings from prior reveals as facts.\n"
-            "Mapping-reference labeling rule:\n"
-            "- If you reference a digit<->clue mapping, include it in mapping_references and label it as confirmed/hypothesis/eliminated.\n"
-            "- Only 'confirmed' mappings may be stated as facts, and ONLY if they were confirmed by prior reveals.\n"
-            "- Any semantic themes are hypotheses unless explicitly confirmed by prior reveals.\n"
-            "- If confirmed_count == 0, you MUST say your guess is speculative / no confirmed mapping yet.\n"
+            "You have a private scratchpad. To add notes for future rounds, include:\n"
+            "SCRATCHPAD: [your notes]\n"
+            "at the end of your JSON output (outside the JSON)."
         )
-        # Add explicit reveal summary (structured) to reduce ambiguity and encourage hypothesis tables.
+        
         history_rounds = view.get("history_rounds", [])
         reveal_summary = []
         if isinstance(history_rounds, list):
@@ -496,115 +292,73 @@ class DecryptoGuesserLLM:
 
         user = (
             f"ROLE_VIEW:\n{view}\n\n"
-            f"REVEAL_SUMMARY:\n{reveal_summary}\n\n"
+            f"REVEAL_SUMMARY:\n{reveal_summary}\n"
+            f"{scratchpad_section}\n"
             f"Task: {kind.upper()}.\n"
-            "Maintain and update a slot->keyword/theme hypothesis table using the reveal summary.\n"
             "Return JSON:\n"
             "{\n"
             '  \"guess\": [d1,d2,d3],\n'
             '  \"confidence\": 0.0-1.0,\n'
-            '  \"rationale\": \"short, index-grounded (or explicitly speculative)\",\n'
-            '  \"slot_hypotheses\": {\"1\":\"theme\", \"2\":\"theme\", \"3\":\"theme\", \"4\":\"theme\"},\n'
-            '  \"mapping_references\": [\n'
-            '     {\"mapping_type\":\"digit_clue\",\"digit\":\"1\",\"value\":\"<CLUE>\",\"status\":\"confirmed|hypothesis|eliminated\",\"support\":\"optional\"},\n'
-            '     {\"mapping_type\":\"digit_theme\",\"digit\":\"1\",\"value\":\"<THEME>\",\"status\":\"confirmed|hypothesis|eliminated\",\"support\":\"optional\"}\n'
-            "  ]\n"
-            "}\n"
+            '  \"rationale\": \"brief explanation\"\n'
+            "}\n\n"
+            "You may add SCRATCHPAD: notes after the JSON."
         )
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
-        def _parse(
-            obj: dict[str, Any],
-        ) -> tuple[
-            tuple[int, int, int],
-            float,
-            str,
-            dict[str, str] | None,
-            list[MappingReference],
-        ] | None:
+        def _parse(obj: dict[str, Any]) -> tuple[tuple[int, int, int], float, str] | None:
             g = parse_code_triple(obj.get("guess"))
             c = parse_confidence_01(obj.get("confidence"))
             r = obj.get("rationale")
-            sh = obj.get("slot_hypotheses")
-            slot_hyp: dict[str, str] | None = None
-            if isinstance(sh, dict):
-                slot_hyp = {
-                    str(k): str(v)
-                    for k, v in sh.items()
-                    if isinstance(k, (str, int)) and isinstance(v, str) and str(k) in {"1", "2", "3", "4"}
-                }
             if g is None or c is None or not isinstance(r, str):
                 return None
-            mrefs = _parse_mapping_references(obj)
-            return g, c, r, slot_hyp, mrefs
+            return g, c, r
 
         resp1 = await self.provider.complete(messages=messages, temperature=self.temperature)
+        scratchpad_addition = extract_scratchpad(resp1.content)
+        
         obj1 = parse_json_object_strict(resp1.content)
         out = _parse(obj1) if obj1 else None
         if out is not None:
-            g, c, r, slot_hyp, mrefs = out
-            grounding_ok = _grounding_ok(r, confirmed_count)
-            unbacked_confirmed = _has_unbacked_confirmed_refs(mrefs, confirmable)
-            token_violation = _uses_unbacked_confirmation_language(
-                r, _has_event_backed_confirmed_refs(mrefs, confirmable)
-            )
-            grounding_violation = (not grounding_ok) or unbacked_confirmed or token_violation
-            grounding_ok = grounding_ok and not unbacked_confirmed and not token_violation
-            overconf = (confirmed_count == 0 and c > 0.7)
-            labels_ok = _mapping_labels_ok(mrefs)
+            g, c, r = out
             return GuesserIndependent(
                 agent_id=self.agent_id,
                 guess=g,
-                confidence=_apply_grounding_penalty(c, grounding_violation),
+                confidence=c,
                 rationale=r,
                 parse_ok=True,
-                grounding_ok=grounding_ok,
-                overconfident=overconf,
-                slot_hypotheses=slot_hyp,
-                mapping_references=mrefs,
-                mapping_labels_ok=labels_ok,
                 parse_error=None,
                 parse_retry_used=False,
-            )
+            ), scratchpad_addition
 
-        # Single retry: strict one-line format (salvage guess+conf even if JSON failed).
+        # Single retry
         messages.append({"role": "assistant", "content": resp1.content})
         messages.append({"role": "user", "content": strict_guess_retry_prompt("expected JSON with guess+confidence")})
         resp2 = await self.provider.complete(messages=messages, temperature=self.temperature)
+        scratchpad_addition = extract_scratchpad(resp2.content) or scratchpad_addition
+        
         salvaged = parse_guess_conf_line(resp2.content)
         if salvaged is not None:
             g2, c2 = salvaged
-            overconf = (confirmed_count == 0 and c2 > 0.7)
             return GuesserIndependent(
                 agent_id=self.agent_id,
                 guess=g2,
                 confidence=c2,
                 rationale="",
                 parse_ok=True,
-                grounding_ok=True,  # never count parse failures as grounding violations
-                overconfident=overconf,
-                slot_hypotheses=None,
-                mapping_references=[],
-                mapping_labels_ok=True,
                 parse_error="json_parse_failed",
                 parse_retry_used=True,
-            )
+            ), scratchpad_addition
 
-        # Final fallback (no abstentions): deterministic safe guess + conf=0.0
+        # Final fallback
         return GuesserIndependent(
             agent_id=self.agent_id,
             guess=(1, 2, 3),
             confidence=0.0,
             rationale="",
             parse_ok=False,
-            grounding_ok=True,
-            overconfident=False,
-            slot_hypotheses=None,
-            mapping_references=[],
-            mapping_labels_ok=True,
             parse_error="retry_parse_failed",
             parse_retry_used=True,
-        )
+        ), scratchpad_addition
 
     async def discuss(
         self,
@@ -612,12 +366,23 @@ class DecryptoGuesserLLM:
         kind: str,
         discussion: list[dict[str, str]],
         independent: tuple[GuesserIndependent, GuesserIndependent],
-    ) -> tuple[str, bool]:
+        scratchpad_content: str = "",
+    ) -> tuple[str, bool, str | None]:
+        """
+        Participate in discussion.
+        
+        Returns:
+            (message_content, consensus_flag, scratchpad_addition)
+        """
         if kind == "decode":
             view = view_for_guesser_decode(round_inputs, self.team)
         else:
             view = view_for_guesser_intercept(round_inputs, self.team)
         assert_view_safe(view)
+
+        scratchpad_section = ""
+        if scratchpad_content:
+            scratchpad_section = f"\n\nYour scratchpad:\n{scratchpad_content}\n"
 
         system = _load_prompt_template("guesser_discussion.md").format(kind=kind.upper())
         user = _load_prompt_template("guesser_discussion_turn.md").format(
@@ -625,11 +390,13 @@ class DecryptoGuesserLLM:
             kind=kind.upper(),
             independent=[x.model_dump(mode="json") for x in independent],
             discussion=_format_discussion_log(discussion),
-        )
+        ) + scratchpad_section
+        
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         resp = await self.provider.complete(messages=messages, temperature=self.temperature)
         content = resp.content.strip()
-        return content, _parse_consensus_flag(content)
+        scratchpad_addition = extract_scratchpad(content)
+        return content, _parse_consensus_flag(content), scratchpad_addition
 
     async def share_rationale(
         self,
@@ -678,24 +445,27 @@ class DecryptoGuesserLLM:
         independent: tuple[GuesserIndependent, GuesserIndependent],
         shares: tuple[GuesserShare, GuesserShare],
         discussion: list[dict[str, str]],
-    ) -> ConsensusGuess:
+        scratchpad_content: str = "",
+    ) -> tuple[ConsensusGuess, str | None]:
+        """
+        Make final consensus guess as captain.
+        
+        Returns:
+            (ConsensusGuess, scratchpad_addition)
+        """
         if kind == "decode":
             view = view_for_guesser_decode(round_inputs, self.team)
         else:
             view = view_for_guesser_intercept(round_inputs, self.team)
         assert_view_safe(view)
-        confirmable = _event_backed_confirmable_clues(round_inputs, self.team, kind)
-        confirmed_count = 1 if _has_event_evidence(confirmable) else 0
+
+        scratchpad_section = ""
+        if scratchpad_content:
+            scratchpad_section = f"\n\nYour scratchpad:\n{scratchpad_content}\n"
 
         system = (
             "You are the captain deciding the final consensus. Output ONLY valid JSON.\n"
-            "Index-grounded reasoning rule:\n"
-            "- You may treat ONLY confirmed digit<->clue mappings from prior reveals as facts.\n"
-            "Mapping-reference labeling rule:\n"
-            "- If you reference a digit<->clue mapping, include it in mapping_references and label it as confirmed/hypothesis/eliminated.\n"
-            "- Only 'confirmed' mappings may be stated as facts, and ONLY if they were confirmed by prior reveals.\n"
-            "- Any semantic themes are hypotheses unless explicitly confirmed by prior reveals.\n"
-            "- If confirmed_count == 0, you MUST say your guess is speculative / no confirmed mapping yet.\n"
+            "You have a private scratchpad. To add notes, include SCRATCHPAD: at the end."
         )
         history_rounds = view.get("history_rounds", [])
         reveal_summary = []
@@ -708,103 +478,64 @@ class DecryptoGuesserLLM:
 
         user = (
             f"ROLE_VIEW:\n{view}\n\n"
-            f"REVEAL_SUMMARY:\n{reveal_summary}\n\n"
+            f"REVEAL_SUMMARY:\n{reveal_summary}\n"
+            f"{scratchpad_section}\n"
             f"Task: {kind.upper()}.\n"
             f"Independent:\n{[x.model_dump(mode='json') for x in independent]}\n\n"
             f"Share messages:\n{[x.model_dump(mode='json') for x in shares]}\n\n"
             f"Discussion transcript:\n{_format_discussion_log(discussion)}\n\n"
-            "Consensus guidance: choose a code mentioned in discussion, "
-            "or explicitly say in rationale that this is NEW.\n"
-            "Update the slot->keyword/theme hypothesis table using the reveal summary.\n"
             "Return JSON:\n"
             "{\n"
             '  \"guess\": [d1,d2,d3],\n'
             '  \"confidence\": 0.0-1.0,\n'
-            '  \"rationale\": \"short, index-grounded (or explicitly speculative)\",\n'
-            '  \"slot_hypotheses\": {\"1\":\"theme\", \"2\":\"theme\", \"3\":\"theme\", \"4\":\"theme\"},\n'
-            '  \"mapping_references\": [\n'
-            '     {\"mapping_type\":\"digit_clue\",\"digit\":\"1\",\"value\":\"<CLUE>\",\"status\":\"confirmed|hypothesis|eliminated\",\"support\":\"optional\"},\n'
-            '     {\"mapping_type\":\"digit_theme\",\"digit\":\"1\",\"value\":\"<THEME>\",\"status\":\"confirmed|hypothesis|eliminated\",\"support\":\"optional\"}\n'
-            "  ]\n"
-            "}\n"
+            '  \"rationale\": \"brief explanation\"\n'
+            "}\n\n"
+            "You may add SCRATCHPAD: notes after the JSON."
         )
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
-        def _parse(
-            obj: dict[str, Any],
-        ) -> tuple[
-            tuple[int, int, int],
-            float,
-            str,
-            dict[str, str] | None,
-            list[MappingReference],
-        ] | None:
+        def _parse(obj: dict[str, Any]) -> tuple[tuple[int, int, int], float, str] | None:
             g = parse_code_triple(obj.get("guess"))
             c = parse_confidence_01(obj.get("confidence"))
             r = obj.get("rationale")
-            sh = obj.get("slot_hypotheses")
-            slot_hyp: dict[str, str] | None = None
-            if isinstance(sh, dict):
-                slot_hyp = {
-                    str(k): str(v)
-                    for k, v in sh.items()
-                    if isinstance(k, (str, int)) and isinstance(v, str) and str(k) in {"1", "2", "3", "4"}
-                }
             if g is None or c is None or not isinstance(r, str):
                 return None
-            mrefs = _parse_mapping_references(obj)
-            return g, c, r, slot_hyp, mrefs
+            return g, c, r
 
         resp1 = await self.provider.complete(messages=messages, temperature=self.temperature)
+        scratchpad_addition = extract_scratchpad(resp1.content)
+        
         obj1 = parse_json_object_strict(resp1.content)
         out = _parse(obj1) if obj1 else None
         if out is not None:
-            g, c, r, slot_hyp, mrefs = out
-            grounding_ok = _grounding_ok(r, confirmed_count)
-            unbacked_confirmed = _has_unbacked_confirmed_refs(mrefs, confirmable)
-            token_violation = _uses_unbacked_confirmation_language(
-                r, _has_event_backed_confirmed_refs(mrefs, confirmable)
-            )
-            grounding_violation = (not grounding_ok) or unbacked_confirmed or token_violation
-            grounding_ok = grounding_ok and not unbacked_confirmed and not token_violation
-            overconf = (confirmed_count == 0 and c > 0.7)
-            labels_ok = _mapping_labels_ok(mrefs)
+            g, c, r = out
             return ConsensusGuess(
                 captain_id=self.agent_id,
                 guess=g,
-                confidence=_apply_grounding_penalty(c, grounding_violation),
+                confidence=c,
                 rationale=r,
                 parse_ok=True,
-                grounding_ok=grounding_ok,
-                overconfident=overconf,
-                slot_hypotheses=slot_hyp,
-                mapping_references=mrefs,
-                mapping_labels_ok=labels_ok,
                 parse_error=None,
                 parse_retry_used=False,
-            )
+            ), scratchpad_addition
 
         messages.append({"role": "assistant", "content": resp1.content})
         messages.append({"role": "user", "content": strict_guess_retry_prompt("expected JSON with guess+confidence")})
         resp2 = await self.provider.complete(messages=messages, temperature=self.temperature)
+        scratchpad_addition = extract_scratchpad(resp2.content) or scratchpad_addition
+        
         salvaged = parse_guess_conf_line(resp2.content)
         if salvaged is not None:
             g2, c2 = salvaged
-            overconf = (confirmed_count == 0 and c2 > 0.7)
             return ConsensusGuess(
                 captain_id=self.agent_id,
                 guess=g2,
                 confidence=c2,
                 rationale="",
                 parse_ok=True,
-                grounding_ok=True,
-                overconfident=overconf,
-                slot_hypotheses=None,
-                mapping_references=[],
-                mapping_labels_ok=True,
                 parse_error="json_parse_failed",
                 parse_retry_used=True,
-            )
+            ), scratchpad_addition
 
         return ConsensusGuess(
             captain_id=self.agent_id,
@@ -812,81 +543,9 @@ class DecryptoGuesserLLM:
             confidence=0.0,
             rationale="",
             parse_ok=False,
-            grounding_ok=True,
-            overconfident=False,
-            slot_hypotheses=None,
-            mapping_references=[],
-            mapping_labels_ok=True,
             parse_error="retry_parse_failed",
             parse_retry_used=True,
-        )
-
-
-def _grounding_ok(rationale: str, confirmed_count: int) -> bool:
-    """
-    Minimal enforcement:
-    - If confirmed_count == 0 (no event-backed evidence), rationale must explicitly state uncertainty.
-    - Otherwise, we do not strictly validate content (prompting handles it).
-    """
-    if confirmed_count > 0:
-        return True
-    text = (rationale or "").lower()
-    needles = [
-        "speculative",
-        "no confirmed",
-        "no confirmation",
-        "uncertain",
-        "guessing",
-        "not sure",
-    ]
-    return any(n in text for n in needles)
-
-
-def _parse_mapping_references(obj: dict[str, Any]) -> list[MappingReference]:
-    refs = obj.get("mapping_references")
-    if not isinstance(refs, list):
-        return []
-    out: list[MappingReference] = []
-    for r in refs:
-        if not isinstance(r, dict):
-            continue
-        mapping_type = r.get("mapping_type", "digit_clue")
-        digit = r.get("digit")
-        value = r.get("value")
-        # Backward compat: accept "clue" as value (digit_clue)
-        if value is None and "clue" in r:
-            value = r.get("clue")
-        status = r.get("status")
-        support = r.get("support")
-        digit_s = str(digit)
-        if digit_s not in {"1", "2", "3", "4"}:
-            continue
-        if mapping_type not in {"digit_clue", "digit_theme"}:
-            continue
-        if not isinstance(value, str) or not value.strip():
-            continue
-        if status not in {"confirmed", "hypothesis", "eliminated"}:
-            continue
-        if support is not None and not isinstance(support, str):
-            support = None
-        out.append(
-            MappingReference(
-                mapping_type=mapping_type,  # type: ignore[arg-type]
-                digit=digit_s,  # type: ignore[arg-type]
-                value=value.strip().upper() if mapping_type == "digit_clue" else value.strip(),
-                status=status,  # type: ignore[arg-type]
-                support=support,
-            )
-        )
-    return out
-
-
-def _mapping_labels_ok(_mapping_references: list[MappingReference]) -> bool:
-    """
-    Under the new schema, evaluator-side determines whether a 'confirmed' label is justified.
-    Agent-side only needs to provide the labels; we always accept the structure here.
-    """
-    return True
+        ), scratchpad_addition
 
 
 async def run_bounded_action(
@@ -896,56 +555,73 @@ async def run_bounded_action(
     kind: str,
     guesser_1: DecryptoGuesserLLM,
     guesser_2: DecryptoGuesserLLM,
+    g1_scratchpad: str = "",
+    g2_scratchpad: str = "",
     *,
     discussion_log: list[dict[str, str]] | None = None,
     max_discussion_turns_per_guesser: int = 2,
     emit_discussion: Callable[[str, str], None] | None = None,
-) -> ActionLog:
+) -> tuple[ActionLog, dict[str, str]]:
     """
     Bounded discussion loop:
-      independent_guess(+confidence) -> share_rationale (1 msg each) -> captain consensus (+confidence)
+      independent_guess -> discussion -> share_rationale -> captain consensus
+    
+    Returns:
+        (ActionLog, scratchpad_additions_dict)
+        scratchpad_additions_dict maps agent_id to their combined scratchpad additions
     """
     if kind not in ("decode", "intercept"):
         raise ValueError(f"Unknown action kind: {kind}")
 
-    confirmable = _event_backed_confirmable_clues(round_inputs, team, kind)
-    confirmed_count = sum(1 for d in confirmable if confirmable[d])
-    # Intercepts before any opponent reveals are uninformed (round 1 baseline).
     uninformed = (kind == "intercept" and len(round_inputs.history_rounds) == 0)
+    
+    # Track scratchpad additions per agent
+    scratchpad_adds: dict[str, list[str]] = {
+        guesser_1.agent_id: [],
+        guesser_2.agent_id: [],
+    }
 
-    ind1, ind2 = await asyncio.gather(
-        guesser_1.independent_guess(round_inputs, kind),
-        guesser_2.independent_guess(round_inputs, kind),
-    )
+    # Independent guesses with scratchpads
+    ind1_result = await guesser_1.independent_guess(round_inputs, kind, g1_scratchpad)
+    ind2_result = await guesser_2.independent_guess(round_inputs, kind, g2_scratchpad)
+    ind1, ind1_add = ind1_result
+    ind2, ind2_add = ind2_result
+    
+    if ind1_add:
+        scratchpad_adds[guesser_1.agent_id].append(ind1_add)
+    if ind2_add:
+        scratchpad_adds[guesser_2.agent_id].append(ind2_add)
+    
     discussion_log = discussion_log if discussion_log is not None else []
     consecutive_consensus = 0
     previous_candidates: list[str] | None = None
     max_messages = max(1, max_discussion_turns_per_guesser) * 2
     guessers = [guesser_1, guesser_2]
+    scratchpads = [g1_scratchpad, g2_scratchpad]
+    
     for i in range(max_messages):
         guesser = guessers[i % 2]
-        content, _ = await guesser.discuss(
-            round_inputs, kind, discussion_log, (ind1, ind2)
+        scratchpad = scratchpads[i % 2]
+        content, _, disc_add = await guesser.discuss(
+            round_inputs, kind, discussion_log, (ind1, ind2), scratchpad
         )
+        if disc_add:
+            scratchpad_adds[guesser.agent_id].append(disc_add)
+        
         entry = {"agent_id": guesser.agent_id, "message": content}
         discussion_log.append(entry)
         if emit_discussion is not None:
             emit_discussion(guesser.agent_id, content)
         
-        # Check for consensus - requires YES and matching CANDIDATES
         consensus, candidates = _parse_discussion_response(content)
         if consensus:
             if consecutive_consensus == 0:
-                # First YES - store candidates
                 consecutive_consensus = 1
                 previous_candidates = candidates
             else:
-                # Second consecutive YES - check if candidates match
                 if _candidates_match(previous_candidates, candidates):
-                    # Real consensus
                     break
                 else:
-                    # False consensus - YES but different candidates
                     consecutive_consensus = 1
                     previous_candidates = candidates
         else:
@@ -956,10 +632,19 @@ async def run_bounded_action(
         guesser_1.share_rationale(round_inputs, kind, ind1, ind2, discussion_log),
         guesser_2.share_rationale(round_inputs, kind, ind1, ind2, discussion_log),
     )
-    # Deterministic captain: guesser_1
-    consensus = await guesser_1.captain_consensus(
-        round_inputs, kind, (ind1, ind2), (s1, s2), discussion_log
+    
+    consensus_result = await guesser_1.captain_consensus(
+        round_inputs, kind, (ind1, ind2), (s1, s2), discussion_log, g1_scratchpad
     )
+    consensus, captain_add = consensus_result
+    if captain_add:
+        scratchpad_adds[guesser_1.agent_id].append(captain_add)
+
+    # Combine scratchpad additions per agent
+    combined_adds = {
+        agent_id: " | ".join(adds) if adds else ""
+        for agent_id, adds in scratchpad_adds.items()
+    }
 
     return ActionLog(
         kind=kind,  # type: ignore[arg-type]
@@ -969,6 +654,5 @@ async def run_bounded_action(
         share=(s1, s2),
         consensus=consensus,
         correct=False,  # computed only at reveal step in orchestrator
-        confirmed_mapping_count=confirmed_count,
         uninformed=uninformed,
-    )
+    ), combined_adds

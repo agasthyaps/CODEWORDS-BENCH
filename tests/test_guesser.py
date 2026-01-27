@@ -397,7 +397,7 @@ class TestGuesserAgent:
         ])
         guesser = GuesserAgent(guesser_config, provider)
 
-        message, trace = await guesser.discuss(game_state, [])
+        message, trace, _ = await guesser.discuss(game_state, [])
 
         assert isinstance(message, DiscussionMessage)
         assert message.team == Team.RED
@@ -415,7 +415,7 @@ class TestGuesserAgent:
         ])
         guesser = GuesserAgent(guesser_config, provider)
 
-        guesses, trace = await guesser.make_guesses(game_state, [])
+        guesses, trace, _ = await guesser.make_guesses(game_state, [])
 
         assert len(guesses) == 2
         assert guesses[0] == board_words[0].upper()
@@ -429,7 +429,7 @@ class TestGuesserAgent:
         ])
         guesser = GuesserAgent(guesser_config, provider)
 
-        guesses, trace = await guesser.make_guesses(game_state, [])
+        guesses, trace, _ = await guesser.make_guesses(game_state, [])
 
         assert guesses == []
         assert trace.parsed_result["is_pass"] is True
@@ -444,7 +444,7 @@ class TestGuesserAgent:
         ])
         guesser = GuesserAgent(guesser_config, provider)
 
-        guesses, trace = await guesser.make_guesses(game_state, [])
+        guesses, trace, _ = await guesser.make_guesses(game_state, [])
 
         # Should truncate at NOTAWORD
         assert len(guesses) == 1
@@ -502,7 +502,7 @@ class TestGuesserIntegration:
         assert len(messages) >= 2
 
         # Make guesses
-        guesses, trace = await guessers[0].make_guesses(final_state, messages)
+        guesses, trace, _ = await guessers[0].make_guesses(final_state, messages)
 
         # Guesses should be valid board words
         board_words_upper = {w.upper() for w in state.board.words}

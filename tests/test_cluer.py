@@ -158,7 +158,7 @@ class TestCluerAgent:
         ])
         agent = CluerAgent(agent_config, provider)
 
-        clue, trace = await agent.generate_clue(game_state)
+        clue, trace, scratchpad = await agent.generate_clue(game_state)
 
         assert clue.word == "UMBRELLA"
         assert clue.number == 2
@@ -177,7 +177,7 @@ class TestCluerAgent:
         ])
         agent = CluerAgent(agent_config, provider)
 
-        clue, trace = await agent.generate_clue(game_state)
+        clue, trace, _ = await agent.generate_clue(game_state)
 
         assert clue.word == "UMBRELLA"
         assert trace.retry_count == 1
@@ -193,7 +193,7 @@ class TestCluerAgent:
         ])
         agent = CluerAgent(agent_config, provider)
 
-        clue, trace = await agent.generate_clue(game_state)
+        clue, trace, _ = await agent.generate_clue(game_state)
 
         assert clue.word == "UMBRELLA"
         assert trace.retry_count == 1
@@ -225,7 +225,7 @@ class TestCluerAgent:
         ])
         agent = CluerAgent(agent_config, provider)
 
-        clue, trace = await agent.generate_clue(game_state)
+        clue, trace, _ = await agent.generate_clue(game_state)
 
         assert trace.agent_id == "red_cluer"
         assert trace.turn_number == game_state.turn_number
@@ -246,7 +246,7 @@ class TestCluerAgent:
         ])
         agent = CluerAgent(agent_config, provider)
 
-        clue, trace = await agent.generate_clue(game_state)
+        clue, trace, _ = await agent.generate_clue(game_state)
 
         assert clue.word == "UMBRELLA"
 
@@ -300,7 +300,7 @@ class TestCluerIntegration:
 
         for seed in range(10):
             game_state = create_game(config=GameConfig(seed=seed))
-            clue, trace = await agent.generate_clue(game_state)
+            clue, trace, _ = await agent.generate_clue(game_state)
 
             # Verify clue is legal
             from src.engine import validate_clue
@@ -332,7 +332,7 @@ class TestCluerIntegration:
 
         # Use a fixed seed for reproducibility
         game_state = create_game(config=GameConfig(seed=123))
-        clue, trace = await agent.generate_clue(game_state)
+        clue, trace, _ = await agent.generate_clue(game_state)
 
         # The clue should have reasoning that mentions target words
         assert trace.parsed_result is not None

@@ -12,6 +12,7 @@ from src.engine import (
     Team, GameState, AgentTrace, DiscussionMessage,
     get_visible_state, add_discussion_message,
 )
+from src.core.parsing import extract_scratchpad
 from .llm import LLMProvider
 from .cluer import AgentConfig, format_board_display, format_transcript
 
@@ -21,8 +22,6 @@ class ParsedGuesses(BaseModel):
     words: list[str]
     reasoning: str
     is_pass: bool = False
-    confidence: int | None = None  # 1-5
-    why_stop: str | None = None
 
 
 class ParsedDiscussion(BaseModel):
@@ -61,7 +60,7 @@ def parse_discussion_response(response: str) -> ParsedDiscussion:
     top_words = None
     if consensus:
         top_match = re.search(
-            r"TOP\s*:\s*(.+?)(?:\n|$)",
+            r"TOP\s*:\s*(.+?)(?:\n|SCRATCHPAD|$)",
             response,
             re.IGNORECASE
         )
@@ -97,15 +96,13 @@ def parse_guess_response(response: str) -> ParsedGuesses | None:
         re.IGNORECASE
     )
     if pass_match:
-        conf = _parse_confidence(response)
-        why_stop = _parse_why_stop(response)
         reasoning_match = re.search(
-            r"REASONING\s*:\s*(.+)",
+            r"REASONING\s*:\s*(.+?)(?:SCRATCHPAD|$)",
             response,
             re.IGNORECASE | re.DOTALL
         )
         reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
-        return ParsedGuesses(words=[], reasoning=reasoning, is_pass=True, confidence=conf, why_stop=why_stop)
+        return ParsedGuesses(words=[], reasoning=reasoning, is_pass=True)
 
     # Extract guesses
     guesses_match = re.search(
@@ -125,33 +122,13 @@ def parse_guess_response(response: str) -> ParsedGuesses | None:
 
     # Extract reasoning
     reasoning_match = re.search(
-        r"REASONING\s*:\s*(.+)",
+        r"REASONING\s*:\s*(.+?)(?:SCRATCHPAD|$)",
         response,
         re.IGNORECASE | re.DOTALL
     )
     reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
 
-    conf = _parse_confidence(response)
-    why_stop = _parse_why_stop(response)
-
-    return ParsedGuesses(words=words, reasoning=reasoning, is_pass=False, confidence=conf, why_stop=why_stop)
-
-
-def _parse_confidence(response: str) -> int | None:
-    m = re.search(r"CONFIDENCE\s*:\s*\[?\s*([1-5])\s*\]?", response, re.IGNORECASE)
-    if not m:
-        return None
-    try:
-        return int(m.group(1))
-    except ValueError:
-        return None
-
-
-def _parse_why_stop(response: str) -> str | None:
-    m = re.search(r"WHY_STOP\s*:\s*(.+?)(?:\n|$)", response, re.IGNORECASE)
-    if not m:
-        return None
-    return m.group(1).strip()
+    return ParsedGuesses(words=words, reasoning=reasoning, is_pass=False)
 
 
 def validate_guesses(
@@ -255,6 +232,7 @@ class GuesserAgent:
         self,
         state: GameState,
         discussion_so_far: list[DiscussionMessage],
+        scratchpad_content: str = "",
     ) -> tuple[str, str]:
         """Build prompts for discussion phase."""
         visible = get_visible_state(
@@ -285,6 +263,9 @@ class GuesserAgent:
         # Number display
         num_display = "UNLIMITED" if clue_number == -1 else str(clue_number)
 
+        # Format scratchpad
+        scratchpad_display = scratchpad_content if scratchpad_content else "(empty)"
+
         system = self.discussion_system.format(team=team)
         user = self.discussion_turn.format(
             board_words_display=board_display,
@@ -294,6 +275,7 @@ class GuesserAgent:
             max_guesses=max_guesses,
             transcript_display=transcript_display,
             discussion_display=discussion_display,
+            scratchpad_content=scratchpad_display,
         )
 
         return system, user
@@ -302,6 +284,7 @@ class GuesserAgent:
         self,
         state: GameState,
         discussion: list[DiscussionMessage],
+        scratchpad_content: str = "",
     ) -> tuple[str, str]:
         """Build prompts for final guess phase."""
         visible = get_visible_state(
@@ -325,6 +308,9 @@ class GuesserAgent:
         # Number display
         num_display = "UNLIMITED" if clue_number == -1 else str(clue_number)
 
+        # Format scratchpad
+        scratchpad_display = scratchpad_content if scratchpad_content else "(empty)"
+
         system = self.guess_system.format(
             team=team,
             max_guesses=max_guesses,
@@ -336,6 +322,7 @@ class GuesserAgent:
             clue_number=num_display,
             max_guesses=max_guesses,
             discussion_display=discussion_display,
+            scratchpad_content=scratchpad_display,
         )
 
         return system, user
@@ -344,15 +331,19 @@ class GuesserAgent:
         self,
         state: GameState,
         discussion_so_far: list[DiscussionMessage],
-    ) -> tuple[DiscussionMessage, AgentTrace]:
+        scratchpad_content: str = "",
+    ) -> tuple[DiscussionMessage, AgentTrace, str | None]:
         """
         Add one message to the discussion.
 
         No retry - returns whatever the LLM produces.
         Checks for consensus signal.
+
+        Returns:
+            Tuple of (message, trace, scratchpad_addition)
         """
         system_prompt, user_prompt = self._build_discussion_prompt(
-            state, discussion_so_far
+            state, discussion_so_far, scratchpad_content
         )
 
         messages = [
@@ -364,6 +355,9 @@ class GuesserAgent:
             messages=messages,
             temperature=self.config.temperature,
         )
+
+        # Extract scratchpad addition
+        scratchpad_addition = extract_scratchpad(response.content)
 
         # Parse response
         parsed = parse_discussion_response(response.content)
@@ -396,20 +390,26 @@ class GuesserAgent:
             output_tokens=response.output_tokens,
         )
 
-        return message, trace
+        return message, trace, scratchpad_addition
 
     async def make_guesses(
         self,
         state: GameState,
         discussion: list[DiscussionMessage],
-    ) -> tuple[list[str], AgentTrace]:
+        scratchpad_content: str = "",
+    ) -> tuple[list[str], AgentTrace, str | None]:
         """
         Produce final ordered guesses.
 
         Validates and truncates guesses (no retry).
         Returns empty list for PASS.
+
+        Returns:
+            Tuple of (guesses, trace, scratchpad_addition)
         """
-        system_prompt, user_prompt = self._build_guess_prompt(state, discussion)
+        system_prompt, user_prompt = self._build_guess_prompt(
+            state, discussion, scratchpad_content
+        )
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -420,6 +420,9 @@ class GuesserAgent:
             messages=messages,
             temperature=self.config.temperature,
         )
+
+        # Extract scratchpad addition
+        scratchpad_addition = extract_scratchpad(response.content)
 
         # Parse response
         parsed = parse_guess_response(response.content)
@@ -452,8 +455,6 @@ class GuesserAgent:
                 "reasoning": parsed.reasoning if parsed else "",
                 "is_pass": parsed.is_pass if parsed else True,
                 "raw_words": parsed.words if parsed else [],
-                "confidence": parsed.confidence if parsed else None,
-                "why_stop": parsed.why_stop if parsed else None,
             },
             validation_errors=validation_errors,
             retry_count=0,
@@ -464,7 +465,7 @@ class GuesserAgent:
             output_tokens=response.output_tokens,
         )
 
-        return guesses, trace
+        return guesses, trace, scratchpad_addition
 
 
 def _top_lists_match(list1: list[str] | None, list2: list[str] | None) -> bool:
@@ -512,8 +513,8 @@ async def run_discussion(
     for i in range(max_messages):
         guesser = guessers[i % 2]
 
-        # Generate discussion message
-        message, trace = await guesser.discuss(current_state, messages)
+        # Generate discussion message (note: scratchpad not used in run_discussion for simplicity)
+        message, trace, _ = await guesser.discuss(current_state, messages)
         traces.append(trace)
 
         # Add message to state transcript

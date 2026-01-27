@@ -12,6 +12,7 @@ from src.engine import (
     add_discussion_message,
 )
 from src.agents import CluerAgent, GuesserAgent, run_discussion
+from src.core.state import AgentStateManager
 
 if TYPE_CHECKING:
     from .teams import TeamAgents
@@ -22,7 +23,6 @@ class TurnTraces(BaseModel):
     turn_number: int
     team: Team
     clue_trace: AgentTrace
-    prediction_trace: AgentTrace | None = None
     discussion_traces: list[AgentTrace]
     guess_trace: AgentTrace | None  # None if team passed without guessing
 
@@ -30,6 +30,7 @@ class TurnTraces(BaseModel):
 async def run_clue_phase(
     cluer,  # CluerAgent or GhostCluer
     state: GameState,
+    agent_states: AgentStateManager | None = None,
 ) -> tuple[GameState, AgentTrace, bool]:
     """
     Run the clue phase for a team.
@@ -45,7 +46,18 @@ async def run_clue_phase(
     if state.phase != Phase.CLUE:
         raise ValueError(f"Cannot run clue phase in {state.phase}")
 
-    clue, trace = await cluer.generate_clue(state)
+    # Get scratchpad content if available
+    scratchpad_content = ""
+    if agent_states and hasattr(cluer, 'config'):
+        scratchpad_content = agent_states.get_scratchpad(cluer.config.agent_id)
+
+    # Generate clue - all cluers now return (clue, trace, scratchpad_addition)
+    clue, trace, scratchpad_addition = await cluer.generate_clue(state, scratchpad_content)
+    
+    # Update scratchpad if we got an addition
+    if agent_states and scratchpad_addition and hasattr(cluer, 'config'):
+        agent_state = agent_states.get_or_create(cluer.config.agent_id)
+        agent_state.append_to_scratchpad(state.turn_number, scratchpad_addition)
 
     # Ghost cluer can return None to pass
     if clue is None:
@@ -65,6 +77,7 @@ async def run_discussion_phase(
     state: GameState,
     max_rounds: int = 3,
     skip_discussion: bool = False,
+    agent_states: AgentStateManager | None = None,
 ) -> tuple[GameState, list[AgentTrace]]:
     """
     Run the discussion phase for a team.
@@ -78,6 +91,7 @@ async def run_discussion_phase(
         state: Current game state
         max_rounds: Maximum discussion rounds
         skip_discussion: If True, skip discussion entirely (SINGLE_GUESSER mode)
+        agent_states: Optional agent state manager for scratchpads
 
     Returns:
         (new_state, discussion_traces)
@@ -90,6 +104,8 @@ async def run_discussion_phase(
         new_state = transition_to_guessing(state)
         return new_state, []
 
+    # Note: run_discussion doesn't use scratchpads for simplicity
+    # Individual discuss() calls could be updated to use them if needed
     messages, traces, new_state = await run_discussion(
         guessers, state, max_rounds
     )
@@ -104,6 +120,7 @@ async def run_guess_phase(
     guesser: GuesserAgent,
     state: GameState,
     discussion_messages: list,
+    agent_states: AgentStateManager | None = None,
 ) -> tuple[GameState, AgentTrace | None]:
     """
     Run the guess phase for a team.
@@ -118,8 +135,20 @@ async def run_guess_phase(
     if state.phase != Phase.GUESS:
         raise ValueError(f"Cannot run guess phase in {state.phase}")
 
-    # Get guesses from the guesser
-    guesses, trace = await guesser.make_guesses(state, discussion_messages)
+    # Get scratchpad content if available
+    scratchpad_content = ""
+    if agent_states and hasattr(guesser, 'config'):
+        scratchpad_content = agent_states.get_scratchpad(guesser.config.agent_id)
+
+    # Get guesses from the guesser - all guessers now return (guesses, trace, scratchpad_addition)
+    guesses, trace, scratchpad_addition = await guesser.make_guesses(
+        state, discussion_messages, scratchpad_content
+    )
+    
+    # Update scratchpad if we got an addition
+    if agent_states and scratchpad_addition and hasattr(guesser, 'config'):
+        agent_state = agent_states.get_or_create(guesser.config.agent_id)
+        agent_state.append_to_scratchpad(state.turn_number, scratchpad_addition)
 
     new_state = state
 
@@ -151,6 +180,7 @@ async def run_turn(
     state: GameState,
     max_discussion_rounds: int = 3,
     skip_discussion: bool = False,
+    agent_states: AgentStateManager | None = None,
 ) -> tuple[GameState, TurnTraces]:
     """
     Run a complete turn for a team.
@@ -164,6 +194,7 @@ async def run_turn(
         state: Current game state
         max_discussion_rounds: Maximum discussion rounds
         skip_discussion: If True, skip discussion (SINGLE_GUESSER mode)
+        agent_states: Optional agent state manager for scratchpads
 
     Returns:
         (new_state, turn_traces)
@@ -175,7 +206,9 @@ async def run_turn(
     team = state.current_turn
 
     # Clue phase
-    state, clue_trace, should_continue = await run_clue_phase(team_agents.cluer, state)
+    state, clue_trace, should_continue = await run_clue_phase(
+        team_agents.cluer, state, agent_states
+    )
 
     if not should_continue:
         # Ghost passed - turn is over
@@ -183,25 +216,15 @@ async def run_turn(
             turn_number=turn_number,
             team=team,
             clue_trace=clue_trace,
-            prediction_trace=None,
             discussion_traces=[],
             guess_trace=None,
         )
         return state, traces
 
-    # Prediction step (for ToM): cluer predicts teammate guesses before discussion
-    prediction_trace: AgentTrace | None = None
-    try:
-        if hasattr(team_agents.cluer, "predict_guesses") and state.current_clue is not None:
-            prediction_trace = await team_agents.cluer.predict_guesses(state, state.current_clue)
-    except Exception:
-        # Prediction should never crash the game; store nothing on failure.
-        prediction_trace = None
-
     # Discussion phase
     guessers = team_agents.get_guessers()
     state, discussion_traces = await run_discussion_phase(
-        guessers, state, max_discussion_rounds, skip_discussion
+        guessers, state, max_discussion_rounds, skip_discussion, agent_states
     )
 
     # Get discussion messages for guess phase
@@ -216,13 +239,13 @@ async def run_turn(
         team_agents.primary_guesser,
         state,
         discussion_messages,
+        agent_states,
     )
 
     traces = TurnTraces(
         turn_number=turn_number,
         team=team,
         clue_trace=clue_trace,
-        prediction_trace=prediction_trace,
         discussion_traces=discussion_traces,
         guess_trace=guess_trace,
     )

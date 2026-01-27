@@ -313,7 +313,6 @@ class TestLeaderboard:
             avg_discussion_rounds=1.5,
             consensus_rate=0.67,
             avg_discussion_length=150,
-            theory_of_mind_score=0.8,
         )
         blue_metrics = TeamMetrics(
             team=Team.BLUE,
@@ -331,7 +330,6 @@ class TestLeaderboard:
             avg_discussion_rounds=1.0,
             consensus_rate=1.0,
             avg_discussion_length=100,
-            theory_of_mind_score=0.75,
         )
         metrics = EpisodeMetrics(
             episode_id="test",
@@ -498,7 +496,6 @@ class TestLeaderboardExport:
             win_rate=0.6,
             win_rate_ci=ConfidenceInterval(lower=0.5, upper=0.7),
             avg_coordination_score=0.75,
-            avg_theory_of_mind=0.8,
         )
 
         leaderboard = Leaderboard(overall=[entry])

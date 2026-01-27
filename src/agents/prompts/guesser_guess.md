@@ -21,23 +21,25 @@ Based on the discussion, provide your final ordered guesses.
 - You can guess fewer than the maximum if uncertain
 - You can PASS to end your turn without guessing
 
+## Your Private Scratchpad
+
+You have a private scratchpad that persists across turns. Only you can see it.
+To add notes, include SCRATCHPAD: at the end of your response.
+
 ## Response Format
 
 Provide your guesses in this exact format:
 
 ```
 GUESSES: WORD1, WORD2, WORD3
-CONFIDENCE: 1-5
-WHY_STOP: brief reason you stopped (or "N/A" if using max guesses)
 REASONING: Brief explanation of your choices
+SCRATCHPAD: [optional - notes for future turns]
 ```
 
 Or to pass:
 
 ```
 GUESSES: PASS
-CONFIDENCE: 1-5
-WHY_STOP: PASS
 REASONING: Why you chose to pass
 ```
 

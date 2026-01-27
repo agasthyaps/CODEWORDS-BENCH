@@ -29,7 +29,6 @@ class LeaderboardEntry(BaseModel):
     avg_coordination_score: float
     avg_clue_efficiency: float | None = None  # Cluer only
     avg_guess_accuracy: float | None = None  # Guesser only
-    avg_theory_of_mind: float
     # Side analysis (computed per appearance as RED vs BLUE)
     red_games: int = 0
     red_wins: int = 0
@@ -66,21 +65,6 @@ class Leaderboard(BaseModel):
     overall_draw_rate: float | None = None
     # Synergy / composition comparisons (pair-level)
     synergy: list["SynergyEntry"] = Field(default_factory=list)
-    # Calibration vs assassin outcomes (team-level rows across all games)
-    assassin_overconfidence_summary: dict[str, float | int] = Field(default_factory=dict)
-    top_offenders: list["OffenderEntry"] = Field(default_factory=list)
-
-
-class OffenderEntry(BaseModel):
-    """Model-level risk summary for primary guesser behavior."""
-    model_config = {"protected_namespaces": ()}
-    model: str
-    team_rows: int
-    assassin_hits: int
-    assassin_hit_rate: float
-    overconf_rows: int
-    overconf_rate: float
-    overconf_given_assassin_hit_rate: float | None = None
 
 
 class SynergyEntry(BaseModel):
@@ -155,7 +139,6 @@ def _extract_model_stats(
     coordination_scores = []
     clue_efficiencies = []
     guess_accuracies = []
-    tom_scores = []
 
     for result in results:
         if result.error or result.metrics is None:
@@ -190,7 +173,6 @@ def _extract_model_stats(
             coordination_scores.append(result.metrics.red_coordination_score)
             clue_efficiencies.append(result.metrics.red_metrics.clue_efficiency)
             guess_accuracies.append(result.metrics.red_metrics.guess_accuracy)
-            tom_scores.append(result.metrics.red_metrics.theory_of_mind_score)
 
         if blue_match:
             games += 1
@@ -201,7 +183,6 @@ def _extract_model_stats(
             coordination_scores.append(result.metrics.blue_coordination_score)
             clue_efficiencies.append(result.metrics.blue_metrics.clue_efficiency)
             guess_accuracies.append(result.metrics.blue_metrics.guess_accuracy)
-            tom_scores.append(result.metrics.blue_metrics.theory_of_mind_score)
 
     return {
         "games": games,
@@ -213,7 +194,6 @@ def _extract_model_stats(
         "coordination_scores": coordination_scores,
         "clue_efficiencies": clue_efficiencies,
         "guess_accuracies": guess_accuracies,
-        "tom_scores": tom_scores,
     }
 
 
@@ -235,7 +215,6 @@ def _create_leaderboard_entry(
             win_rate=0.0,
             win_rate_ci=ConfidenceInterval(lower=0.0, upper=1.0),
             avg_coordination_score=0.0,
-            avg_theory_of_mind=0.0,
         )
 
     win_rate = wins / games
@@ -244,10 +223,6 @@ def _create_leaderboard_entry(
     avg_coord = (
         sum(stats["coordination_scores"]) / len(stats["coordination_scores"])
         if stats["coordination_scores"] else 0.0
-    )
-    avg_tom = (
-        sum(stats["tom_scores"]) / len(stats["tom_scores"])
-        if stats["tom_scores"] else 0.0
     )
 
     entry = LeaderboardEntry(
@@ -258,7 +233,6 @@ def _create_leaderboard_entry(
         win_rate=win_rate,
         win_rate_ci=win_rate_ci,
         avg_coordination_score=avg_coord,
-        avg_theory_of_mind=avg_tom,
         red_games=stats.get("red_games", 0),
         red_wins=stats.get("red_wins", 0),
         blue_games=stats.get("blue_games", 0),
@@ -480,117 +454,6 @@ def build_leaderboard(results: list[BenchmarkResult]) -> Leaderboard:
         reverse=True,
     )
 
-    # Assassin hits vs guesser overconfidence (team-level)
-    # Each game contributes up to 2 team-rows (RED team, BLUE team)
-    assassin_rows = 0
-    assassin_rows_overconf = 0
-    non_assassin_rows = 0
-    non_assassin_rows_overconf = 0
-
-    def _overconf_flag(team_metrics) -> int | None:
-        r = getattr(team_metrics, "guesser_overconfidence_rate", None)
-        if r is None:
-            return None
-        # Treat any evidence of overconfidence as positive
-        return 1 if r > 0 else 0
-
-    for r in valid_results:
-        # RED team row
-        red_flag = _overconf_flag(r.metrics.red_metrics)
-        if red_flag is not None:
-            if r.metrics.red_metrics.assassin_hit:
-                assassin_rows += 1
-                assassin_rows_overconf += red_flag
-            else:
-                non_assassin_rows += 1
-                non_assassin_rows_overconf += red_flag
-
-        # BLUE team row
-        blue_flag = _overconf_flag(r.metrics.blue_metrics)
-        if blue_flag is not None:
-            if r.metrics.blue_metrics.assassin_hit:
-                assassin_rows += 1
-                assassin_rows_overconf += blue_flag
-            else:
-                non_assassin_rows += 1
-                non_assassin_rows_overconf += blue_flag
-
-    assassin_overconf_rate = (assassin_rows_overconf / assassin_rows) if assassin_rows > 0 else None
-    non_assassin_overconf_rate = (non_assassin_rows_overconf / non_assassin_rows) if non_assassin_rows > 0 else None
-
-    summary = {
-        "assassin_team_rows": assassin_rows,
-        "assassin_overconf_rows": assassin_rows_overconf,
-        "assassin_overconf_rate": assassin_overconf_rate if assassin_overconf_rate is not None else 0.0,
-        "non_assassin_team_rows": non_assassin_rows,
-        "non_assassin_overconf_rows": non_assassin_rows_overconf,
-        "non_assassin_overconf_rate": non_assassin_overconf_rate if non_assassin_overconf_rate is not None else 0.0,
-    }
-
-    # Top offenders (by primary guesser model)
-    offender_buckets: dict[str, dict[str, int]] = {}
-
-    def _bucket(model_id: str) -> dict[str, int]:
-        if model_id not in offender_buckets:
-            offender_buckets[model_id] = {
-                "rows": 0,
-                "assassin": 0,
-                "overconf": 0,
-                "assassin_and_overconf": 0,
-            }
-        return offender_buckets[model_id]
-
-    def _add_row(model_id: str, assassin_hit: bool, overconf: int | None) -> None:
-        if model_id is None:
-            return
-        b = _bucket(model_id)
-        b["rows"] += 1
-        if assassin_hit:
-            b["assassin"] += 1
-        if overconf is not None and overconf > 0:
-            b["overconf"] += 1
-            if assassin_hit:
-                b["assassin_and_overconf"] += 1
-
-    for r in valid_results:
-        # RED team: attribute to primary guesser (guesser_1)
-        red_model = r.red_models.get("guesser_1")
-        red_overconf = _overconf_flag(r.metrics.red_metrics)
-        _add_row(red_model, bool(r.metrics.red_metrics.assassin_hit), red_overconf)
-
-        # BLUE team
-        blue_model = r.blue_models.get("guesser_1")
-        blue_overconf = _overconf_flag(r.metrics.blue_metrics)
-        _add_row(blue_model, bool(r.metrics.blue_metrics.assassin_hit), blue_overconf)
-
-    offenders: list[OffenderEntry] = []
-    for model_id, b in offender_buckets.items():
-        rows = b["rows"]
-        if rows <= 0:
-            continue
-        assassin = b["assassin"]
-        overconf = b["overconf"]
-        assassin_rate = assassin / rows
-        overconf_rate = overconf / rows
-        overconf_given_assassin = (b["assassin_and_overconf"] / assassin) if assassin > 0 else None
-        offenders.append(
-            OffenderEntry(
-                model=model_id,
-                team_rows=rows,
-                assassin_hits=assassin,
-                assassin_hit_rate=assassin_rate,
-                overconf_rows=overconf,
-                overconf_rate=overconf_rate,
-                overconf_given_assassin_hit_rate=overconf_given_assassin,
-            )
-        )
-
-    # Sort: highest assassin hit rate, then overconfidence rate, then more data
-    offenders.sort(
-        key=lambda o: (o.assassin_hit_rate, o.overconf_rate, o.team_rows),
-        reverse=True,
-    )
-
     return Leaderboard(
         overall=overall_entries,
         by_cluer=cluer_entries,
@@ -601,8 +464,6 @@ def build_leaderboard(results: list[BenchmarkResult]) -> Leaderboard:
         overall_blue_win_rate=overall_blue_win_rate,
         overall_draw_rate=overall_draw_rate,
         synergy=synergy_entries,
-        assassin_overconfidence_summary=summary,
-        top_offenders=offenders,
     )
 
 
@@ -681,39 +542,8 @@ def export_leaderboard_markdown(leaderboard: Leaderboard) -> str:
     # Overall
     lines.append("## Overall Rankings")
     lines.append("")
-
-    # Calibration vs assassin outcomes
-    if leaderboard.assassin_overconfidence_summary:
-        s = leaderboard.assassin_overconfidence_summary
-        lines.append("## Calibration vs Assassin Hits")
-        lines.append("")
-
-    # Top offenders table
-    if leaderboard.top_offenders:
-        lines.append("## Top Offenders (Primary Guesser)")
-        lines.append("")
-        lines.append("| Rank | Model | Team Rows | Assassin Hits | Assassin Hit Rate | Overconf Rows | Overconf Rate | Overconf|Assassin |")
-        lines.append("|------|-------|----------:|--------------:|------------------:|-------------:|-------------:|----------------:|")
-        for i, o in enumerate(leaderboard.top_offenders[:15], 1):
-            oga = f"{o.overconf_given_assassin_hit_rate:.1%}" if o.overconf_given_assassin_hit_rate is not None else "N/A"
-            lines.append(
-                f"| {i} | {o.model} | {o.team_rows} | {o.assassin_hits} | {o.assassin_hit_rate:.1%} | "
-                f"{o.overconf_rows} | {o.overconf_rate:.1%} | {oga} |"
-            )
-        lines.append("")
-        lines.append(
-            f"- **Assassin-hit team-rows:** {s.get('assassin_team_rows', 0)} | "
-            f"**Overconf rows:** {s.get('assassin_overconf_rows', 0)} | "
-            f"**Overconf rate:** {float(s.get('assassin_overconf_rate', 0.0)):.1%}"
-        )
-        lines.append(
-            f"- **Non-assassin team-rows:** {s.get('non_assassin_team_rows', 0)} | "
-            f"**Overconf rows:** {s.get('non_assassin_overconf_rows', 0)} | "
-            f"**Overconf rate:** {float(s.get('non_assassin_overconf_rate', 0.0)):.1%}"
-        )
-        lines.append("")
-    lines.append("| Rank | Model | Games | Win Rate | Side-Adj | Side Δ | 95% CI | Coord. Score | ToM |")
-    lines.append("|------|-------|-------|----------|----------|--------|--------|--------------|-----|")
+    lines.append("| Rank | Model | Games | Win Rate | Side-Adj | Side Δ | 95% CI | Coord. Score |")
+    lines.append("|------|-------|-------|----------|----------|--------|--------|--------------|")
 
     for i, entry in enumerate(leaderboard.overall, 1):
         ci = f"[{entry.win_rate_ci.lower:.2f}, {entry.win_rate_ci.upper:.2f}]"
@@ -722,7 +552,7 @@ def export_leaderboard_markdown(leaderboard: Leaderboard) -> str:
         lines.append(
             f"| {i} | {entry.model} | {entry.games} | "
             f"{entry.win_rate:.1%} | {side_adj} | {side_delta} | {ci} | "
-            f"{entry.avg_coordination_score:.3f} | {entry.avg_theory_of_mind:.3f} |"
+            f"{entry.avg_coordination_score:.3f} |"
         )
 
     lines.append("")

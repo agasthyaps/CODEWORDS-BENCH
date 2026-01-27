@@ -10,8 +10,9 @@ from pydantic import BaseModel
 
 from src.engine import (
     Team, Clue, GameState, AgentTrace, validate_clue,
-    get_visible_state, get_unrevealed_words,
+    get_visible_state,
 )
+from src.core.parsing import extract_scratchpad
 from .llm import LLMProvider, LLMResponse
 
 
@@ -23,7 +24,6 @@ class AgentConfig(BaseModel):
     agent_id: str
     temperature: float = 0.7
     max_retries: int = 3
-    clue_generation_mode: str = "standard"  # "standard" | "deliberate"
 
 
 class ParsedClue(BaseModel):
@@ -31,19 +31,6 @@ class ParsedClue(BaseModel):
     word: str
     number: int
     reasoning: str
-
-
-class ParsedDeliberateClue(BaseModel):
-    """Parsed clue from deliberate mode LLM response."""
-    word: str
-    number: int
-    reasoning: str
-    candidates_considered: list[dict[str, Any]] = []
-    predicted_guesses: list[str] = []
-    translated_guesses: list[str] = []
-    confusion_risks: list[dict[str, str]] = []
-    confidence: int | None = None
-    deliberation_mode: bool = True
 
 
 def load_prompt_template(name: str) -> str:
@@ -94,164 +81,13 @@ def parse_clue_response(response: str) -> ParsedClue | None:
 
     # Extract REASONING (optional, everything after REASONING:)
     reasoning_match = re.search(
-        r"REASONING\s*:\s*(.+)",
+        r"REASONING\s*:\s*(.+?)(?:SCRATCHPAD|$)",
         response,
         re.IGNORECASE | re.DOTALL
     )
     reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
 
     return ParsedClue(word=word, number=number, reasoning=reasoning)
-
-
-def parse_deliberate_response(response: str) -> ParsedDeliberateClue | None:
-    """
-    Parse the deliberate mode clue response from the LLM.
-    
-    Expected format includes CANDIDATES section, CHOSEN_CLUE, CHOSEN_NUMBER,
-    PREDICTED_GUESSES, TRANSLATED_GUESSES, CONFUSION_RISKS, CONFIDENCE, and REASONING.
-    """
-    # Extract CHOSEN_CLUE
-    clue_match = re.search(
-        r"CHOSEN_CLUE\s*:\s*\[?\s*([A-Za-z]+)\s*\]?",
-        response,
-        re.IGNORECASE
-    )
-    if not clue_match:
-        return None
-    
-    word = clue_match.group(1).upper().strip()
-    
-    # Extract CHOSEN_NUMBER
-    number_match = re.search(
-        r"CHOSEN_NUMBER\s*:\s*\[?\s*(UNLIMITED|\d+)\s*\]?",
-        response,
-        re.IGNORECASE
-    )
-    if not number_match:
-        return None
-    
-    number_str = number_match.group(1).upper().strip()
-    if number_str == "UNLIMITED":
-        number = -1
-    else:
-        try:
-            number = int(number_str)
-        except ValueError:
-            return None
-    
-    # Extract PREDICTED_GUESSES
-    predicted_guesses: list[str] = []
-    pg_match = re.search(
-        r"PREDICTED_GUESSES\s*:\s*(.+?)(?:\n|TRANSLATED|CONFUSION|CONFIDENCE|REASONING|$)",
-        response,
-        re.IGNORECASE
-    )
-    if pg_match:
-        guesses_raw = pg_match.group(1).strip()
-        if not guesses_raw.upper().startswith("PASS"):
-            predicted_guesses = [
-                w.strip().upper()
-                for w in re.split(r"[,;\[\]]+", guesses_raw)
-                if w.strip() and w.strip().upper() not in ("", "[", "]")
-            ]
-    
-    # Extract TRANSLATED_GUESSES
-    translated_guesses: list[str] = []
-    tg_match = re.search(
-        r"TRANSLATED_GUESSES\s*:\s*(.+?)(?:\n|CONFUSION|CONFIDENCE|REASONING|$)",
-        response,
-        re.IGNORECASE
-    )
-    if tg_match:
-        trans_raw = tg_match.group(1).strip()
-        if not trans_raw.upper().startswith("PASS"):
-            translated_guesses = [
-                w.strip().upper()
-                for w in re.split(r"[,;\[\]]+", trans_raw)
-                if w.strip() and w.strip().upper() not in ("", "[", "]")
-            ]
-    
-    # Extract CONFUSION_RISKS
-    confusion_risks: list[dict[str, str]] = []
-    risks_match = re.search(
-        r"CONFUSION_RISKS\s*:\s*(.+?)(?:CONFIDENCE|REASONING|$)",
-        response,
-        re.IGNORECASE | re.DOTALL
-    )
-    if risks_match:
-        risks_block = risks_match.group(1)
-        for line in risks_block.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            line = re.sub(r"^[-*\u2022]\s*", "", line)
-            # WORD: reason or [WORD]: reason
-            m2 = re.match(r"\[?([A-Za-z]+)\]?\s*:\s*(.+)", line)
-            if m2:
-                confusion_risks.append({
-                    "word": m2.group(1).upper(),
-                    "reason": m2.group(2).strip()
-                })
-    
-    # Extract CONFIDENCE
-    confidence: int | None = None
-    conf_match = re.search(
-        r"CONFIDENCE\s*:\s*\[?\s*([1-5])\s*\]?",
-        response,
-        re.IGNORECASE
-    )
-    if conf_match:
-        confidence = int(conf_match.group(1))
-    
-    # Extract REASONING
-    reasoning_match = re.search(
-        r"REASONING\s*:\s*(.+)",
-        response,
-        re.IGNORECASE | re.DOTALL
-    )
-    reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
-    
-    # Extract CANDIDATES (for analysis - less strict parsing)
-    candidates_considered: list[dict[str, Any]] = []
-    candidates_match = re.search(
-        r"CANDIDATES\s*:\s*(.+?)(?:CHOSEN_CLUE|$)",
-        response,
-        re.IGNORECASE | re.DOTALL
-    )
-    if candidates_match:
-        candidates_block = candidates_match.group(1)
-        # Parse each numbered candidate line
-        for line in candidates_block.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            # Match: 1. CLUE (N): ...
-            cand_match = re.match(
-                r"^\d+\.\s*([A-Za-z]+)\s*\((\d+|UNLIMITED)\)",
-                line,
-                re.IGNORECASE
-            )
-            if cand_match:
-                cand_word = cand_match.group(1).upper()
-                cand_num_str = cand_match.group(2).upper()
-                cand_num = -1 if cand_num_str == "UNLIMITED" else int(cand_num_str)
-                candidates_considered.append({
-                    "clue": cand_word,
-                    "number": cand_num,
-                    "raw_line": line
-                })
-    
-    return ParsedDeliberateClue(
-        word=word,
-        number=number,
-        reasoning=reasoning,
-        candidates_considered=candidates_considered,
-        predicted_guesses=predicted_guesses,
-        translated_guesses=translated_guesses,
-        confusion_risks=confusion_risks,
-        confidence=confidence,
-        deliberation_mode=True,
-    )
 
 
 def format_board_display(words: list[str], revealed: dict[str, Any]) -> str:
@@ -318,10 +154,12 @@ class CluerAgent:
         self.provider = provider
         self.system_prompt = load_prompt_template("cluer_system.md")
         self.turn_prompt_template = load_prompt_template("cluer_turn.md")
-        self.predict_prompt_template = load_prompt_template("cluer_predict.md")
-        self.deliberate_prompt_template = load_prompt_template("cluer_deliberate.md")
 
-    def _build_prompt(self, visible_state: dict[str, Any]) -> tuple[str, str]:
+    def _build_prompt(
+        self, 
+        visible_state: dict[str, Any],
+        scratchpad_content: str = "",
+    ) -> tuple[str, str]:
         """Build the system and user prompts from visible state."""
         team = visible_state["team"]
         opponent_team = "BLUE" if team == "RED" else "RED"
@@ -347,6 +185,9 @@ class CluerAgent:
         turn_number = visible_state.get("turn_number", 1)
         transcript_display = format_transcript(transcript, turn_number)
 
+        # Format scratchpad
+        scratchpad_display = scratchpad_content if scratchpad_content else "(empty)"
+
         # Build prompts
         system = self.system_prompt.format(team=team)
         user = self.turn_prompt_template.format(
@@ -359,48 +200,7 @@ class CluerAgent:
             assassin_word=assassin_word,
             remaining_words=remaining_display,
             transcript_display=transcript_display,
-        )
-
-        return system, user
-
-    def _build_deliberate_prompt(self, visible_state: dict[str, Any]) -> tuple[str, str]:
-        """Build the system and user prompts for deliberate mode."""
-        team = visible_state["team"]
-        opponent_team = "BLUE" if team == "RED" else "RED"
-
-        # Format board display
-        board_words = visible_state["board_words"]
-        revealed = visible_state.get("revealed", {})
-        board_display = format_board_display(board_words, revealed)
-
-        # Get key information
-        key = visible_state["key"]
-        your_words = ", ".join(sorted(key[team.lower()]))
-        opponent_words = ", ".join(sorted(key[opponent_team.lower()]))
-        neutral_words = ", ".join(sorted(key["neutral"]))
-        assassin_word = ", ".join(sorted(key["assassin"]))
-
-        # Get remaining words for your team
-        your_remaining = [w for w in key[team.lower()] if w not in revealed]
-        remaining_display = ", ".join(sorted(your_remaining))
-
-        # Format transcript
-        transcript = visible_state.get("public_transcript", [])
-        turn_number = visible_state.get("turn_number", 1)
-        transcript_display = format_transcript(transcript, turn_number)
-
-        # Use deliberate prompt template
-        system = self.system_prompt.format(team=team)
-        user = self.deliberate_prompt_template.format(
-            board_words_display=board_display,
-            team=team,
-            opponent_team=opponent_team,
-            your_words=your_words,
-            opponent_words=opponent_words,
-            neutral_words=neutral_words,
-            assassin_word=assassin_word,
-            remaining_words=remaining_display,
-            transcript_display=transcript_display,
+            scratchpad_content=scratchpad_display,
         )
 
         return system, user
@@ -408,23 +208,24 @@ class CluerAgent:
     async def generate_clue(
         self,
         state: GameState,
-    ) -> tuple[Clue, AgentTrace]:
+        scratchpad_content: str = "",
+    ) -> tuple[Clue, AgentTrace, str | None]:
         """
         Generate a clue for the current game state.
 
+        Args:
+            state: Current game state
+            scratchpad_content: Agent's current scratchpad (optional)
+
         Returns:
-            Tuple of (Clue, AgentTrace)
+            Tuple of (Clue, AgentTrace, scratchpad_addition)
+            scratchpad_addition is the new content to add to scratchpad (or None)
 
         Raises:
             RuntimeError if max retries exceeded
         """
-        # Branch based on clue generation mode
-        if self.config.clue_generation_mode == "deliberate":
-            return await self._generate_clue_deliberate(state)
-        
-        # Standard mode (default)
         visible_state = get_visible_state(state, f"{self.config.team.value.lower()}_cluer")
-        system_prompt, user_prompt = self._build_prompt(visible_state)
+        system_prompt, user_prompt = self._build_prompt(visible_state, scratchpad_content)
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -437,6 +238,7 @@ class CluerAgent:
         total_output_tokens = 0
         total_latency = 0.0
         all_responses: list[str] = []
+        scratchpad_addition: str | None = None
 
         while retry_count <= self.config.max_retries:
             # Call LLM
@@ -449,6 +251,9 @@ class CluerAgent:
             total_output_tokens += response.output_tokens
             total_latency += response.latency_ms
             all_responses.append(response.content)
+
+            # Extract scratchpad addition (from any response, even if clue fails)
+            scratchpad_addition = extract_scratchpad(response.content)
 
             # Parse response
             parsed = parse_clue_response(response.content)
@@ -502,7 +307,7 @@ class CluerAgent:
                 output_tokens=total_output_tokens,
             )
 
-            return clue, trace
+            return clue, trace, scratchpad_addition
 
         # Max retries exceeded
         trace = AgentTrace(
@@ -524,289 +329,3 @@ class CluerAgent:
             f"Failed to generate valid clue after {self.config.max_retries} retries. "
             f"Errors: {validation_errors}"
         )
-
-    async def _generate_clue_deliberate(
-        self,
-        state: GameState,
-    ) -> tuple[Clue, AgentTrace]:
-        """
-        Generate a clue using deliberate mode (brainstorm then choose).
-        
-        In this mode, the model first considers multiple candidate clues,
-        predicts teammate reactions for each, then chooses the best one.
-        The prediction data is embedded in the response.
-        """
-        visible_state = get_visible_state(state, f"{self.config.team.value.lower()}_cluer")
-        system_prompt, user_prompt = self._build_deliberate_prompt(visible_state)
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-
-        validation_errors: list[str] = []
-        retry_count = 0
-        total_input_tokens = 0
-        total_output_tokens = 0
-        total_latency = 0.0
-        all_responses: list[str] = []
-
-        while retry_count <= self.config.max_retries:
-            # Call LLM
-            response: LLMResponse = await self.provider.complete(
-                messages=messages,
-                temperature=self.config.temperature,
-            )
-
-            total_input_tokens += response.input_tokens
-            total_output_tokens += response.output_tokens
-            total_latency += response.latency_ms
-            all_responses.append(response.content)
-
-            # Parse deliberate response
-            parsed = parse_deliberate_response(response.content)
-
-            if parsed is None:
-                error = (
-                    "Could not parse deliberate response. Please use the format: "
-                    "CANDIDATES: ... CHOSEN_CLUE: [word], CHOSEN_NUMBER: [number], "
-                    "PREDICTED_GUESSES: [...], REASONING: [text]"
-                )
-                validation_errors.append(error)
-                messages.append({"role": "assistant", "content": response.content})
-                messages.append({"role": "user", "content": f"Error: {error}\n\nPlease try again."})
-                retry_count += 1
-                continue
-
-            # Validate clue against game rules
-            is_valid, error = validate_clue(parsed.word, parsed.number, state)
-
-            if not is_valid:
-                validation_errors.append(error or "Unknown validation error")
-                messages.append({"role": "assistant", "content": response.content})
-                messages.append({
-                    "role": "user",
-                    "content": f"Error: {error}\n\nPlease choose a different clue that follows all the rules."
-                })
-                retry_count += 1
-                continue
-
-            # Success! Build the Clue and Trace
-            clue = Clue(
-                turn_number=state.turn_number,
-                event_index=0,  # Will be set when added to transcript
-                team=self.config.team,
-                word=parsed.word,
-                number=parsed.number,
-            )
-
-            # Build parsed_result with deliberation data for analysis
-            trace = AgentTrace(
-                agent_id=self.config.agent_id,
-                turn_number=state.turn_number,
-                prompt_sent=f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}",
-                raw_response="\n---\n".join(all_responses),
-                parsed_result={
-                    "word": parsed.word,
-                    "number": parsed.number,
-                    "reasoning": parsed.reasoning,
-                    "candidates_considered": parsed.candidates_considered,
-                    "predicted_guesses": parsed.predicted_guesses,
-                    "translated_guesses": parsed.translated_guesses,
-                    "confusion_risks": parsed.confusion_risks,
-                    "confidence": parsed.confidence,
-                    "deliberation_mode": True,
-                },
-                validation_errors=validation_errors,
-                retry_count=retry_count,
-                model=self.config.model,
-                temperature=self.config.temperature,
-                latency_ms=total_latency,
-                input_tokens=total_input_tokens,
-                output_tokens=total_output_tokens,
-            )
-
-            return clue, trace
-
-        # Max retries exceeded
-        trace = AgentTrace(
-            agent_id=self.config.agent_id,
-            turn_number=state.turn_number,
-            prompt_sent=f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}",
-            raw_response="\n---\n".join(all_responses),
-            parsed_result=None,
-            validation_errors=validation_errors,
-            retry_count=retry_count,
-            model=self.config.model,
-            temperature=self.config.temperature,
-            latency_ms=total_latency,
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
-        )
-
-        raise RuntimeError(
-            f"Failed to generate valid deliberate clue after {self.config.max_retries} retries. "
-            f"Errors: {validation_errors}"
-        )
-
-    def synthesize_prediction_trace(
-        self,
-        clue_trace: AgentTrace,
-        state: GameState,
-    ) -> AgentTrace | None:
-        """
-        Synthesize a prediction trace from a deliberate mode clue trace.
-        
-        In deliberate mode, the prediction is embedded in the clue response.
-        This method extracts it into the standard prediction trace format
-        for compatibility with ToM metrics calculation.
-        """
-        parsed = clue_trace.parsed_result
-        if not parsed or not parsed.get("deliberation_mode"):
-            return None
-        
-        # Extract prediction data from the deliberate response
-        prediction_result = {
-            "predicted_guesses": parsed.get("predicted_guesses", []),
-            "translated_guesses": parsed.get("translated_guesses", []),
-            "confusion_risks": parsed.get("confusion_risks", []),
-            "confidence": parsed.get("confidence"),
-        }
-        
-        return AgentTrace(
-            agent_id=self.config.agent_id,
-            turn_number=clue_trace.turn_number,
-            prompt_sent="(synthesized from deliberate mode)",
-            raw_response="(synthesized from deliberate mode)",
-            parsed_result=prediction_result,
-            validation_errors=[],
-            retry_count=0,
-            model=self.config.model,
-            temperature=self.config.temperature,
-            latency_ms=0.0,  # No additional latency - embedded in clue generation
-            input_tokens=0,
-            output_tokens=0,
-        )
-
-    async def predict_guesses(
-        self,
-        state: GameState,
-        clue: Clue,
-    ) -> AgentTrace:
-        """
-        After committing a clue (and before seeing teammate discussion), predict teammate behavior.
-
-        This is used for prediction-based Theory-of-Mind scoring.
-        """
-        visible_state = get_visible_state(state, f"{self.config.team.value.lower()}_cluer")
-        system_prompt, _ = self._build_prompt(visible_state)
-
-        clue_number = "UNLIMITED" if clue.number == -1 else str(clue.number)
-        # Provide unrevealed board words to enable translation-to-board.
-        board_words = visible_state["board_words"]
-        revealed = visible_state.get("revealed", {})
-        unrevealed = [w for w in board_words if w not in revealed]
-        board_display = "  ".join(unrevealed)
-        user_prompt = self.predict_prompt_template.format(
-            clue_word=clue.word,
-            clue_number=clue_number,
-            board_words_display=board_display,
-        )
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-
-        response: LLMResponse = await self.provider.complete(
-            messages=messages,
-            temperature=self.config.temperature,
-        )
-
-        parsed = _parse_prediction_response(response.content)
-
-        return AgentTrace(
-            agent_id=self.config.agent_id,
-            turn_number=state.turn_number,
-            prompt_sent=f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}",
-            raw_response=response.content,
-            parsed_result=parsed,
-            validation_errors=[],
-            retry_count=0,
-            model=self.config.model,
-            temperature=self.config.temperature,
-            latency_ms=response.latency_ms,
-            input_tokens=response.input_tokens,
-            output_tokens=response.output_tokens,
-        )
-
-
-def _parse_prediction_response(response: str) -> dict[str, Any] | None:
-    """
-    Parse prediction response:
-
-    PREDICTED_GUESSES: WORD1, WORD2
-    CONFUSION_RISKS:
-    - WORDX: reason
-    """
-    text = response.strip()
-
-    # Predicted guesses
-    m = re.search(r"PREDICTED_GUESSES\s*:\s*(.+)", text, re.IGNORECASE)
-    if not m:
-        return None
-    guesses_raw = m.group(1).strip()
-    if guesses_raw.upper().startswith("PASS"):
-        predicted_guesses: list[str] = []
-    else:
-        predicted_guesses = [
-            w.strip().upper()
-            for w in re.split(r"[,;\n]+", guesses_raw)
-            if w.strip()
-        ]
-
-    # Translated guesses (board-word mapping)
-    tm = re.search(r"TRANSLATED_GUESSES\s*:\s*(.+)", text, re.IGNORECASE)
-    if tm:
-        translated_raw = tm.group(1).strip()
-        if translated_raw.upper().startswith("PASS"):
-            translated_guesses: list[str] = []
-        else:
-            translated_guesses = [
-                w.strip().upper()
-                for w in re.split(r"[,;\n]+", translated_raw)
-                if w.strip()
-            ]
-    else:
-        translated_guesses = []
-
-    # Confusion risks: parse lines after header, tolerant to bullets
-    risks: list[dict[str, str]] = []
-    risks_match = re.search(r"CONFUSION_RISKS\s*:\s*(.+)", text, re.IGNORECASE | re.DOTALL)
-    if risks_match:
-        risks_block = risks_match.group(1)
-        for line in risks_block.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            line = re.sub(r"^[-*\u2022]\s*", "", line)
-            # WORD: reason
-            m2 = re.match(r"([A-Za-z]+)\s*:\s*(.+)", line)
-            if m2:
-                risks.append({"word": m2.group(1).upper(), "reason": m2.group(2).strip()})
-            else:
-                # If only a word is provided
-                m3 = re.match(r"([A-Za-z]+)$", line)
-                if m3:
-                    risks.append({"word": m3.group(1).upper(), "reason": ""})
-
-    # Confidence (optional)
-    conf_match = re.search(r"CONFIDENCE\s*:\s*\[?\s*([1-5])\s*\]?", text, re.IGNORECASE)
-    confidence = int(conf_match.group(1)) if conf_match else None
-
-    return {
-        "predicted_guesses": predicted_guesses,
-        "translated_guesses": translated_guesses,
-        "confusion_risks": risks,
-        "confidence": confidence,
-    }

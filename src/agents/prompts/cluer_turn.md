@@ -18,6 +18,10 @@ Your team still needs: {remaining_words}
 
 {transcript_display}
 
+## Your Scratchpad
+
+{scratchpad_content}
+
 ## Your Task
 
 Give a clue to help your teammates guess your remaining words. Remember:

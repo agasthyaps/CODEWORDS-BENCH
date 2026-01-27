@@ -14,6 +14,7 @@ from src.engine import (
     Team, GameConfig, GameState, GameMode, EpisodeRecord, Board,
     create_game, Phase,
 )
+from src.core.state import AgentStateManager
 from .orchestrator import run_turn, TurnTraces
 from .teams import TeamAgents
 
@@ -29,6 +30,7 @@ class ExtendedEpisodeRecord(BaseModel):
     turn_traces: list[TurnTraces] = Field(default_factory=list)
     winner: Team | None = None
     total_turns: int = 0
+    agent_scratchpads: dict[str, str] = Field(default_factory=dict)  # Final scratchpad contents
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def to_filename(self) -> str:
@@ -92,6 +94,9 @@ async def run_episode(
     state = create_game(config=config)
     all_traces: list[TurnTraces] = []
 
+    # Initialize agent state manager for scratchpads
+    agent_states = AgentStateManager()
+
     # Determine if we should skip discussion (SINGLE_GUESSER mode)
     skip_discussion = config.mode == GameMode.SINGLE_GUESSER
 
@@ -104,15 +109,22 @@ async def run_episode(
         team = state.current_turn
         team_agents = red_team if team == Team.RED else blue_team
 
-        # Run turn
+        # Run turn with agent state manager
         state, turn_traces = await run_turn(
-            team_agents, state, max_discussion_rounds, skip_discussion
+            team_agents, state, max_discussion_rounds, skip_discussion, agent_states
         )
         all_traces.append(turn_traces)
 
         # Check for game over
         if state.phase == Phase.GAME_OVER:
             break
+
+    # Extract final scratchpad contents
+    agent_scratchpads = {
+        agent_id: agent_state.scratchpad
+        for agent_id, agent_state in agent_states.get_all_states().items()
+        if agent_state.scratchpad
+    }
 
     # Build episode record
     episode = ExtendedEpisodeRecord(
@@ -125,6 +137,7 @@ async def run_episode(
         turn_traces=all_traces,
         winner=state.winner,
         total_turns=turn_count,
+        agent_scratchpads=agent_scratchpads,
         metadata={
             "red_team": _extract_team_metadata(red_team),
             "blue_team": _extract_team_metadata(blue_team),

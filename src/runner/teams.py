@@ -85,12 +85,16 @@ class GhostCluer:
     async def generate_clue(
         self,
         state: GameState,
-    ) -> tuple[Clue | None, AgentTrace]:
+        scratchpad_content: str = "",
+    ) -> tuple[Clue | None, AgentTrace, str | None]:
         """
         Generate a clue (or pass).
 
         PASS mode: Returns None (signals turn should be skipped)
         RANDOM mode: Returns random legal clue
+        
+        Returns:
+            Tuple of (clue, trace, scratchpad_addition)
         """
         trace = AgentTrace(
             agent_id=self.config.agent_id,
@@ -109,7 +113,7 @@ class GhostCluer:
 
         if self.mode == GhostMode.PASS:
             # Return None to signal pass
-            return None, trace
+            return None, trace, None
 
         # RANDOM mode - generate random legal clue
         # Find a word not on board and not a substring issue
@@ -129,10 +133,10 @@ class GhostCluer:
                     number=random.randint(1, 3),
                 )
                 trace.parsed_result["clue"] = {"word": clue.word, "number": clue.number}
-                return clue, trace
+                return clue, trace, None
 
         # Fallback - shouldn't happen
-        return None, trace
+        return None, trace, None
 
 
 class GhostGuesser:
@@ -153,8 +157,13 @@ class GhostGuesser:
         self,
         state: GameState,
         discussion_so_far: list[DiscussionMessage],
-    ) -> tuple[DiscussionMessage, AgentTrace]:
-        """Generate a discussion message (or minimal message for pass)."""
+        scratchpad_content: str = "",
+    ) -> tuple[DiscussionMessage, AgentTrace, str | None]:
+        """Generate a discussion message (or minimal message for pass).
+        
+        Returns:
+            Tuple of (message, trace, scratchpad_addition)
+        """
         trace = AgentTrace(
             agent_id=self.config.agent_id,
             turn_number=state.turn_number,
@@ -186,14 +195,19 @@ class GhostGuesser:
             content=content,
         )
 
-        return message, trace
+        return message, trace, None
 
     async def make_guesses(
         self,
         state: GameState,
         discussion: list[DiscussionMessage],
-    ) -> tuple[list[str], AgentTrace]:
-        """Make guesses (empty for pass, random for random mode)."""
+        scratchpad_content: str = "",
+    ) -> tuple[list[str], AgentTrace, str | None]:
+        """Make guesses (empty for pass, random for random mode).
+        
+        Returns:
+            Tuple of (guesses, trace, scratchpad_addition)
+        """
         trace = AgentTrace(
             agent_id=self.config.agent_id,
             turn_number=state.turn_number,
@@ -210,7 +224,7 @@ class GhostGuesser:
         )
 
         if self.mode == GhostMode.PASS:
-            return [], trace
+            return [], trace, None
 
         # Random mode - guess random unrevealed words
         unrevealed = get_all_unrevealed_words(state)
@@ -222,7 +236,7 @@ class GhostGuesser:
         guesses = random.sample(unrevealed, max_guesses)
 
         trace.parsed_result["guesses"] = guesses
-        return guesses, trace
+        return guesses, trace, None
 
 
 class GhostTeam(TeamAgents):

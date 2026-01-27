@@ -16,6 +16,10 @@ Maximum guesses allowed: {max_guesses}
 
 {discussion_display}
 
+## Your Scratchpad
+
+{scratchpad_content}
+
 ## Your Turn
 
 Add to the discussion. Remember:

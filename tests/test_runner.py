@@ -194,7 +194,7 @@ class TestGhostTeam:
         """PASS ghost should produce no clue (returns None)."""
         ghost = GhostTeam(Team.BLUE, GhostMode.PASS)
 
-        clue, trace = await ghost.cluer.generate_clue(game_state)
+        clue, trace, _ = await ghost.cluer.generate_clue(game_state)
 
         assert clue is None
         assert trace.parsed_result["is_ghost"] is True
@@ -205,7 +205,7 @@ class TestGhostTeam:
         """RANDOM ghost should produce legal clues."""
         ghost = GhostTeam(Team.BLUE, GhostMode.RANDOM)
 
-        clue, trace = await ghost.cluer.generate_clue(game_state)
+        clue, trace, _ = await ghost.cluer.generate_clue(game_state)
 
         assert clue is not None
         assert clue.word.isalpha()
@@ -216,9 +216,9 @@ class TestGhostTeam:
         """Ghost traces should be marked with is_ghost."""
         ghost = GhostTeam(Team.BLUE, GhostMode.PASS)
 
-        _, clue_trace = await ghost.cluer.generate_clue(game_state)
-        _, discuss_trace = await ghost.guesser_1.discuss(game_state, [])
-        _, guess_trace = await ghost.guesser_1.make_guesses(game_state, [])
+        _, clue_trace, _ = await ghost.cluer.generate_clue(game_state)
+        _, discuss_trace, _ = await ghost.guesser_1.discuss(game_state, [])
+        _, guess_trace, _ = await ghost.guesser_1.make_guesses(game_state, [])
 
         assert clue_trace.parsed_result.get("is_ghost") is True
         assert discuss_trace.parsed_result.get("is_ghost") is True

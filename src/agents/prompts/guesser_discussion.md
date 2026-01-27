@@ -37,6 +37,14 @@ When discussing guesses, consider not just which words FIT the clue, but also:
 - Discussing which words you're avoiding might reveal information about your key
 - The opponent may use your discussion to decode your clue-giver's future clues
 
+## Your Private Scratchpad
+
+You have a private scratchpad that persists across turns. Only you can see it.
+Use it to track patterns you've noticed in your clue-giver's style, or anything else.
+
+To add to your scratchpad, include at the end of your response:
+SCRATCHPAD: [your notes for future turns]
+
 ## Discussion Format
 
 Keep your message conversational and brief (1-4 sentences). Discuss:
@@ -66,4 +74,9 @@ I agree with your analysis. Let's go with those three.
 
 CONSENSUS: YES
 TOP: WAVE, BEACH, FISH
+```
+
+You may optionally add scratchpad notes at the end:
+```
+SCRATCHPAD: Clue-giver uses nature themes. OCEAN connected to water words.
 ```

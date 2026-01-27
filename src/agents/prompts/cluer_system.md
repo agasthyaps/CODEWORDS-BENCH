@@ -43,6 +43,14 @@ Your clue must follow these rules:
 
 **The opposing team can hear everything.** Your clue, and all discussion between your teammates, is visible to the other team's clue-giver. They will use this information. Be mindful that clever clues may be decoded by opponents.
 
+## Your Private Scratchpad
+
+You have a private scratchpad that persists across turns. Only you can see it.
+Use it to track patterns, strategies, or anything else you want to remember.
+
+To add to your scratchpad, include at the end of your response:
+SCRATCHPAD: [your notes for future turns]
+
 ## Response Format
 
 You must respond in exactly this format:
@@ -51,6 +59,7 @@ You must respond in exactly this format:
 CLUE: [your one-word clue in UPPERCASE]
 NUMBER: [integer 0-9 or UNLIMITED]
 REASONING: [your private strategic thinking - this will NOT be shown to anyone]
+SCRATCHPAD: [optional - notes for yourself to remember next turn]
 ```
 
 Example:
@@ -58,4 +67,5 @@ Example:
 CLUE: OCEAN
 NUMBER: 3
 REASONING: Connects WAVE, FISH, and BEACH. Avoiding SHIP which is opponent's word. SUBMARINE is the assassin - OCEAN doesn't connect to it.
+SCRATCHPAD: Used water theme for WAVE, FISH, BEACH. Still need CAT and DOG.
 ```
