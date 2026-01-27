@@ -7,11 +7,6 @@ from pydantic import BaseModel, Field
 
 from src.engine import GameMode
 
-# Clue generation mode: controls order of clue generation vs ToM prediction
-ClueGenerationMode = Literal["standard", "deliberate"]
-# For batch runs, "split" runs half in each mode for A/B comparison
-BatchClueGenerationMode = Literal["standard", "deliberate", "split"]
-
 
 class ModelInfo(BaseModel):
     id: str
@@ -37,33 +32,47 @@ class CodenamesStartRequest(BaseModel):
     max_discussion_rounds: int = 3
     max_turns: int = 50
     event_delay_ms: int = 0
-    clue_generation_mode: ClueGenerationMode = "standard"
 
 
 class DecryptoStartRequest(BaseModel):
     team_selection: TeamSelection
-    seed: int = 0
+    seed: int | None = None
     max_rounds: int = 8
     max_discussion_turns_per_guesser: int = 2
     event_delay_ms: int = 0
-    clue_generation_mode: ClueGenerationMode = "standard"
 
 
 class BatchStartRequest(BaseModel):
-    game_type: Literal["codenames", "decrypto"]
-    count: int = Field(ge=1, le=500)
-    seed_count: int = Field(default=1, ge=1, le=500)
-    pinned: bool = True
-    team_selection: TeamSelection | None = None
-    model_pool: list[str] | None = None
+    """
+    Simplified batch request with explicit seed control.
+    
+    Seed modes:
+    - "random": Generate `count` unique random seeds
+    - "fixed": Use single `fixed_seed` for all `count` games
+    - "list": Run exactly the seeds in `seed_list`
+    
+    Game types:
+    - "codenames": Run only Codenames games
+    - "decrypto": Run only Decrypto games
+    - "both": Run both games for each seed (comparative analysis)
+    """
+    game_type: Literal["codenames", "decrypto", "both"]
+    team_selection: TeamSelection
+    
+    # Seed configuration
+    seed_mode: Literal["random", "fixed", "list"] = "random"
+    count: int = Field(default=5, ge=1, le=100)  # for random/fixed modes
+    fixed_seed: int | None = None  # for fixed mode
+    seed_list: list[int] | None = None  # for list mode
+    
+    # Codenames-specific options
     codenames_mode: GameMode = GameMode.STANDARD
-    seed: int = 0
     max_discussion_rounds: int = 3
     max_turns: int = 50
+    
+    # Decrypto-specific options  
     max_rounds: int = 8
     max_discussion_turns_per_guesser: int = 2
-    event_delay_ms: int = 0
-    clue_generation_mode: BatchClueGenerationMode = "standard"
 
 
 class JobStartResponse(BaseModel):

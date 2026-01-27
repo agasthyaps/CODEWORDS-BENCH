@@ -4,7 +4,8 @@ import remarkGfm from "remark-gfm";
 import { fetchStats, openEventStream, startDecrypto } from "../api";
 import DecryptoBoard from "../components/DecryptoBoard";
 import ChatPanel from "../components/ChatPanel";
-import { ModelInfo, TeamRoleConfig, TeamSelection, ClueGenerationMode } from "../types";
+import ScratchpadPanel from "../components/ScratchpadPanel";
+import { ModelInfo, TeamRoleConfig, TeamSelection, ScratchpadEntry } from "../types";
 
 type Props = {
   models: ModelInfo[];
@@ -39,10 +40,9 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
   );
   const [red, setRed] = useState<TeamRoleConfig>(baseTeam);
   const [blue, setBlue] = useState<TeamRoleConfig>(baseTeam);
-  const [seed, setSeed] = useState(0);
+  const [seed, setSeed] = useState<number | undefined>(undefined);
   const [eventDelay, setEventDelay] = useState(0);
   const [maxDiscussionTurns, setMaxDiscussionTurns] = useState(2);
-  const [clueGenMode, setClueGenMode] = useState<ClueGenerationMode>("standard");
   const [keys, setKeys] = useState<{ red: string[]; blue: string[] }>({ red: [], blue: [] });
   const [rounds, setRounds] = useState<any[]>([]);
   const [status, setStatus] = useState("idle");
@@ -63,6 +63,7 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
   const [roundResults, setRoundResults] = useState<RoundResult[]>([]);
   const [winner, setWinner] = useState<string | null>(null);
   const [winReason, setWinReason] = useState<string | null>(null);
+  const [scratchpadEntries, setScratchpadEntries] = useState<ScratchpadEntry[]>([]);
 
   useEffect(() => {
     setRed(baseTeam);
@@ -89,6 +90,7 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
     setRoundResults([]);
     setWinner(null);
     setWinReason(null);
+    setScratchpadEntries([]);
     
     const { job_id } = await startDecrypto({
       team_selection: buildSelection(),
@@ -96,7 +98,6 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
       max_rounds: 8,
       max_discussion_turns_per_guesser: maxDiscussionTurns,
       event_delay_ms: eventDelay,
-      clue_generation_mode: clueGenMode,
     });
 
     const stream = openEventStream(`/decrypto/${job_id}/events`);
@@ -114,21 +115,27 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
         setBlueLog((prev) => [...prev, entry]);
       }
       setCurrentRound((prev) => {
-        const round = payload.round;
+        const round: number = payload.round;
         const base = prev?.round === round
           ? prev
           : {
               round,
-              red: { code: [], clues: [] },
-              blue: { code: [], clues: [] },
+              red: { code: [] as number[], clues: [] as string[] },
+              blue: { code: [] as number[], clues: [] as string[] },
             };
-        const updated = { ...base };
         if (payload.team === "red") {
-          updated.red = { code: payload.code || [], clues: payload.clues || [] };
+          return {
+            round: base.round,
+            red: { code: payload.code || [], clues: payload.clues || [] },
+            blue: base.blue,
+          };
         } else {
-          updated.blue = { code: payload.code || [], clues: payload.clues || [] };
+          return {
+            round: base.round,
+            red: base.red,
+            blue: { code: payload.code || [], clues: payload.clues || [] },
+          };
         }
-        return updated;
       });
     });
     stream.addEventListener("action", (ev: MessageEvent) => {
@@ -154,6 +161,15 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
       } else {
         setBlueLog((prev) => [...prev, line]);
       }
+    });
+    stream.addEventListener("scratchpad", (ev: MessageEvent) => {
+      const payload = JSON.parse(ev.data);
+      setScratchpadEntries((prev) => [...prev, {
+        agent_id: payload.agent_id,
+        addition: payload.addition,
+        turn: payload.turn,
+        timestamp: Date.now(),
+      }]);
     });
     stream.addEventListener("round", (ev: MessageEvent) => {
       const payload = JSON.parse(ev.data);
@@ -317,8 +333,9 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
                 <label>Seed</label>
                 <input
                   type="number"
-                  value={seed}
-                  onChange={(e) => setSeed(Number(e.target.value))}
+                  placeholder="Random"
+                  value={seed ?? ""}
+                  onChange={(e) => setSeed(e.target.value ? Number(e.target.value) : undefined)}
                 />
               </div>
               <div className="form-row-compact">
@@ -338,13 +355,6 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
                   value={maxDiscussionTurns}
                   onChange={(e) => setMaxDiscussionTurns(Number(e.target.value))}
                 />
-              </div>
-              <div className="form-row-compact">
-                <label>Clue Strategy</label>
-                <select value={clueGenMode} onChange={(e) => setClueGenMode(e.target.value as ClueGenerationMode)}>
-                  <option value="standard">Standard (Generate then Predict)</option>
-                  <option value="deliberate">Deliberate (Brainstorm then Choose)</option>
-                </select>
               </div>
             </div>
             <div className="settings-section">
@@ -519,6 +529,11 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
               />
             </div>
           </div>
+
+          {/* Scratchpad Panel */}
+          {(isRunning || scratchpadEntries.length > 0) && (
+            <ScratchpadPanel entries={scratchpadEntries} isRunning={isRunning} />
+          )}
 
           {/* Analysis below the game board */}
           <div className="below-layout">

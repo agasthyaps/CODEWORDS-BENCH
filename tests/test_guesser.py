@@ -143,8 +143,42 @@ top: wave, beach"""
 
         result = parse_discussion_response(response)
 
+    def test_scratchpad_stripped_from_content(self):
+        """SCRATCHPAD section should be stripped from content to maintain privacy."""
+        response = """I think WAVE and BEACH are the best guesses.
+
+CONSENSUS: YES
+TOP: WAVE, BEACH
+
+SCRATCHPAD: Remember that the clue-giver likes ocean themes."""
+
+        result = parse_discussion_response(response)
+
+        # The scratchpad content should NOT appear in the returned content
+        assert "SCRATCHPAD" not in result.content
+        assert "ocean themes" not in result.content
+        # But the rest of the message should be preserved
+        assert "WAVE and BEACH" in result.content
         assert result.consensus is True
         assert result.top_words == ["WAVE", "BEACH"]
+
+    def test_scratchpad_at_start_stripped(self):
+        """SCRATCHPAD at different positions should still be stripped."""
+        response = """Let's go with WAVE.
+
+SCRATCHPAD: Private note here.
+
+CONSENSUS: YES
+TOP: WAVE"""
+
+        result = parse_discussion_response(response)
+
+        assert "SCRATCHPAD" not in result.content
+        assert "Private note" not in result.content
+        assert "WAVE" in result.content
+
+        assert result.consensus is True
+        assert result.top_words == ["WAVE"]
 
 
 # ============================================================================

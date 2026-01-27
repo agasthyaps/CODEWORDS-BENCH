@@ -1,11 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { openEventStream, startBatch } from "../api";
 import ModelPicker from "../components/ModelPicker";
-import { ModelInfo, TeamRoleConfig, TeamSelection, BatchClueGenerationMode } from "../types";
+import { ModelInfo, TeamRoleConfig, TeamSelection } from "../types";
 
 type Props = {
   models: ModelInfo[];
   defaultModel: string;
+};
+
+type SeedMode = "random" | "fixed" | "list";
+type BatchGameType = "codenames" | "decrypto" | "both";
+
+type GameResult = {
+  game_index: number;
+  seed: number;
+  game_type: string;
+  replay_id: string | null;
+  status: string;
+  error?: string | null;
 };
 
 const DEFAULT_TEAM: TeamRoleConfig = {
@@ -14,22 +26,49 @@ const DEFAULT_TEAM: TeamRoleConfig = {
   guesser_2: "",
 };
 
+// Game-specific default options
+const GAME_DEFAULTS = {
+  codenames: {
+    mode: "STANDARD",
+    max_discussion_rounds: 3,
+    max_turns: 50,
+  },
+  decrypto: {
+    max_rounds: 8,
+    max_discussion_turns_per_guesser: 2,
+  },
+  // Future games add their defaults here
+} as const;
+
 export default function BatchRunner({ models, defaultModel }: Props) {
   const baseTeam = useMemo(
     () => ({ ...DEFAULT_TEAM, cluer: defaultModel, guesser_1: defaultModel, guesser_2: defaultModel }),
     [defaultModel]
   );
+  
+  // Core config
+  const [gameType, setGameType] = useState<BatchGameType>("codenames");
   const [red, setRed] = useState<TeamRoleConfig>(baseTeam);
   const [blue, setBlue] = useState<TeamRoleConfig>(baseTeam);
-  const [gameType, setGameType] = useState<"codenames" | "decrypto">("codenames");
-  const [pinned, setPinned] = useState(true);
+  
+  // Seed config
+  const [seedMode, setSeedMode] = useState<SeedMode>("random");
   const [count, setCount] = useState(5);
-  const [seedCount, setSeedCount] = useState(1);
-  const [modelPool, setModelPool] = useState<string[]>([]);
-  const [clueGenMode, setClueGenMode] = useState<BatchClueGenerationMode>("standard");
+  const [fixedSeed, setFixedSeed] = useState<number>(42);
+  const [seedListInput, setSeedListInput] = useState("42, 123, 456");
+  
+  // Game-specific options
+  const [codenamesMode, setCodenamesMode] = useState<string>(GAME_DEFAULTS.codenames.mode);
+  const [maxDiscussionRounds, setMaxDiscussionRounds] = useState<number>(GAME_DEFAULTS.codenames.max_discussion_rounds);
+  const [maxTurns, setMaxTurns] = useState<number>(GAME_DEFAULTS.codenames.max_turns);
+  const [maxRounds, setMaxRounds] = useState<number>(GAME_DEFAULTS.decrypto.max_rounds);
+  const [maxDiscussionTurns, setMaxDiscussionTurns] = useState<number>(GAME_DEFAULTS.decrypto.max_discussion_turns_per_guesser);
+  
+  // UI state
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [progress, setProgress] = useState({ completed: 0, total: 0 });
   const [status, setStatus] = useState<"idle" | "running" | "finished" | "error">("idle");
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<GameResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,58 +76,99 @@ export default function BatchRunner({ models, defaultModel }: Props) {
     setBlue(baseTeam);
   }, [baseTeam]);
 
-  function togglePool(id: string) {
-    setModelPool((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }
+  // Parse seed list from input
+  const parsedSeedList = useMemo(() => {
+    try {
+      return seedListInput
+        .split(/[,\s]+/)
+        .map(s => parseInt(s.trim(), 10))
+        .filter(n => !isNaN(n));
+    } catch {
+      return [];
+    }
+  }, [seedListInput]);
+
+  // Calculate total games based on seed mode and game type
+  const seedsCount = seedMode === "list" ? parsedSeedList.length : count;
+  const totalGames = gameType === "both" ? seedsCount * 2 : seedsCount;
 
   function buildSelection(): TeamSelection {
     return { red, blue };
   }
 
   async function handleStart() {
-    setProgress({ completed: 0, total: count });
+    setProgress({ completed: 0, total: totalGames });
     setResults([]);
     setError(null);
     setStatus("running");
+    
     const payload: any = {
       game_type: gameType,
-      count,
-      seed_count: seedCount,
-      pinned,
-      team_selection: pinned ? buildSelection() : undefined,
-      model_pool: pinned ? undefined : modelPool,
-      codenames_mode: "STANDARD",
-      max_discussion_rounds: 3,
-      max_turns: 50,
-      max_rounds: 8,
-      event_delay_ms: 0,
-      clue_generation_mode: clueGenMode,
+      team_selection: buildSelection(),
+      seed_mode: seedMode,
+      count: seedMode !== "list" ? count : undefined,
+      fixed_seed: seedMode === "fixed" ? fixedSeed : undefined,
+      seed_list: seedMode === "list" ? parsedSeedList : undefined,
+      // Codenames options
+      codenames_mode: codenamesMode,
+      max_discussion_rounds: maxDiscussionRounds,
+      max_turns: maxTurns,
+      // Decrypto options
+      max_rounds: maxRounds,
+      max_discussion_turns_per_guesser: maxDiscussionTurns,
     };
-    const { job_id } = await startBatch(payload);
-    const stream = openEventStream(`/batch/${job_id}/events`);
-    stream.addEventListener("progress", (ev: MessageEvent) => {
-      const payload = JSON.parse(ev.data);
-      setProgress({ completed: payload.completed, total: payload.total });
-    });
-    stream.addEventListener("done", (ev: MessageEvent) => {
-      const payload = JSON.parse(ev.data);
-      setResults(payload.results || []);
-      setStatus("finished");
-      stream.close();
-    });
-    stream.addEventListener("job_error", (ev: MessageEvent) => {
-      const payload = JSON.parse(ev.data);
-      setError(payload.error || "Batch failed");
+    
+    try {
+      const { job_id } = await startBatch(payload);
+      const stream = openEventStream(`/batch/${job_id}/events`);
+      
+      stream.addEventListener("progress", (ev: MessageEvent) => {
+        const data = JSON.parse(ev.data);
+        setProgress({ completed: data.completed, total: data.total });
+        if (data.last_result) {
+          setResults(prev => [...prev, data.last_result]);
+        }
+      });
+      
+      stream.addEventListener("done", (ev: MessageEvent) => {
+        const data = JSON.parse(ev.data);
+        setResults(data.results || []);
+        setStatus("finished");
+        stream.close();
+      });
+      
+      stream.addEventListener("job_error", (ev: MessageEvent) => {
+        const data = JSON.parse(ev.data);
+        setError(data.error || "Batch failed");
+        setStatus("error");
+        stream.close();
+      });
+      
+      stream.addEventListener("error", () => {
+        setStatus("error");
+        stream.close();
+      });
+    } catch (e) {
+      setError(String(e));
       setStatus("error");
-      stream.close();
-    });
-    stream.addEventListener("error", () => {
-      setStatus("error");
-      stream.close();
-    });
+    }
   }
+
+  // Compute summary stats from results
+  const summary = useMemo(() => {
+    if (results.length === 0) return null;
+    
+    const completed = results.filter(r => r.status === "done").length;
+    const failed = results.filter(r => r.status === "error").length;
+    
+    // For now, we don't have winner info in results - would need to fetch replays
+    // This could be enhanced later
+    return {
+      total: results.length,
+      completed,
+      failed,
+    };
+  }, [results]);
 
   const progressPercent = progress.total > 0 
     ? Math.round((progress.completed / progress.total) * 100) 
@@ -97,91 +177,273 @@ export default function BatchRunner({ models, defaultModel }: Props) {
   return (
     <div className="page">
       <h2>Batch Runner</h2>
-      <div className="controls">
-        <div className="panel">
-          <h3>Batch Settings</h3>
+      
+      <div className="batch-layout">
+        {/* Config Panel */}
+        <div className="panel batch-config">
+          <h3>Batch Configuration</h3>
+          
+          {/* Game Type */}
           <div className="form-row">
-            <label>Game type</label>
-            <select value={gameType} onChange={(e) => setGameType(e.target.value as any)}>
+            <label>Game</label>
+            <select 
+              value={gameType} 
+              onChange={(e) => setGameType(e.target.value as BatchGameType)}
+              disabled={status === "running"}
+            >
               <option value="codenames">Codenames</option>
               <option value="decrypto">Decrypto</option>
+              <option value="both">Both (comparative)</option>
+              {/* Future: <option value="hanabi">Hanabi</option> */}
             </select>
           </div>
+          
+          {/* Seed Mode */}
           <div className="form-row">
-            <label>Games</label>
-            <input 
-              type="number" 
-              value={count} 
-              min={1}
-              max={100}
-              onChange={(e) => {
-                const nextCount = Number(e.target.value);
-                setCount(nextCount);
-                setSeedCount((prev) => Math.min(prev, nextCount));
-              }} 
-            />
-          </div>
-          <div className="form-row">
-            <label>Random seeds</label>
-            <input 
-              type="number" 
-              value={seedCount} 
-              min={1}
-              max={count}
-              onChange={(e) =>
-                setSeedCount(Math.max(1, Math.min(count, Number(e.target.value))))
-              } 
-            />
-          </div>
-          <div className="form-row">
-            <label>Pinned teams</label>
-            <input type="checkbox" checked={pinned} onChange={() => setPinned(!pinned)} />
-          </div>
-          <div className="form-row">
-            <label>Clue Strategy</label>
-            <select value={clueGenMode} onChange={(e) => setClueGenMode(e.target.value as BatchClueGenerationMode)}>
-              <option value="standard">Standard (Generate then Predict)</option>
-              <option value="deliberate">Deliberate (Brainstorm then Choose)</option>
-              <option value="split">Split (Half each for A/B comparison)</option>
+            <label>Seeds</label>
+            <select 
+              value={seedMode} 
+              onChange={(e) => setSeedMode(e.target.value as SeedMode)}
+              disabled={status === "running"}
+            >
+              <option value="random">Random (unique per game)</option>
+              <option value="fixed">Fixed (same board each game)</option>
+              <option value="list">Specific seeds</option>
             </select>
           </div>
-          {!pinned && (
-            <div className="pool">
-              {models.map((m) => (
-                <label key={m.model_id} className="pool-item">
-                  <input
-                    type="checkbox"
-                    checked={modelPool.includes(m.model_id)}
-                    onChange={() => togglePool(m.model_id)}
-                  />
-                  {m.name}
-                </label>
-              ))}
+          
+          {/* Seed-specific inputs */}
+          {seedMode === "random" && (
+            <div className="form-row">
+              <label>Games</label>
+              <input
+                type="number"
+                value={count}
+                min={1}
+                max={100}
+                onChange={(e) => setCount(Math.max(1, Math.min(100, Number(e.target.value))))}
+                disabled={status === "running"}
+              />
             </div>
           )}
-          <button onClick={handleStart} disabled={status === "running"}>
-            {status === "running" ? "Running..." : "Start Batch"}
-          </button>
-          <div className={`status ${status}`}>
-            <span className="status-dot" />
-            {status === "running" 
-              ? `Running: ${progress.completed}/${progress.total} (${progressPercent}%)`
-              : status.charAt(0).toUpperCase() + status.slice(1)
-            }
+          
+          {seedMode === "fixed" && (
+            <>
+              <div className="form-row">
+                <label>Seed</label>
+                <input
+                  type="number"
+                  value={fixedSeed}
+                  onChange={(e) => setFixedSeed(Number(e.target.value))}
+                  disabled={status === "running"}
+                />
+              </div>
+              <div className="form-row">
+                <label>Games</label>
+                <input
+                  type="number"
+                  value={count}
+                  min={1}
+                  max={100}
+                  onChange={(e) => setCount(Math.max(1, Math.min(100, Number(e.target.value))))}
+                  disabled={status === "running"}
+                />
+              </div>
+            </>
+          )}
+          
+          {seedMode === "list" && (
+            <div className="form-row">
+              <label>Seeds</label>
+              <input
+                type="text"
+                value={seedListInput}
+                onChange={(e) => setSeedListInput(e.target.value)}
+                placeholder="42, 123, 456"
+                disabled={status === "running"}
+              />
+              <span className="hint">{parsedSeedList.length} seeds</span>
+            </div>
+          )}
+          
+          {/* Advanced Options Toggle */}
+          <div 
+            className="advanced-toggle"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            <span className={`toggle-arrow ${showAdvanced ? "open" : ""}`}>▸</span>
+            <span>Game Options</span>
           </div>
+          
+          {/* Game-specific options */}
+          {showAdvanced && (
+            <div className="advanced-options">
+              {(gameType === "codenames" || gameType === "both") && (
+                <div className="options-group">
+                  {gameType === "both" && <div className="options-label">Codenames</div>}
+                  <div className="form-row-compact">
+                    <label>Mode</label>
+                    <select 
+                      value={codenamesMode} 
+                      onChange={(e) => setCodenamesMode(e.target.value)}
+                      disabled={status === "running"}
+                    >
+                      <option value="STANDARD">Standard</option>
+                      <option value="NO_ASSASSIN">No Assassin</option>
+                      <option value="SINGLE_GUESSER">Single Guesser</option>
+                    </select>
+                  </div>
+                  <div className="form-row-compact">
+                    <label>Discussion rounds</label>
+                    <input
+                      type="number"
+                      value={maxDiscussionRounds}
+                      min={1}
+                      max={10}
+                      onChange={(e) => setMaxDiscussionRounds(Number(e.target.value))}
+                      disabled={status === "running"}
+                    />
+                  </div>
+                  <div className="form-row-compact">
+                    <label>Max turns</label>
+                    <input
+                      type="number"
+                      value={maxTurns}
+                      min={10}
+                      max={100}
+                      onChange={(e) => setMaxTurns(Number(e.target.value))}
+                      disabled={status === "running"}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {(gameType === "decrypto" || gameType === "both") && (
+                <div className="options-group">
+                  {gameType === "both" && <div className="options-label">Decrypto</div>}
+                  <div className="form-row-compact">
+                    <label>Max rounds</label>
+                    <input
+                      type="number"
+                      value={maxRounds}
+                      min={1}
+                      max={16}
+                      onChange={(e) => setMaxRounds(Number(e.target.value))}
+                      disabled={status === "running"}
+                    />
+                  </div>
+                  <div className="form-row-compact">
+                    <label>Discussion turns</label>
+                    <input
+                      type="number"
+                      value={maxDiscussionTurns}
+                      min={1}
+                      max={5}
+                      onChange={(e) => setMaxDiscussionTurns(Number(e.target.value))}
+                      disabled={status === "running"}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {/* Future: game-specific options for new games */}
+            </div>
+          )}
+          
+          {/* Action */}
+          <div className="batch-action">
+            <button 
+              onClick={handleStart} 
+              disabled={status === "running" || totalGames === 0}
+            >
+              {status === "running" ? "Running..." : `Start ${totalGames} Games`}
+            </button>
+            
+            <div className={`status ${status}`}>
+              <span className="status-dot" />
+              {status === "running" 
+                ? `${progress.completed}/${progress.total} (${progressPercent}%)`
+                : status.charAt(0).toUpperCase() + status.slice(1)
+              }
+            </div>
+          </div>
+          
           {error && <div className="error-banner">{error}</div>}
         </div>
-        {pinned && (
-          <>
-            <ModelPicker models={models} value={red} onChange={setRed} label="Red Team" />
-            <ModelPicker models={models} value={blue} onChange={setBlue} label="Blue Team" />
-          </>
-        )}
+        
+        {/* Team Pickers */}
+        <div className="batch-teams">
+          <ModelPicker 
+            models={models} 
+            value={red} 
+            onChange={setRed} 
+            label="Red Team" 
+          />
+          <ModelPicker 
+            models={models} 
+            value={blue} 
+            onChange={setBlue} 
+            label="Blue Team" 
+          />
+        </div>
       </div>
-      {results.length > 0 && (
+      
+      {/* Results */}
+      {(results.length > 0 || status === "finished") && (
         <div className="panel batch-results">
-          <h3>Batch Results</h3>
-          <pre>{JSON.stringify(results, null, 2)}</pre>
+          <h3>Results</h3>
+          
+          {/* Summary */}
+          {summary && (
+            <div className="batch-summary">
+              <div className="summary-stat">
+                <span className="stat-value">{summary.total}</span>
+                <span className="stat-label">Total</span>
+              </div>
+              <div className="summary-stat success">
+                <span className="stat-value">{summary.completed}</span>
+                <span className="stat-label">Completed</span>
+              </div>
+              {summary.failed > 0 && (
+                <div className="summary-stat error">
+                  <span className="stat-value">{summary.failed}</span>
+                  <span className="stat-label">Failed</span>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Game list */}
+          <div className="batch-games">
+            {results.map((result, idx) => (
+              <div 
+                key={idx} 
+                className={`batch-game ${result.status === "error" ? "error" : ""}`}
+              >
+                <span className="game-index">#{result.game_index + 1}</span>
+                <span className={`game-type-badge ${result.game_type}`}>
+                  {result.game_type === "codenames" ? "CN" : "DC"}
+                </span>
+                <span className="game-seed">seed: {result.seed}</span>
+                <span className={`game-status ${result.status}`}>
+                  {result.status === "done" ? "✓" : result.status === "error" ? "✗" : "..."}
+                </span>
+                {result.replay_id && (
+                  <a 
+                    href={`#replay/${result.game_type}/${result.replay_id}`}
+                    className="game-replay"
+                  >
+                    View
+                  </a>
+                )}
+                {result.error && (
+                  <span className="game-error" title={result.error}>
+                    {result.error.slice(0, 50)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

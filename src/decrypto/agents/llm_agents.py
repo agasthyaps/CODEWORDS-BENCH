@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from src.agents.llm import LLMProvider
-from src.core.parsing import extract_scratchpad
+from src.core.parsing import extract_scratchpad, remove_scratchpad_from_response
 
 from ..models import (
     ActionLog,
@@ -394,9 +394,11 @@ class DecryptoGuesserLLM:
         
         messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
         resp = await self.provider.complete(messages=messages, temperature=self.temperature)
-        content = resp.content.strip()
-        scratchpad_addition = extract_scratchpad(content)
-        return content, _parse_consensus_flag(content), scratchpad_addition
+        raw_content = resp.content.strip()
+        scratchpad_addition = extract_scratchpad(raw_content)
+        # Strip scratchpad from content to prevent leaking private notes to other agents
+        content = remove_scratchpad_from_response(raw_content)
+        return content, _parse_consensus_flag(raw_content), scratchpad_addition
 
     async def share_rationale(
         self,

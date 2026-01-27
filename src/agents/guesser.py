@@ -12,7 +12,7 @@ from src.engine import (
     Team, GameState, AgentTrace, DiscussionMessage,
     get_visible_state, add_discussion_message,
 )
-from src.core.parsing import extract_scratchpad
+from src.core.parsing import extract_scratchpad, remove_scratchpad_from_response
 from .llm import LLMProvider
 from .cluer import AgentConfig, format_board_display, format_transcript
 
@@ -45,8 +45,12 @@ def parse_discussion_response(response: str) -> ParsedDiscussion:
     Looks for:
     - CONSENSUS: YES (case insensitive)
     - TOP: word1, word2, word3
+    
+    Note: Strips SCRATCHPAD section from content to prevent leaking
+    private notes to other agents through discussion display.
     """
-    content = response.strip()
+    # Strip scratchpad from content to keep it private
+    content = remove_scratchpad_from_response(response)
 
     # Check for consensus
     consensus_match = re.search(

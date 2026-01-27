@@ -49,38 +49,54 @@ def _build_payload(game_type: GameType, episode: dict[str, Any]) -> dict[str, An
     }
 
 
-# Hardcoded context about the benchmark - concise and focused
-_BENCHMARK_CONTEXT = """
-# Codewords Benchmark Overview
+# Context about the research platform - focused on understanding model behavior
+_RESEARCH_CONTEXT = """
+# Model Coordination Research Platform
 
-This is an LLM coordination benchmark using word games (Codenames & Decrypto) to evaluate multi-agent communication.
+This is NOT a benchmark for optimizing game performance. Instead, it's a research platform 
+designed to observe and understand how language models naturally coordinate, communicate, 
+and reason about each other's mental states in games with asymmetric information.
 
-## Codenames
-- 5x5 board with words assigned to RED (9), BLUE (8), NEUTRAL (7), ASSASSIN (1)
-- Teams have a Cluer (gives one-word clues + number) and Guessers (discuss, then guess words)
-- Win by revealing all your team's words; lose by hitting assassin or letting opponent win
-- Key metrics: clue efficiency (words per clue), guess precision, coordination rate
+## Research Goals
+- **Latent Theory of Mind**: Do models spontaneously reason about what teammates know/believe?
+- **Coordination Patterns**: How do models establish shared understanding without explicit protocols?
+- **Communication Strategies**: What linguistic patterns emerge in model-to-model communication?
+- **Failure Modes**: Where does coordination break down, and why?
 
-## Decrypto  
-- Each team has 4 secret keywords (positions 1-4)
-- Each round: Cluer gives 3 clues for a 3-digit code (e.g., "forest, metal, luck" for 1-3-4)
-- Own team must DECODE (guess own code); opponent tries to INTERCEPT (guess opponent's code)
-- Win by 2 interceptions OR opponent gets 2 miscommunications
-- Key metrics: decode accuracy, intercept rate, clue leakage (how much opponents learn)
+We provide minimal scaffolding intentionally — the goal is to reveal what's latent in the models,
+not to optimize their play through better prompts or structures.
 
-## Metrics to Analyze
-- **consensus_rate**: Did guessers reach explicit agreement? (Look for "CONSENSUS: YES" in transcripts)
-- **theory_of_mind**: Does cluer predict teammate reasoning? (Currently requires tom_predictions in output)
-- **calibration**: Are confidence estimates well-calibrated to outcomes?
-- **clue_efficiency**: How many words correctly guessed per clue?
-- **intercept_rate**: For Decrypto, how often does opponent guess the code?
+## Games as Research Instruments
 
-## Known Issues
-- consensus_rate may show 0% even when agents agreed — check if parser recognizes the format
-- ToM metrics require explicit prediction prompts which may not be implemented
-- Metrics marked "null" indicate missing data, not necessarily poor performance
+### Codenames
+- 5x5 board: RED (9), BLUE (8), NEUTRAL (7), ASSASSIN (1) words
+- Cluer gives one-word clue + number; Guessers discuss then guess
+- **What to observe**: How does the cluer craft clues anticipating teammate interpretation?
+  Do guessers reason about the cluer's perspective? How do they resolve ambiguity through discussion?
 
-Your analysis should help make sense of the data and identify patterns and trends.
+### Decrypto  
+- Each team has 4 secret keywords at positions 1-4
+- Cluer gives 3 clues mapping to a 3-digit code (e.g., "forest, metal, luck" → 1-3-4)
+- Teams decode own codes; opponents attempt interception
+- **What to observe**: How do cluers balance being understood by teammates vs. not being intercepted?
+  Do models track patterns across rounds? How do they update beliefs about opponent keywords?
+
+## What to Look For
+- **Spontaneous perspective-taking**: Does the cluer mention considering what guessers might think?
+- **Belief tracking**: Do guessers reason about what information the cluer has access to?
+- **Discussion dynamics**: How do two guessers converge (or fail to) on a shared interpretation?
+- **Adaptation over time**: Do models learn from previous rounds/turns?
+- **Scratchpad usage**: If agents use their private scratchpad, what do they choose to record?
+
+## Analysis Focus
+Rather than evaluating "how well" models played, focus on:
+1. **Coordination phenomena**: Interesting patterns in how models work together
+2. **Theory of Mind signals**: Evidence of reasoning about others' knowledge/beliefs
+3. **Communication strategies**: Notable approaches to conveying or interpreting information
+4. **Breakdowns**: Where coordination failed and what that reveals about model limitations
+
+Note: Metrics like "efficiency" or "win rate" are secondary — we care more about the 
+qualitative nature of model interactions than optimizing outcomes.
 """
 
 
@@ -93,15 +109,17 @@ async def analyze_and_save(
     payload = _build_payload(game_type, episode)
 
     system_prompt = (
-        "You are a research analyst for the Codewords/Decrypto LLM benchmark. "
-        "Analyze the game results and metrics to evaluate coordination quality, "
-        "communication efficiency, and strategic reasoning.\n\n"
+        "You are a cognitive science researcher studying multi-agent coordination and "
+        "Theory of Mind in language models. You're analyzing game transcripts to understand "
+        "how models naturally coordinate and reason about each other.\n\n"
         "Guidelines:\n"
-        "- Be concrete: cite specific metrics, notable plays, and failure modes\n"
-        "- Note any metrics that seem like measurement artifacts (e.g., 0% when agents clearly agreed)\n"
-        "- Suggest specific improvements for the agents or benchmark\n"
-        "- Keep analysis focused and actionable (3-5 key observations)\n\n"
-        f"{_BENCHMARK_CONTEXT}"
+        "- Focus on BEHAVIOR over PERFORMANCE: we care about how models think, not how well they score\n"
+        "- Look for Theory of Mind signals: perspective-taking, belief reasoning, anticipation\n"
+        "- Note interesting coordination patterns or communication strategies\n"
+        "- Identify breakdowns: where did understanding fail and what does that reveal?\n"
+        "- Quote specific transcript excerpts that illustrate your observations\n"
+        "- Keep analysis substantive but focused (3-5 key observations)\n\n"
+        f"{_RESEARCH_CONTEXT}"
     )
     user_prompt = json.dumps(payload, indent=2)
 

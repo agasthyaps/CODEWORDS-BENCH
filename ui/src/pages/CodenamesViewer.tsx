@@ -8,7 +8,8 @@ import {
 } from "../api";
 import CodenamesBoard from "../components/CodenamesBoard";
 import ChatPanel from "../components/ChatPanel";
-import { ModelInfo, TeamRoleConfig, TeamSelection, ClueGenerationMode } from "../types";
+import ScratchpadPanel from "../components/ScratchpadPanel";
+import { ModelInfo, TeamRoleConfig, TeamSelection, ScratchpadEntry } from "../types";
 
 type Props = {
   models: ModelInfo[];
@@ -31,7 +32,6 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
   const [mode, setMode] = useState("STANDARD");
   const [seed, setSeed] = useState<number | undefined>(undefined);
   const [eventDelay, setEventDelay] = useState(0);
-  const [clueGenMode, setClueGenMode] = useState<ClueGenerationMode>("standard");
   const [boardWords, setBoardWords] = useState<string[]>([]);
   const [keyByWord, setKeyByWord] = useState<Record<string, string>>({});
   const [revealed, setRevealed] = useState<Record<string, string>>({});
@@ -43,6 +43,7 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [metricsOpen, setMetricsOpen] = useState(false);
   const [winner, setWinner] = useState<string | null>(null);
+  const [scratchpadEntries, setScratchpadEntries] = useState<ScratchpadEntry[]>([]);
 
   useEffect(() => {
     setRed(baseTeam);
@@ -65,6 +66,7 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
     setRevealed({});
     setMetricsOpen(false);
     setWinner(null);
+    setScratchpadEntries([]);
     
     const { job_id } = await startCodenames({
       team_selection: buildSelection(),
@@ -73,7 +75,6 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
       max_discussion_rounds: 3,
       max_turns: 50,
       event_delay_ms: eventDelay,
-      clue_generation_mode: clueGenMode,
     });
 
     const stream = openEventStream(`/codenames/${job_id}/events`);
@@ -87,6 +88,15 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
       const payload = JSON.parse(ev.data);
       setTranscript((prev) => [...prev, payload.event]);
       setRevealed(payload.revealed || {});
+    });
+    stream.addEventListener("scratchpad", (ev: MessageEvent) => {
+      const payload = JSON.parse(ev.data);
+      setScratchpadEntries((prev) => [...prev, {
+        agent_id: payload.agent_id,
+        addition: payload.addition,
+        turn: payload.turn,
+        timestamp: Date.now(),
+      }]);
     });
     stream.addEventListener("done", async (ev: MessageEvent) => {
       const payload = JSON.parse(ev.data);
@@ -203,13 +213,6 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
                   value={eventDelay}
                   onChange={(e) => setEventDelay(Number(e.target.value))}
                 />
-              </div>
-              <div className="form-row-compact">
-                <label>Clue Strategy</label>
-                <select value={clueGenMode} onChange={(e) => setClueGenMode(e.target.value as ClueGenerationMode)}>
-                  <option value="standard">Standard (Generate then Predict)</option>
-                  <option value="deliberate">Deliberate (Brainstorm then Choose)</option>
-                </select>
               </div>
             </div>
             <div className="settings-section">
@@ -333,6 +336,11 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
               />
             </div>
           </div>
+
+          {/* Scratchpad Panel */}
+          {(isRunning || scratchpadEntries.length > 0) && (
+            <ScratchpadPanel entries={scratchpadEntries} isRunning={isRunning} />
+          )}
 
           {/* Analysis and Metrics below the game board */}
           <div className="below-layout">

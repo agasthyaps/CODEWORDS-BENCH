@@ -171,7 +171,7 @@ class DecryptoConfig(BaseModel):
 
     max_rounds: int = 8
     keyword_bank_path: str | None = None  # default to data/wordlist.txt
-    seed: int = 0
+    seed: int | None = None  # None means random seed
 
 
 class DecryptoEpisodeRecord(BaseModel):

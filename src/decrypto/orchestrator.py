@@ -263,7 +263,8 @@ async def run_episode(
         w2, reason2 = check_winner(counters, round_number=r, max_rounds=config.max_rounds)
         winner = w2
         reason = reason2
-        if winner is not None or reason in ("survived", "max_rounds"):
+        # Game ends when: someone wins, max rounds reached, survived, or a tie condition
+        if reason is not None:
             break
 
     episode = DecryptoEpisodeRecord(

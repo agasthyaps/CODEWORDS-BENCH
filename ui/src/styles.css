@@ -1739,3 +1739,394 @@ button.small {
     display: none;
   }
 }
+
+/* ============================================
+   Scratchpad Panel
+   ============================================ */
+
+.scratchpad-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-top: 20px;
+  overflow: hidden;
+}
+
+.scratchpad-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+
+.scratchpad-header h3 {
+  margin: 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.scratchpad-waiting {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.scratchpad-content {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.scratchpad-agent {
+  background: var(--bg-elevated);
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.scratchpad-agent.red {
+  border-left: 3px solid var(--red);
+}
+
+.scratchpad-agent.blue {
+  border-left: 3px solid var(--blue);
+}
+
+.scratchpad-agent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.scratchpad-agent-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.scratchpad-agent.red .scratchpad-agent-name {
+  color: var(--red);
+}
+
+.scratchpad-agent.blue .scratchpad-agent-name {
+  color: var(--blue);
+}
+
+.scratchpad-agent-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-inset);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.scratchpad-entries {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.scratchpad-entry {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  background: var(--bg-surface);
+  border-radius: 6px;
+  animation: scratchpadFadeIn 0.3s ease-out;
+}
+
+@keyframes scratchpadFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.scratchpad-turn {
+  flex-shrink: 0;
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 10px;
+  background: var(--accent-subtle);
+  padding: 2px 6px;
+  border-radius: 4px;
+  height: fit-content;
+}
+
+.scratchpad-text {
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
+/* Scrollbar styling for scratchpad */
+.scratchpad-content::-webkit-scrollbar,
+.scratchpad-entries::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scratchpad-content::-webkit-scrollbar-track,
+.scratchpad-entries::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scratchpad-content::-webkit-scrollbar-thumb,
+.scratchpad-entries::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.scratchpad-content::-webkit-scrollbar-thumb:hover,
+.scratchpad-entries::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ============================================
+   Batch Runner
+   ============================================ */
+
+.batch-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.batch-config {
+  grid-column: 1;
+}
+
+.batch-teams {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.batch-action {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.batch-action .status {
+  margin: 0;
+}
+
+.advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 13px;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.advanced-toggle:hover {
+  color: var(--text);
+}
+
+.toggle-arrow {
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+
+.toggle-arrow.open {
+  transform: rotate(90deg);
+}
+
+.advanced-options {
+  padding: 12px;
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
+/* Batch Results */
+.batch-results {
+  max-height: none;
+}
+
+.batch-summary {
+  display: flex;
+  gap: 24px;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.summary-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.summary-stat .stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.summary-stat .stat-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.summary-stat.success .stat-value {
+  color: var(--success);
+}
+
+.summary-stat.error .stat-value {
+  color: var(--error);
+}
+
+.batch-games {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.batch-game {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.batch-game.error {
+  background: var(--error-bg);
+}
+
+.game-index {
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 30px;
+}
+
+.game-seed {
+  color: var(--text-secondary);
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 12px;
+}
+
+.game-status {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.game-status.done {
+  color: var(--success);
+}
+
+.game-status.error {
+  color: var(--error);
+}
+
+.game-replay {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.game-replay:hover {
+  text-decoration: underline;
+}
+
+.game-error {
+  font-size: 11px;
+  color: var(--error);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.game-type-badge.codenames {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.game-type-badge.decrypto {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+/* Options group for "both" mode */
+.options-group {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.options-group:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.options-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+@media (max-width: 900px) {
+  .batch-layout {
+    grid-template-columns: 1fr;
+  }
+  
+  .batch-teams {
+    grid-column: 1;
+    flex-direction: row;
+  }
+}

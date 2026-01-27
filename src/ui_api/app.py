@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from src.agents import AgentConfig, CluerAgent, GuesserAgent, create_provider
 from src.agents.guesser import parse_discussion_response, _top_lists_match
 from src.benchmark.model_farm import load_model_farm
+from src.core.state import AgentStateManager
 from src.decrypto.agents.llm_agents import DecryptoCluerLLM, DecryptoGuesserLLM, run_bounded_action
 from src.decrypto.game import (
     create_game as create_decrypto_game,
@@ -139,6 +140,16 @@ async def _emit_new_events(
     return len(state.public_transcript)
 
 
+async def _emit_scratchpad(job: Job, agent_id: str, addition: str, turn: int) -> None:
+    """Emit a scratchpad addition event."""
+    if addition:
+        await _emit(job, "scratchpad", {
+            "agent_id": agent_id,
+            "addition": addition,
+            "turn": turn,
+        })
+
+
 async def _sse_stream(job: Job) -> AsyncGenerator[str, None]:
     while True:
         item = await job.queue.get()
@@ -177,7 +188,6 @@ def _build_codenames_team(
     config: dict[str, str | None],
     *,
     temperature: float = 0.7,
-    clue_generation_mode: str = "standard",
 ) -> TeamAgents:
     team_key = team.value.lower()
     cluer_model = model_map[config["cluer"]]
@@ -207,7 +217,6 @@ def _build_codenames_team(
             team=team,
             agent_id=f"{team_key}_cluer",
             temperature=temperature,
-            clue_generation_mode=clue_generation_mode,
         ),
         cluer_provider,
     )
@@ -242,7 +251,6 @@ def _build_decrypto_team(
     config: dict[str, str | None],
     *,
     temperature: float = 0.7,
-    clue_generation_mode: str = "standard",
 ) -> dict[str, Any]:
     cluer_model = model_map[config["cluer"]]
     g1_model = model_map[config["guesser_1"]]
@@ -269,7 +277,6 @@ def _build_decrypto_team(
             provider=cluer_provider,
             model_id=cluer_model.model_id,
             temperature=temperature,
-            clue_generation_mode=clue_generation_mode,
         ),
         "g1": DecryptoGuesserLLM(
             provider=g1_provider,
@@ -314,17 +321,13 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
         selection = _resolve_team_selection(
             req.team_selection, allow_single=req.mode == GameMode.SINGLE_GUESSER
         )
-        clue_gen_mode = req.clue_generation_mode
-        red_team = _build_codenames_team(
-            model_map, Team.RED, selection["red"],
-            clue_generation_mode=clue_gen_mode,
-        )
-        blue_team = _build_codenames_team(
-            model_map, Team.BLUE, selection["blue"],
-            clue_generation_mode=clue_gen_mode,
-        )
+        red_team = _build_codenames_team(model_map, Team.RED, selection["red"])
+        blue_team = _build_codenames_team(model_map, Team.BLUE, selection["blue"])
         game_config = GameConfig.for_mode(req.mode, seed=req.seed)
         state = create_game(config=game_config)
+        
+        # Initialize agent state manager for scratchpads
+        agent_states = AgentStateManager()
 
         await _emit(
             job,
@@ -346,32 +349,33 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
             current_team = state.current_turn
             team_agents = red_team if current_team == Team.RED else blue_team
 
-            # Clue phase
-            state, clue_trace, should_continue = await run_clue_phase(
-                team_agents.cluer, state
-            )
+            # Clue phase with scratchpad
+            cluer = team_agents.cluer
+            cluer_scratchpad = agent_states.get_scratchpad(cluer.config.agent_id)
+            
+            clue, clue_trace, clue_scratchpad_add = await cluer.generate_clue(state, cluer_scratchpad)
+            
+            # Update scratchpad and emit event
+            if clue_scratchpad_add:
+                agent_state = agent_states.get_or_create(cluer.config.agent_id)
+                agent_state.append_to_scratchpad(turn_count, clue_scratchpad_add)
+                await _emit_scratchpad(job, cluer.config.agent_id, clue_scratchpad_add, turn_count)
+            
+            if clue is None:
+                # Ghost clue / pass
+                from src.engine import end_turn
+                state = end_turn(state)
+                event_idx = await _emit_new_events(
+                    job, state, event_idx, delay_ms=req.event_delay_ms
+                )
+                continue
+            
+            # Apply clue to state
+            from src.engine import apply_clue
+            state = apply_clue(state, clue.word, clue.number)
             event_idx = await _emit_new_events(
                 job, state, event_idx, delay_ms=req.event_delay_ms
             )
-            if not should_continue:
-                # Ghost clue - no traces to record for this turn
-                continue
-
-            # Prediction step (for ToM): cluer predicts teammate guesses before discussion
-            prediction_trace = None
-            try:
-                if clue_gen_mode == "deliberate":
-                    # In deliberate mode, synthesize prediction from the clue trace
-                    if hasattr(team_agents.cluer, "synthesize_prediction_trace"):
-                        prediction_trace = team_agents.cluer.synthesize_prediction_trace(
-                            clue_trace, state
-                        )
-                elif hasattr(team_agents.cluer, "predict_guesses") and state.current_clue is not None:
-                    # Standard mode: call predict_guesses separately
-                    prediction_trace = await team_agents.cluer.predict_guesses(state, state.current_clue)
-            except Exception:
-                # Prediction should never crash the game; store nothing on failure.
-                prediction_trace = None
 
             # Discussion phase (stream per message) - collect traces
             discussion_messages = []
@@ -383,8 +387,19 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
                 guessers = [team_agents.guesser_1, team_agents.guesser_2]
                 for i in range(max_messages):
                     guesser = guessers[i % 2]
-                    message, trace = await guesser.discuss(state, discussion_messages)
-                    discussion_traces.append(trace)  # Collect trace
+                    guesser_scratchpad = agent_states.get_scratchpad(guesser.config.agent_id)
+                    
+                    message, trace, disc_scratchpad_add = await guesser.discuss(
+                        state, discussion_messages, guesser_scratchpad
+                    )
+                    discussion_traces.append(trace)
+                    
+                    # Update scratchpad and emit event
+                    if disc_scratchpad_add:
+                        agent_state = agent_states.get_or_create(guesser.config.agent_id)
+                        agent_state.append_to_scratchpad(turn_count, disc_scratchpad_add)
+                        await _emit_scratchpad(job, guesser.config.agent_id, disc_scratchpad_add, turn_count)
+                    
                     state = add_discussion_message(
                         state, message.agent_id, message.content
                     )
@@ -417,9 +432,19 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
                 state = transition_to_guessing(state)
 
             # Guess phase (stream per guess) - collect trace
-            guesses, guess_trace = await team_agents.primary_guesser.make_guesses(
-                state, discussion_messages
+            guesser = team_agents.primary_guesser
+            guesser_scratchpad = agent_states.get_scratchpad(guesser.config.agent_id)
+            
+            guesses, guess_trace, guess_scratchpad_add = await guesser.make_guesses(
+                state, discussion_messages, guesser_scratchpad
             )
+            
+            # Update scratchpad and emit event
+            if guess_scratchpad_add:
+                agent_state = agent_states.get_or_create(guesser.config.agent_id)
+                agent_state.append_to_scratchpad(turn_count, guess_scratchpad_add)
+                await _emit_scratchpad(job, guesser.config.agent_id, guess_scratchpad_add, turn_count)
+            
             if not guesses:
                 state = process_pass(state)
                 event_idx = await _emit_new_events(
@@ -446,7 +471,6 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
                 turn_number=turn_count,
                 team=current_team,
                 clue_trace=clue_trace,
-                prediction_trace=prediction_trace,
                 discussion_traces=discussion_traces,
                 guess_trace=guess_trace,
             )
@@ -454,6 +478,13 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
 
             if state.phase == Phase.GAME_OVER:
                 break
+
+        # Extract final scratchpad contents
+        agent_scratchpads = {
+            agent_id: agent_state.scratchpad
+            for agent_id, agent_state in agent_states.get_all_states().items()
+            if agent_state.scratchpad
+        }
 
         episode = ExtendedEpisodeRecord(
             episode_id=str(uuid.uuid4())[:8],
@@ -464,11 +495,11 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
             turn_traces=[t.model_dump(mode="json") for t in all_turn_traces],
             winner=state.winner,
             total_turns=turn_count,
+            agent_scratchpads=agent_scratchpads,
             metadata={
                 "red_team": selection["red"],
                 "blue_team": selection["blue"],
                 "max_discussion_rounds": req.max_discussion_rounds,
-                "clue_generation_mode": clue_gen_mode,
             },
         )
         path = save_codenames_episode(episode)
@@ -482,6 +513,7 @@ async def _run_codenames_job(job: Job, req: CodenamesStartRequest) -> None:
                 "replay_id": path.name,
                 "winner": state.winner.value if state.winner else None,
                 "metrics": metrics,
+                "agent_scratchpads": agent_scratchpads,
             },
         )
 
@@ -506,20 +538,15 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
     try:
         model_map = _load_model_map()
         selection = _resolve_team_selection(req.team_selection, allow_single=False)
-        clue_gen_mode = req.clue_generation_mode
-        red_team = _build_decrypto_team(
-            model_map, "red", selection["red"],
-            clue_generation_mode=clue_gen_mode,
-        )
-        blue_team = _build_decrypto_team(
-            model_map, "blue", selection["blue"],
-            clue_generation_mode=clue_gen_mode,
-        )
+        red_team = _build_decrypto_team(model_map, "red", selection["red"])
+        blue_team = _build_decrypto_team(model_map, "blue", selection["blue"])
         metadata = {
             "red_team": _decrypto_team_metadata(model_map, "red", selection["red"]),
             "blue_team": _decrypto_team_metadata(model_map, "blue", selection["blue"]),
-            "clue_generation_mode": clue_gen_mode,
         }
+        
+        # Initialize agent state manager for scratchpads
+        agent_states = AgentStateManager()
 
         cfg = DecryptoConfig(seed=req.seed, max_rounds=req.max_rounds)
         game_id, keys, code_sequences = create_decrypto_game(cfg)
@@ -555,10 +582,25 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
                 public_clues=None,
             )
 
-            (red_clues, red_priv), (blue_clues, blue_priv) = await asyncio.gather(
-                red_team["cluer"].generate(base_inputs, "red"),
-                blue_team["cluer"].generate(base_inputs, "blue"),
+            # Clue phase with scratchpads
+            red_cluer_scratchpad = agent_states.get_scratchpad("red_cluer")
+            blue_cluer_scratchpad = agent_states.get_scratchpad("blue_cluer")
+            
+            (red_clues, red_priv, red_cluer_add), (blue_clues, blue_priv, blue_cluer_add) = await asyncio.gather(
+                red_team["cluer"].generate(base_inputs, "red", red_cluer_scratchpad),
+                blue_team["cluer"].generate(base_inputs, "blue", blue_cluer_scratchpad),
             )
+            
+            # Update cluer scratchpads and emit events
+            if red_cluer_add:
+                agent_state = agent_states.get_or_create("red_cluer")
+                agent_state.append_to_scratchpad(r, red_cluer_add)
+                await _emit_scratchpad(job, "red_cluer", red_cluer_add, r)
+            
+            if blue_cluer_add:
+                agent_state = agent_states.get_or_create("blue_cluer")
+                agent_state.append_to_scratchpad(r, blue_cluer_add)
+                await _emit_scratchpad(job, "blue_cluer", blue_cluer_add, r)
 
             await _emit(
                 job,
@@ -604,17 +646,33 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
                     )
 
                 acting = red_team if team == "red" else blue_team
-                return await run_bounded_action(
+                
+                # Get scratchpads for guessers
+                g1_scratchpad = agent_states.get_scratchpad(f"{team}_guesser_1")
+                g2_scratchpad = agent_states.get_scratchpad(f"{team}_guesser_2")
+                
+                action, scratchpad_adds = await run_bounded_action(
                     round_inputs,
                     team,
                     opponent_team,
                     kind,
                     acting["g1"],
                     acting["g2"],
+                    g1_scratchpad,
+                    g2_scratchpad,
                     discussion_log=discussion_log,
                     max_discussion_turns_per_guesser=req.max_discussion_turns_per_guesser,
                     emit_discussion=_emit_discussion,
                 )
+                
+                # Update scratchpads and emit events
+                for agent_id, addition in scratchpad_adds.items():
+                    if addition:
+                        agent_state = agent_states.get_or_create(agent_id)
+                        agent_state.append_to_scratchpad(r, addition)
+                        await _emit_scratchpad(job, agent_id, addition, r)
+                
+                return action
 
             action_tasks: list[tuple[str, str, asyncio.Task, list[dict[str, str]]]] = []
             red_decode_discussion: list[dict[str, str]] = []
@@ -676,8 +734,8 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
                 blue_decode_correct=blue_decode_correct,
             )
 
-            red_private = dict(red_priv)
-            blue_private = dict(blue_priv)
+            red_private = dict(red_priv) if isinstance(red_priv, dict) else {}
+            blue_private = dict(blue_priv) if isinstance(blue_priv, dict) else {}
             red_private["discussion"] = {
                 "decode": red_decode_discussion,
                 "intercept": red_intercept_discussion,
@@ -726,6 +784,13 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
             if winner is not None or reason in ("survived", "max_rounds"):
                 break
 
+        # Extract final scratchpad contents
+        agent_scratchpads = {
+            agent_id: agent_state.scratchpad
+            for agent_id, agent_state in agent_states.get_all_states().items()
+            if agent_state.scratchpad
+        }
+
         episode = DecryptoEpisodeRecord(
             episode_id=f"{req.seed:04d}-{game_id}",
             config=cfg,
@@ -737,6 +802,7 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
             winner=winner,
             result_reason=reason,  # type: ignore[arg-type]
             scores={},
+            agent_scratchpads=agent_scratchpads,
             metadata=metadata,
         )
         from src.decrypto.metrics import compute_episode_scores
@@ -753,6 +819,7 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
                 "winner": winner,
                 "result_reason": reason,
                 "scores": episode.scores,
+                "agent_scratchpads": agent_scratchpads,
             },
         )
 
@@ -773,74 +840,116 @@ async def _run_decrypto_job(job: Job, req: DecryptoStartRequest) -> None:
         await _close(job)
 
 
-def _sample_team(model_pool: list[str]) -> TeamSelection:
-    def _pick() -> str:
-        return random.choice(model_pool)
-
-    return TeamSelection(
-        red=TeamRoleConfig(cluer=_pick(), guesser_1=_pick(), guesser_2=_pick()),
-        blue=TeamRoleConfig(cluer=_pick(), guesser_1=_pick(), guesser_2=_pick()),
-    )
+def _resolve_batch_seeds(req: BatchStartRequest) -> list[int]:
+    """
+    Resolve seeds based on seed_mode.
+    
+    - "random": Generate `count` unique random seeds
+    - "fixed": Use `fixed_seed` repeated `count` times
+    - "list": Use exactly the seeds in `seed_list`
+    """
+    if req.seed_mode == "random":
+        return [random.randint(0, 2**31 - 1) for _ in range(req.count)]
+    elif req.seed_mode == "fixed":
+        seed = req.fixed_seed if req.fixed_seed is not None else 0
+        return [seed] * req.count
+    elif req.seed_mode == "list":
+        if not req.seed_list:
+            raise ValueError("seed_list mode requires non-empty seed_list")
+        return req.seed_list
+    else:
+        raise ValueError(f"Unknown seed_mode: {req.seed_mode}")
 
 
 async def _run_batch_job(job: Job, req: BatchStartRequest) -> None:
+    """
+    Run a batch of games with the specified configuration.
+    
+    Extensible design - to add a new game type:
+    1. Add the game_type literal to BatchStartRequest
+    2. Add game-specific options to BatchStartRequest
+    3. Add the game runner case below
+    """
     try:
+        seeds = _resolve_batch_seeds(req)
+        
+        # For "both" mode, we run codenames + decrypto for each seed
+        if req.game_type == "both":
+            games_per_seed = ["codenames", "decrypto"]
+            total_games = len(seeds) * len(games_per_seed)
+        else:
+            games_per_seed = [req.game_type]
+            total_games = len(seeds)
+        
         results = []
-        if req.seed_count > req.count:
-            raise ValueError("seed_count cannot exceed count")
-        seeds = [random.randint(0, 2**31 - 1) for _ in range(req.seed_count)]
-        for idx in range(req.count):
-            seed = seeds[idx % len(seeds)]
-            if req.pinned:
-                if req.team_selection is None:
-                    raise ValueError("pinned batch requires team_selection")
-                selection = req.team_selection
-            else:
-                if not req.model_pool:
-                    raise ValueError("random batch requires model_pool")
-                selection = _sample_team(req.model_pool)
+        game_idx = 0
 
-            # Determine clue generation mode for this game
-            # "split" mode: first half standard, second half deliberate
-            if req.clue_generation_mode == "split":
-                game_clue_mode = "standard" if idx < req.count // 2 else "deliberate"
-            else:
-                game_clue_mode = req.clue_generation_mode
+        for seed in seeds:
+            for game_type in games_per_seed:
+                game_result: dict[str, Any] = {
+                    "game_index": game_idx,
+                    "seed": seed,
+                    "game_type": game_type,
+                }
+                
+                if game_type == "codenames":
+                    sub_job = Job(job_id=f"{job.job_id}-{game_idx}")
+                    await _run_codenames_job(
+                        sub_job,
+                        CodenamesStartRequest(
+                            team_selection=req.team_selection,
+                            mode=req.codenames_mode,
+                            seed=seed,
+                            max_discussion_rounds=req.max_discussion_rounds,
+                            max_turns=req.max_turns,
+                            event_delay_ms=0,
+                        ),
+                    )
+                    game_result.update({
+                        "replay_id": sub_job.replay_id,
+                        "status": sub_job.status,
+                        "error": sub_job.error,
+                    })
+                    
+                elif game_type == "decrypto":
+                    sub_job = Job(job_id=f"{job.job_id}-{game_idx}")
+                    await _run_decrypto_job(
+                        sub_job,
+                        DecryptoStartRequest(
+                            team_selection=req.team_selection,
+                            seed=seed,
+                            max_rounds=req.max_rounds,
+                            max_discussion_turns_per_guesser=req.max_discussion_turns_per_guesser,
+                            event_delay_ms=0,
+                        ),
+                    )
+                    game_result.update({
+                        "replay_id": sub_job.replay_id,
+                        "status": sub_job.status,
+                        "error": sub_job.error,
+                    })
+                
+                # Future games: add elif branches here
+                # elif game_type == "hanabi":
+                #     ...
+                
+                else:
+                    raise ValueError(f"Unknown game_type: {game_type}")
 
-            if req.game_type == "codenames":
-                sub_job = Job(job_id=f"{job.job_id}-{idx}")
-                await _run_codenames_job(
-                    sub_job,
-                    CodenamesStartRequest(
-                        team_selection=selection,
-                        mode=req.codenames_mode,
-                        seed=seed,
-                        max_discussion_rounds=req.max_discussion_rounds,
-                        max_turns=req.max_turns,
-                        event_delay_ms=req.event_delay_ms,
-                        clue_generation_mode=game_clue_mode,
-                    ),
-                )
-                results.append({"replay_id": sub_job.replay_id, "status": sub_job.status})
-            else:
-                sub_job = Job(job_id=f"{job.job_id}-{idx}")
-                await _run_decrypto_job(
-                    sub_job,
-                    DecryptoStartRequest(
-                        team_selection=selection,
-                        seed=seed,
-                        max_rounds=req.max_rounds,
-                        max_discussion_turns_per_guesser=req.max_discussion_turns_per_guesser,
-                        event_delay_ms=req.event_delay_ms,
-                        clue_generation_mode=game_clue_mode,
-                    ),
-                )
-                results.append({"replay_id": sub_job.replay_id, "status": sub_job.status})
+                results.append(game_result)
+                game_idx += 1
+                await _emit(job, "progress", {
+                    "completed": game_idx,
+                    "total": total_games,
+                    "last_result": game_result,
+                })
 
-            await _emit(job, "progress", {"completed": idx + 1, "total": req.count})
-
-        save_batch_log(job.job_id, {"results": results})
-        await _emit(job, "done", {"batch_id": job.job_id, "results": results})
+        save_batch_log(job.job_id, {"results": results, "config": req.model_dump(mode="json")})
+        await _emit(job, "done", {
+            "batch_id": job.job_id,
+            "total_games": total_games,
+            "results": results,
+        })
         job.status = "done"
     except Exception as exc:
         job.status = "error"

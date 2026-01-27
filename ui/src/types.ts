@@ -1,6 +1,4 @@
 export type GameType = "codenames" | "decrypto";
-export type ClueGenerationMode = "standard" | "deliberate";
-export type BatchClueGenerationMode = "standard" | "deliberate" | "split";
 
 export interface ModelInfo {
   model_id: string;
@@ -42,4 +40,11 @@ export interface DecryptoRoundPayload {
   reveal_true_codes: any;
   actions: any;
   counters_after: any;
+}
+
+export interface ScratchpadEntry {
+  agent_id: string;
+  addition: string;
+  turn: number;
+  timestamp: number;
 }

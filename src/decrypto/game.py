@@ -180,12 +180,15 @@ def create_game(config: DecryptoConfig) -> tuple[str, dict[TeamKey, tuple[str, s
     Note: codes are pre-generated for determinism. We use distinct seeds per team
     derived from the game seed to avoid perfectly mirrored code order.
     """
+    # Generate random seed if none provided
+    seed = config.seed if config.seed is not None else random.randint(0, 2**31 - 1)
+    
     bank = load_keyword_bank(config.keyword_bank_path)
-    keys = generate_keys(bank, config.seed)
+    keys = generate_keys(bank, seed)
 
     # Derive per-team sequences deterministically.
-    red_seq = pre_generate_code_sequence(config.seed ^ 0xA11CE)  # stable salt
-    blue_seq = pre_generate_code_sequence(config.seed ^ 0xB10E5)
+    red_seq = pre_generate_code_sequence(seed ^ 0xA11CE)  # stable salt
+    blue_seq = pre_generate_code_sequence(seed ^ 0xB10E5)
 
     # Validate code triples once.
     for t in (red_seq[0], blue_seq[0]):
