@@ -257,7 +257,7 @@ async def analyze_batch(
         usage={
             "input_tokens": response.input_tokens,
             "output_tokens": response.output_tokens,
-            "latency_ms": response.latency_ms,
+            "latency_ms": int(response.latency_ms),
         },
     )
 
