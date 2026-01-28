@@ -156,9 +156,16 @@ export async function fetchExperiments() {
   return res.json();
 }
 
-export async function cancelBenchmark() {
-  const res = await fetch(`${API_BASE}/benchmark/cancel`, { method: "POST" });
+export async function cancelBenchmark(experimentName?: string) {
+  const params = experimentName ? `?experiment_name=${encodeURIComponent(experimentName)}` : "";
+  const res = await fetch(`${API_BASE}/benchmark/cancel${params}`, { method: "POST" });
   if (!res.ok) throw new Error("Failed to cancel benchmark");
+  return res.json();
+}
+
+export async function forceStopBenchmark(experimentName: string) {
+  const res = await fetch(`${API_BASE}/benchmark/force-stop/${encodeURIComponent(experimentName)}`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to force-stop benchmark");
   return res.json();
 }
 

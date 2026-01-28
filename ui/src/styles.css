@@ -3187,6 +3187,15 @@ button.small {
   cursor: not-allowed;
 }
 
+.exp-action-btn.stop {
+  background: var(--error);
+  color: white;
+}
+
+.exp-action-btn.stop:hover {
+  filter: brightness(0.9);
+}
+
 .exp-action-btn.download {
   background: var(--bg-elevated);
   color: var(--text);
@@ -3211,17 +3220,27 @@ button.small {
   margin-bottom: 8px;
 }
 
+.exp-findings-loading,
+.exp-findings-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px;
+  text-align: center;
+}
+
 .exp-findings-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .exp-finding-item {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
   background: var(--bg-elevated);
   border-radius: 4px;
   font-size: 11px;
@@ -3231,6 +3250,22 @@ button.small {
 
 .exp-finding-item:hover {
   background: var(--bg-hover);
+}
+
+.exp-finding-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.exp-finding-preview {
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .exp-finding-item .finding-type {

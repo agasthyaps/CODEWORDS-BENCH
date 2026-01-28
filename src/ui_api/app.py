@@ -1368,29 +1368,76 @@ def pause_benchmark() -> dict[str, str]:
 
 
 @app.post("/benchmark/cancel")
-async def cancel_benchmark() -> dict[str, str]:
-    """Cancel the running benchmark immediately."""
+async def cancel_benchmark(experiment_name: str | None = None) -> dict[str, str]:
+    """Cancel the running benchmark immediately or force-stop a stale experiment."""
     global _benchmark_runner, _benchmark_task
 
-    if not _benchmark_runner or not _benchmark_task:
-        raise HTTPException(404, "No benchmark running")
+    # If we have an in-memory runner, cancel it
+    if _benchmark_runner and _benchmark_task:
+        # Request pause to stop workers
+        _benchmark_runner.request_pause()
 
-    # Request pause to stop workers
-    _benchmark_runner.request_pause()
+        # Cancel the task
+        if not _benchmark_task.done():
+            _benchmark_task.cancel()
+            try:
+                await _benchmark_task
+            except asyncio.CancelledError:
+                pass
 
-    # Cancel the task
-    if not _benchmark_task.done():
-        _benchmark_task.cancel()
-        try:
-            await _benchmark_task
-        except asyncio.CancelledError:
-            pass
+        # Update state
+        _benchmark_runner.state.status = "cancelled"
+        _benchmark_runner.state.save()
 
-    # Update state
-    _benchmark_runner.state.status = "cancelled"
-    _benchmark_runner.state.save()
+        # Clear the runner
+        _benchmark_runner = None
+        _benchmark_task = None
 
-    return {"status": "cancelled"}
+        return {"status": "cancelled"}
+
+    # No in-memory runner - force-stop via state file if experiment_name provided
+    if experiment_name:
+        existing = BenchmarkState.load(experiment_name)
+        if existing:
+            existing.status = "cancelled"
+            existing.last_error = "Force-stopped by user"
+            existing.save()
+            return {"status": "cancelled", "experiment_name": experiment_name}
+        raise HTTPException(404, f"Experiment '{experiment_name}' not found")
+
+    raise HTTPException(404, "No benchmark running and no experiment_name provided")
+
+
+@app.post("/benchmark/force-stop/{experiment_name}")
+async def force_stop_benchmark(experiment_name: str) -> dict[str, str]:
+    """Force-stop an experiment that appears stuck or falsely running."""
+    global _benchmark_runner, _benchmark_task
+
+    # If the in-memory runner is for this experiment, cancel it
+    if _benchmark_runner and _benchmark_runner.state.experiment_name == experiment_name:
+        if _benchmark_task and not _benchmark_task.done():
+            _benchmark_runner.request_pause()
+            _benchmark_task.cancel()
+            try:
+                await _benchmark_task
+            except asyncio.CancelledError:
+                pass
+        _benchmark_runner.state.status = "cancelled"
+        _benchmark_runner.state.last_error = "Force-stopped by user"
+        _benchmark_runner.state.save()
+        _benchmark_runner = None
+        _benchmark_task = None
+        return {"status": "cancelled", "experiment_name": experiment_name}
+
+    # Otherwise, just update the state file
+    existing = BenchmarkState.load(experiment_name)
+    if not existing:
+        raise HTTPException(404, f"Experiment '{experiment_name}' not found")
+
+    existing.status = "cancelled"
+    existing.last_error = "Force-stopped by user"
+    existing.save()
+    return {"status": "cancelled", "experiment_name": experiment_name}
 
 
 @app.get("/benchmark/download/{experiment_name}")

@@ -61,11 +61,11 @@ class CloudBenchmarkRunner:
         self._models, _ = load_model_farm("config/models.json")
         self._model_by_id = {m.model_id: m for m in self._models}
 
-        # Filter to requested models
+        # Filter to requested models (use self.config which may be restored from snapshot)
         self._selected_models = [
-            m for m in self._models if m.model_id in config.model_ids
+            m for m in self._models if m.model_id in self.config.model_ids
         ]
-        if len(self._selected_models) < 2 and (config.run_codenames or config.run_decrypto):
+        if len(self._selected_models) < 2 and (self.config.run_codenames or self.config.run_decrypto):
             raise ValueError("Need at least 2 models for competitive games")
 
         # Results storage for interim analysis
@@ -74,7 +74,7 @@ class CloudBenchmarkRunner:
         self._hanabi_results: list[dict] = []
 
         # Setup output directory
-        self._output_dir = config.get_output_path()
+        self._output_dir = self.config.get_output_path()
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize totals

@@ -12,5 +12,5 @@ restartPolicyMaxRetries = 10
 # OPENROUTER_API_KEY - Required for LLM calls
 # BENCHMARK_DATA_DIR - Set automatically via volume mount
 
-# Note: Create a volume in Railway dashboard named "benchmark_data"
+# Note: Create a volume in Railway dashboard named "codewords-bench-volume"
 # and mount it to /app/benchmark_results

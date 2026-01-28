@@ -7,6 +7,7 @@ import {
   startBenchmark,
   pauseBenchmark,
   cancelBenchmark,
+  forceStopBenchmark,
   downloadBenchmarkResults,
   openEventStream,
 } from "../api";
@@ -82,14 +83,17 @@ export default function BenchmarkMonitor({ models }: Props) {
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [expandedExperiment, setExpandedExperiment] = useState<string | null>(null);
   const [expFindings, setExpFindings] = useState<FindingSummary[]>([]);
+  const [expFindingsLoading, setExpFindingsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Load findings when an experiment is expanded
   useEffect(() => {
     if (expandedExperiment) {
+      setExpFindingsLoading(true);
       fetchBenchmarkFindings(expandedExperiment)
         .then(setExpFindings)
-        .catch(() => setExpFindings([]));
+        .catch(() => setExpFindings([]))
+        .finally(() => setExpFindingsLoading(false));
     } else {
       setExpFindings([]);
     }
@@ -606,7 +610,7 @@ export default function BenchmarkMonitor({ models }: Props) {
                     </div>
 
                     <div className="exp-actions-row">
-                      {(exp.status === "paused" || exp.status === "cancelled" || exp.status === "running") && (
+                      {(exp.status === "paused" || exp.status === "cancelled") && (
                         <button
                           className="exp-action-btn resume"
                           onClick={(e) => {
@@ -626,7 +630,26 @@ export default function BenchmarkMonitor({ models }: Props) {
                           }}
                           disabled={isRunning}
                         >
-                          {exp.status === "running" ? "Reconnect" : "Resume"}
+                          Resume
+                        </button>
+                      )}
+                      {exp.status === "running" && (
+                        <button
+                          className="exp-action-btn stop"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!confirm(`Force stop "${exp.experiment_name}"? Use this if the experiment appears stuck.`)) {
+                              return;
+                            }
+                            forceStopBenchmark(exp.experiment_name)
+                              .then(() => {
+                                fetchBenchmarkStatus().then(setStatus);
+                                fetchExperiments().then(setExperiments);
+                              })
+                              .catch((e) => setError(String(e)));
+                          }}
+                        >
+                          Force Stop
                         </button>
                       )}
                       <button
@@ -640,9 +663,15 @@ export default function BenchmarkMonitor({ models }: Props) {
                       </button>
                     </div>
 
-                    {expFindings.length > 0 && (
-                      <div className="exp-findings-section">
-                        <div className="exp-findings-header">Analysis Findings ({expFindings.length})</div>
+                    <div className="exp-findings-section">
+                      <div className="exp-findings-header">
+                        Analysis Findings {expFindings.length > 0 && `(${expFindings.length})`}
+                      </div>
+                      {expFindingsLoading ? (
+                        <div className="exp-findings-loading">Loading findings...</div>
+                      ) : expFindings.length === 0 ? (
+                        <div className="exp-findings-empty">No analysis findings yet</div>
+                      ) : (
                         <div className="exp-findings-list">
                           {expFindings.map((f) => (
                             <div
@@ -653,17 +682,19 @@ export default function BenchmarkMonitor({ models }: Props) {
                                 loadFindingDetail(f.finding_id, exp.experiment_name);
                               }}
                             >
-                              <span className={`finding-type ${f.game_type}`}>
-                                {f.game_type === "codenames" ? "CN" : f.game_type === "decrypto" ? "DC" : "HB"}
-                              </span>
-                              <span className="finding-batch">Batch {f.batch_number}</span>
-                              <span className="finding-games">{f.games_analyzed} games</span>
-                              <span className="finding-preview">{f.preview.slice(0, 80)}...</span>
+                              <div className="exp-finding-header-row">
+                                <span className={`finding-type ${f.game_type}`}>
+                                  {f.game_type === "codenames" ? "CN" : f.game_type === "decrypto" ? "DC" : "HB"}
+                                </span>
+                                <span className="finding-batch">Batch {f.batch_number}</span>
+                                <span className="finding-games">{f.games_analyzed} games</span>
+                              </div>
+                              <div className="exp-finding-preview">{f.preview}</div>
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
