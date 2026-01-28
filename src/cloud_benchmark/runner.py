@@ -918,3 +918,6 @@ class CloudBenchmarkRunner:
 
             except Exception as e:
                 logger.warning(f"Failed to analyze {game_type} batch: {e}")
+                # Show analysis errors in the UI via last_error
+                self.state.last_error = f"Analysis failed for {game_type}: {str(e)[:100]}"
+                self.state.save()

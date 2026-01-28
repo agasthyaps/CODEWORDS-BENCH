@@ -553,6 +553,17 @@ export default function BenchmarkMonitor({ models }: Props) {
             />
           )}
 
+          {/* Findings count indicator */}
+          {status.status !== "idle" && (
+            <div className="findings-indicator">
+              <span className="findings-label">Analysis Findings:</span>
+              <span className="findings-value">{status.findings_count}</span>
+              {status.status === "running" && status.findings_count === 0 && (
+                <span className="findings-hint">(generated every {analysisBatchSize} games)</span>
+              )}
+            </div>
+          )}
+
           {status.last_error && (
             <div className="error-banner">
               Last error: {status.last_error}
@@ -622,9 +633,16 @@ export default function BenchmarkMonitor({ models }: Props) {
 
           <div className="findings-list">
             {findings.length === 0 ? (
-              <div className="no-findings">
-                Analysis findings will appear here after every {analysisBatchSize} games
-              </div>
+              status.findings_count > 0 ? (
+                <div className="findings-mismatch-warning">
+                  ⚠️ {status.findings_count} finding(s) recorded but not loaded.
+                  Try refreshing the page.
+                </div>
+              ) : (
+                <div className="no-findings">
+                  Analysis findings will appear here after every {analysisBatchSize} games
+                </div>
+              )
             ) : (
               findings.map((f) => (
                 <div
