@@ -17,6 +17,8 @@ In Hanabi, you can see ALL other players' hands, but you CANNOT see your own car
 - Hint tokens (max 8): Spend to give hints, regain by discarding
 - Fuse tokens (3): Lose one for each failed play. Game ends if all lost.
 
+**Turn Limit**: The game automatically ends after 200 turns. Play efficiently to maximize your score before the limit.
+
 ## Actions You Can Take
 
 1. **PLAY** a card from your hand (by position 0-4)
