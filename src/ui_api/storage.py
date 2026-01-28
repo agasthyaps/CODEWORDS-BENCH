@@ -16,9 +16,18 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _benchmark_data_dir() -> Path:
+    """Get benchmark data directory, using env var in production."""
+    import os
+    env_dir = os.environ.get("BENCHMARK_DATA_DIR")
+    if env_dir:
+        return Path(env_dir)
+    return _repo_root() / "benchmark_results"
+
+
 def _base_dir() -> Path:
     """Base directory for UI sessions - stored in benchmark_results for persistence."""
-    return _repo_root() / "benchmark_results" / "sessions"
+    return _benchmark_data_dir() / "sessions"
 
 
 def _game_dir(game_type: GameType) -> Path:
