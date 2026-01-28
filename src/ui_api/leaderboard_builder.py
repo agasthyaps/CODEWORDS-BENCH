@@ -204,9 +204,11 @@ def scan_all_episodes() -> dict[str, list[dict]]:
     """
     Scan all episode files from benchmark_results/ (consolidated storage).
 
-    Scans:
+    Scans multiple patterns:
     - benchmark_results/sessions/{codenames,decrypto,hanabi}/ (UI sessions)
-    - benchmark_results/*/episodes/ (cloud benchmark experiments)
+    - benchmark_results/*/episodes/ (cloud benchmark - flat episodes dir)
+    - benchmark_results/*/{codenames,decrypto,hanabi}/ (cloud benchmark - by game type)
+    - benchmark_results/**/*.json (recursive fallback for any JSON files)
 
     Returns dict mapping game_type -> list of episode dicts.
     """
@@ -243,16 +245,27 @@ def scan_all_episodes() -> dict[str, list[dict]]:
                 if data:
                     add_episode(data, path.name)
 
-    # 2. Scan */episodes/ (cloud benchmark experiments)
+    # 2. Scan experiment directories
     for exp_dir in bench_dir.iterdir():
-        if not exp_dir.is_dir() or exp_dir.name == "sessions":
+        if not exp_dir.is_dir() or exp_dir.name in ("sessions", "lost+found"):
             continue
+
+        # Pattern A: */episodes/ (flat episodes directory)
         episodes_dir = exp_dir / "episodes"
         if episodes_dir.exists():
             for path in episodes_dir.glob("*.json"):
                 data = _load_episode_file(path)
                 if data:
                     add_episode(data, path.name)
+
+        # Pattern B: */{game_type}/ (organized by game type)
+        for game_type in ("codenames", "decrypto", "hanabi"):
+            game_dir = exp_dir / game_type
+            if game_dir.exists():
+                for path in game_dir.glob("*.json"):
+                    data = _load_episode_file(path)
+                    if data:
+                        add_episode(data, path.name)
 
     return episodes
 
