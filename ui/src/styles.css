@@ -2084,6 +2084,68 @@ button.small {
   text-align: right;
 }
 
+/* Top Performers List */
+.top-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.top-item {
+  display: grid;
+  grid-template-columns: 32px 1fr 120px 50px;
+  align-items: center;
+  gap: 12px;
+}
+
+.top-rank {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.top-item:first-child .top-rank {
+  color: #f5a623;
+}
+
+.top-model {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-bar-container {
+  height: 8px;
+  background: var(--bg-elevated);
+}
+
+.top-bar {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.top-bar.cooperative { background: #22c55e; }
+.top-bar.adversarial { background: #f5a623; }
+.top-bar.collaborative { background: #3b82f6; }
+
+.top-score {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.top-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 16px 0;
+  text-align: center;
+}
+
 /* Insights Responsive */
 @media (max-width: 900px) {
   .insights-grid {

@@ -1188,17 +1188,18 @@ def get_leaderboard() -> dict[str, Any]:
     from .leaderboard_builder import build_leaderboard, load_leaderboard, save_leaderboard, _benchmark_results_dir
 
     bench_dir = _benchmark_results_dir()
-    logger.info("Leaderboard request - benchmark_dir: %s, exists: %s", bench_dir, bench_dir.exists())
+    print(f"[LEADERBOARD] GET - dir={bench_dir}, exists={bench_dir.exists()}")
 
     data = load_leaderboard()
+    if data:
+        print(f"[LEADERBOARD] Loaded from disk: {data.total_episodes}, models={len(data.overall_rankings)}")
 
     # Rebuild if missing or has 0 episodes (might be stale)
     if data is None or sum(data.total_episodes.values()) == 0:
-        logger.info("Leaderboard missing or empty, rebuilding...")
+        print("[LEADERBOARD] Rebuilding (missing or empty)...")
         data = build_leaderboard()
         save_leaderboard(data)
-        logger.info("Generated leaderboard with %d episodes, %d models",
-                    sum(data.total_episodes.values()), len(data.overall_rankings))
+        print(f"[LEADERBOARD] Built: {data.total_episodes}, models={len(data.overall_rankings)}")
 
     return data.model_dump(mode="json")
 
@@ -1209,25 +1210,28 @@ def refresh_leaderboard() -> dict[str, Any]:
     from .leaderboard_builder import build_leaderboard, save_leaderboard, scan_all_episodes, _benchmark_results_dir
 
     bench_dir = _benchmark_results_dir()
-    logger.info("Refreshing leaderboard - benchmark_dir: %s, exists: %s", bench_dir, bench_dir.exists())
+    print(f"[LEADERBOARD] REFRESH - dir={bench_dir}, exists={bench_dir.exists()}")
 
     # Log what we find
     if bench_dir.exists():
         contents = list(bench_dir.iterdir())
-        logger.info("benchmark_results contents: %s", [c.name for c in contents[:10]])
+        print(f"[LEADERBOARD] Contents: {[c.name for c in contents[:15]]}")
+        # Check for episodes subdirs
+        for c in contents[:10]:
+            if c.is_dir():
+                eps_dir = c / "episodes"
+                if eps_dir.exists():
+                    eps_count = len(list(eps_dir.glob("*.json")))
+                    print(f"[LEADERBOARD]   {c.name}/episodes: {eps_count} files")
 
     # Scan and log
     episodes = scan_all_episodes()
-    logger.info("Scanned episodes: codenames=%d, decrypto=%d, hanabi=%d",
-                episodes.get("codenames", []) and len(episodes["codenames"]),
-                episodes.get("decrypto", []) and len(episodes["decrypto"]),
-                episodes.get("hanabi", []) and len(episodes["hanabi"]))
+    print(f"[LEADERBOARD] Scanned: codenames={len(episodes['codenames'])}, decrypto={len(episodes['decrypto'])}, hanabi={len(episodes['hanabi'])}")
 
     data = build_leaderboard()
     save_leaderboard(data)
 
-    logger.info("Leaderboard refreshed: %d models, %d total games",
-                len(data.overall_rankings), sum(data.total_episodes.values()))
+    print(f"[LEADERBOARD] Result: {len(data.overall_rankings)} models, {sum(data.total_episodes.values())} games")
 
     return {
         "status": "refreshed",

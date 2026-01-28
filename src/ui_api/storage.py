@@ -18,11 +18,8 @@ def _repo_root() -> Path:
 
 def _benchmark_data_dir() -> Path:
     """Get benchmark data directory, using env var in production."""
-    import os
-    env_dir = os.environ.get("BENCHMARK_DATA_DIR")
-    if env_dir:
-        return Path(env_dir)
-    return _repo_root() / "benchmark_results"
+    from src.cloud_benchmark.config import get_data_dir
+    return get_data_dir()
 
 
 def _base_dir() -> Path:

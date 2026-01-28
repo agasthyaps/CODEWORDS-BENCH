@@ -78,12 +78,9 @@ class LeaderboardData(BaseModel):
 
 def _benchmark_results_dir() -> Path:
     """Get the benchmark_results directory (persistent storage)."""
-    import os
-    # Use BENCHMARK_DATA_DIR env var in production (Docker), fallback to repo-relative path
-    env_dir = os.environ.get("BENCHMARK_DATA_DIR")
-    if env_dir:
-        return Path(env_dir)
-    return Path(__file__).resolve().parents[2] / "benchmark_results"
+    # Reuse the same function that cloud_benchmark uses (handles env var)
+    from src.cloud_benchmark.config import get_data_dir
+    return get_data_dir()
 
 
 def _sessions_dir() -> Path:

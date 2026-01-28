@@ -65,6 +65,16 @@ export default function Home({ onNavigate }: Props) {
     });
   };
 
+  // Compute dynamic insights from leaderboard
+  const bestCooperative = leaderboard?.hanabi_rankings[0];
+  const bestAdversarial = leaderboard?.decrypto_rankings[0];
+  const bestCollaborative = leaderboard?.codenames_rankings[0];
+
+  // Top 3 models by win rate for each game
+  const topCodenames = leaderboard?.codenames_rankings.slice(0, 3) || [];
+  const topDecrypto = leaderboard?.decrypto_rankings.slice(0, 3) || [];
+  const topHanabi = leaderboard?.hanabi_rankings.slice(0, 3) || [];
+
   return (
     <div className="page home-page">
       {/* Hero Section */}
@@ -180,120 +190,124 @@ export default function Home({ onNavigate }: Props) {
       )}
 
       {/* Research Insights Section */}
-      <section className="insights-section">
-        <h2>Research Insights</h2>
-        <div className="insights-grid">
-          <div className="insight-card insight-finding">
-            <div className="insight-label">Key Finding</div>
-            <h3>The ToM Paradox</h3>
-            <p>
-              Explicit Theory of Mind language does not correlate with success.
-              Models with shorter, more direct reasoning consistently outperform
-              those with verbose social deliberation.
-            </p>
-            <div className="insight-data">
-              <div className="data-point">
-                <span className="data-value">-0.34</span>
-                <span className="data-label">Rationale Length vs Win Rate</span>
-              </div>
-              <div className="data-point">
-                <span className="data-value">+0.06</span>
-                <span className="data-label">ToM Density vs Win Rate</span>
+      {leaderboard && totalGames > 0 && (
+        <section className="insights-section">
+          <h2>Research Insights</h2>
+          <div className="insights-grid">
+            {/* Key Finding - Static research insight */}
+            <div className="insight-card insight-finding">
+              <div className="insight-label">Key Finding</div>
+              <h3>The ToM Paradox</h3>
+              <p>
+                Explicit Theory of Mind language does not correlate with success.
+                Models with shorter, more direct reasoning consistently outperform
+                those with verbose social deliberation.
+              </p>
+              <div className="insight-data">
+                <div className="data-point">
+                  <span className="data-value">-0.34</span>
+                  <span className="data-label">Rationale Length vs Win Rate</span>
+                </div>
+                <div className="data-point">
+                  <span className="data-value">+0.06</span>
+                  <span className="data-label">ToM Density vs Win Rate</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="insight-card insight-chart">
-            <div className="insight-label">Model Specialization</div>
-            <h3>Best By Dimension</h3>
-            <div className="specialization-chart">
-              <div className="spec-row">
-                <span className="spec-dimension cooperative">Cooperative</span>
-                <span className="spec-model">GPT-5.2</span>
-                <div className="spec-bar" style={{ width: "60%" }}></div>
-                <span className="spec-score">15.0/25</span>
-              </div>
-              <div className="spec-row">
-                <span className="spec-dimension adversarial">Adversarial</span>
-                <span className="spec-model">Claude Opus 4.5</span>
-                <div className="spec-bar adversarial" style={{ width: "76%" }}></div>
-                <span className="spec-score">76.3%</span>
-              </div>
-              <div className="spec-row">
-                <span className="spec-dimension collaborative">Collaborative</span>
-                <span className="spec-model">Gemini 3 Flash</span>
-                <div className="spec-bar collaborative" style={{ width: "67%" }}></div>
-                <span className="spec-score">66.7%</span>
+            {/* Best By Dimension - Dynamic */}
+            <div className="insight-card insight-chart">
+              <div className="insight-label">Model Specialization</div>
+              <h3>Best By Dimension</h3>
+              <div className="specialization-chart">
+                <div className="spec-row">
+                  <span className="spec-dimension cooperative">Cooperative</span>
+                  <span className="spec-model">{bestCooperative?.model || "—"}</span>
+                  <div
+                    className="spec-bar"
+                    style={{ width: bestCooperative ? `${bestCooperative.score_pct}%` : "0%" }}
+                  ></div>
+                  <span className="spec-score">
+                    {bestCooperative ? `${bestCooperative.avg_score}/25` : "—"}
+                  </span>
+                </div>
+                <div className="spec-row">
+                  <span className="spec-dimension adversarial">Adversarial</span>
+                  <span className="spec-model">{bestAdversarial?.model || "—"}</span>
+                  <div
+                    className="spec-bar adversarial"
+                    style={{ width: bestAdversarial ? `${bestAdversarial.win_rate * 100}%` : "0%" }}
+                  ></div>
+                  <span className="spec-score">
+                    {bestAdversarial ? `${(bestAdversarial.win_rate * 100).toFixed(0)}%` : "—"}
+                  </span>
+                </div>
+                <div className="spec-row">
+                  <span className="spec-dimension collaborative">Collaborative</span>
+                  <span className="spec-model">{bestCollaborative?.model || "—"}</span>
+                  <div
+                    className="spec-bar collaborative"
+                    style={{ width: bestCollaborative ? `${bestCollaborative.win_rate * 100}%` : "0%" }}
+                  ></div>
+                  <span className="spec-score">
+                    {bestCollaborative ? `${(bestCollaborative.win_rate * 100).toFixed(0)}%` : "—"}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="insight-card insight-scale">
-            <div className="insight-label">Scale Effect</div>
-            <h3>Model Size Matters Most for Cooperative ToM</h3>
-            <div className="scale-comparison">
-              <div className="scale-item">
-                <div className="scale-bar-container">
-                  <div className="scale-bar large" style={{ height: "90%" }}></div>
-                </div>
-                <span className="scale-label">Large Models</span>
-                <span className="scale-value">13.5 avg</span>
-              </div>
-              <div className="scale-item">
-                <div className="scale-bar-container">
-                  <div className="scale-bar small" style={{ height: "25%" }}></div>
-                </div>
-                <span className="scale-label">Small Models</span>
-                <span className="scale-value">3.7 avg</span>
+            {/* Top Performers - Codenames */}
+            <div className="insight-card insight-top">
+              <div className="insight-label">Codenames Leaders</div>
+              <h3>Top Collaborative Performers</h3>
+              <div className="top-list">
+                {topCodenames.length > 0 ? (
+                  topCodenames.map((r, i) => (
+                    <div key={r.model} className="top-item">
+                      <span className="top-rank">#{i + 1}</span>
+                      <span className="top-model">{r.model}</span>
+                      <div className="top-bar-container">
+                        <div
+                          className="top-bar collaborative"
+                          style={{ width: `${r.win_rate * 100}%` }}
+                        ></div>
+                      </div>
+                      <span className="top-score">{(r.win_rate * 100).toFixed(0)}%</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="top-empty">No data yet</div>
+                )}
               </div>
             </div>
-            <div className="scale-note">+265% advantage in Hanabi</div>
-          </div>
 
-          <div className="insight-card insight-roles">
-            <div className="insight-label">Role Preference</div>
-            <h3>Cluer vs Guesser Performance</h3>
-            <div className="role-chart">
-              <div className="role-row">
-                <span className="role-model">Claude Opus 4.5</span>
-                <div className="role-bars">
-                  <div className="role-bar cluer" style={{ width: "76%" }}>
-                    <span>76%</span>
-                  </div>
-                  <div className="role-bar guesser" style={{ width: "48%" }}>
-                    <span>48%</span>
-                  </div>
-                </div>
-                <span className="role-pref">+19% Cluer</span>
-              </div>
-              <div className="role-row">
-                <span className="role-model">GPT-4o</span>
-                <div className="role-bars">
-                  <div className="role-bar cluer" style={{ width: "48%" }}>
-                    <span>48%</span>
-                  </div>
-                  <div className="role-bar guesser" style={{ width: "32%" }}>
-                    <span>32%</span>
-                  </div>
-                </div>
-                <span className="role-pref">+16% Cluer</span>
-              </div>
-              <div className="role-row">
-                <span className="role-model">Claude Haiku 4.5</span>
-                <div className="role-bars">
-                  <div className="role-bar cluer" style={{ width: "7%" }}>
-                    <span>7%</span>
-                  </div>
-                  <div className="role-bar guesser" style={{ width: "28%" }}>
-                    <span>28%</span>
-                  </div>
-                </div>
-                <span className="role-pref">+16% Guesser</span>
+            {/* Top Performers - Decrypto */}
+            <div className="insight-card insight-top">
+              <div className="insight-label">Decrypto Leaders</div>
+              <h3>Top Adversarial Performers</h3>
+              <div className="top-list">
+                {topDecrypto.length > 0 ? (
+                  topDecrypto.map((r, i) => (
+                    <div key={r.model} className="top-item">
+                      <span className="top-rank">#{i + 1}</span>
+                      <span className="top-model">{r.model}</span>
+                      <div className="top-bar-container">
+                        <div
+                          className="top-bar adversarial"
+                          style={{ width: `${r.win_rate * 100}%` }}
+                        ></div>
+                      </div>
+                      <span className="top-score">{(r.win_rate * 100).toFixed(0)}%</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="top-empty">No data yet</div>
+                )}
               </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Game Navigation Cards */}
       <section className="games-section">
