@@ -3556,3 +3556,45 @@ button.small {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Models list in peek modal */
+.models-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px;
+  background: var(--bg-inset);
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.model-item {
+  font-size: 11px;
+  display: flex;
+  gap: 6px;
+}
+
+.model-role {
+  color: var(--text-muted);
+  min-width: 80px;
+}
+
+.model-id {
+  color: var(--text-secondary);
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.no-peek-data {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.no-peek-data p {
+  margin: 0 0 8px 0;
+}
+
+.no-peek-data p:last-child {
+  margin-bottom: 0;
+}

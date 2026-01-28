@@ -446,7 +446,7 @@ class CloudBenchmarkRunner:
                 try:
                     start_time = time.time()
                     result = await self._run_single_codenames_game(
-                        matchup, cn_config, seed, game_idx
+                        matchup, cn_config, seed, game_idx, game_id
                     )
                     duration = time.time() - start_time
 
@@ -498,12 +498,23 @@ class CloudBenchmarkRunner:
         await asyncio.gather(*tasks)
 
     async def _run_single_codenames_game(
-        self, matchup, config: ExperimentConfig, seed: int, game_idx: int
+        self, matchup, config: ExperimentConfig, seed: int, game_idx: int, game_id: str
     ) -> BenchmarkResult:
         """Run a single Codenames game."""
         from src.benchmark.runner import run_single_game, _get_matchup_id
 
-        episode, metrics = await run_single_game(matchup, config.game_modes[0], seed, config)
+        # Emit function to update live game state
+        def emit_live_state(event_type: str, data: dict[str, Any]) -> None:
+            turn = data.get("turn")
+            self._update_live_game_state(
+                game_id=game_id,
+                current_turn=turn,
+                transcript_event={"type": event_type, **data},
+            )
+
+        episode, metrics = await run_single_game(
+            matchup, config.game_modes[0], seed, config, emit_fn=emit_live_state
+        )
 
         # Save episode
         episodes_dir = self._output_dir / "codenames" / "episodes"
@@ -591,7 +602,7 @@ class CloudBenchmarkRunner:
 
                 try:
                     start_time = time.time()
-                    result = await self._run_single_decrypto_game(matchup, seed, game_idx)
+                    result = await self._run_single_decrypto_game(matchup, seed, game_idx, game_id)
                     duration = time.time() - start_time
 
                     self.state.mark_completed("decrypto", matchup_id, seed, game_idx)
@@ -643,7 +654,7 @@ class CloudBenchmarkRunner:
         await asyncio.gather(*tasks)
 
     async def _run_single_decrypto_game(
-        self, matchup, seed: int, game_idx: int
+        self, matchup, seed: int, game_idx: int, game_id: str
     ) -> DecryptoBenchmarkResult:
         """Run a single Decrypto game."""
         from src.decrypto.benchmark_runner import run_single_game, _matchup_id
@@ -651,12 +662,22 @@ class CloudBenchmarkRunner:
         episodes_dir = self._output_dir / "decrypto" / "episodes"
         episodes_dir.mkdir(parents=True, exist_ok=True)
 
+        # Emit function to update live game state
+        def emit_live_state(event_type: str, data: dict[str, Any]) -> None:
+            turn = data.get("round")
+            self._update_live_game_state(
+                game_id=game_id,
+                current_turn=turn,
+                transcript_event={"type": event_type, **data},
+            )
+
         _episode, result = await run_single_game(
             matchup,
             seed=seed,
             game_index=game_idx,
             temperature=self.config.temperature,
             episodes_dir=episodes_dir,
+            emit_fn=emit_live_state,
         )
 
         return result
@@ -714,7 +735,7 @@ class CloudBenchmarkRunner:
 
                 try:
                     start_time = time.time()
-                    result = await self._run_single_hanabi_game(model, seed)
+                    result = await self._run_single_hanabi_game(model, seed, game_id)
                     duration = time.time() - start_time
 
                     self.state.mark_completed("hanabi", model_combo, seed)
@@ -766,7 +787,7 @@ class CloudBenchmarkRunner:
         await asyncio.gather(*tasks)
 
     async def _run_single_hanabi_game(
-        self, model: ModelConfig, seed: int
+        self, model: ModelConfig, seed: int, game_id: str
     ) -> dict[str, Any]:
         """Run a single Hanabi game."""
         # Create players
@@ -783,10 +804,20 @@ class CloudBenchmarkRunner:
         config = HanabiConfig(num_players=3, hand_size=5, seed=seed)
         agent_states = AgentStateManager()
 
+        # Emit function to update live game state
+        def emit_live_state(event_type: str, data: dict[str, Any]) -> None:
+            turn = data.get("turn_number") or data.get("turn")
+            self._update_live_game_state(
+                game_id=game_id,
+                current_turn=turn,
+                transcript_event={"type": event_type, **data},
+            )
+
         episode = await run_hanabi_episode(
             config=config,
             players=players,
             agent_states=agent_states,
+            emit_fn=emit_live_state,
             episode_id=f"hanabi_{model.name}_{seed:04d}",
             metadata={"model": model.model_id, "seed": seed},
         )

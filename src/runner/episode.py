@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 import json
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import BaseModel, Field
 
@@ -73,6 +73,7 @@ async def run_episode(
     blue_team: TeamAgents,
     max_turns: int = 50,
     max_discussion_rounds: int = 3,
+    emit_fn: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> ExtendedEpisodeRecord:
     """
     Run a complete Codenames episode.
@@ -83,12 +84,17 @@ async def run_episode(
         blue_team: Blue team's agents
         max_turns: Maximum turns before draw (safety limit)
         max_discussion_rounds: Max rounds per discussion phase
+        emit_fn: Optional callback for emitting events (event_type, data)
 
     Returns:
         ExtendedEpisodeRecord with full game data
     """
     episode_id = str(uuid.uuid4())[:8]
     start_time = datetime.utcnow()
+
+    def emit(event_type: str, data: dict[str, Any]) -> None:
+        if emit_fn:
+            emit_fn(event_type, data)
 
     # Initialize game
     state = create_game(config=config)
@@ -100,6 +106,8 @@ async def run_episode(
     # Determine if we should skip discussion (SINGLE_GUESSER mode)
     skip_discussion = config.mode == GameMode.SINGLE_GUESSER
 
+    emit("game_start", {"episode_id": episode_id, "mode": config.mode.value})
+
     # Game loop
     turn_count = 0
     while state.winner is None and turn_count < max_turns:
@@ -109,11 +117,22 @@ async def run_episode(
         team = state.current_turn
         team_agents = red_team if team == Team.RED else blue_team
 
+        emit("turn_start", {"turn": turn_count, "team": team.value})
+
         # Run turn with agent state manager
         state, turn_traces = await run_turn(
             team_agents, state, max_discussion_rounds, skip_discussion, agent_states
         )
         all_traces.append(turn_traces)
+
+        # Emit turn complete with clue and guesses
+        emit("turn_complete", {
+            "turn": turn_count,
+            "team": team.value,
+            "clue": turn_traces.clue.clue_word if turn_traces.clue else None,
+            "clue_count": turn_traces.clue.clue_count if turn_traces.clue else None,
+            "guesses": [g.guess for g in turn_traces.guesses] if turn_traces.guesses else [],
+        })
 
         # Check for game over
         if state.phase == Phase.GAME_OVER:
@@ -176,6 +195,7 @@ async def run_single_team_episode(
     real_team_color: Team = Team.RED,
     max_turns: int = 50,
     max_discussion_rounds: int = 3,
+    emit_fn: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> ExtendedEpisodeRecord:
     """
     Run a single-team episode against a PASS ghost.
@@ -189,6 +209,7 @@ async def run_single_team_episode(
         real_team_color: Which color the real team plays
         max_turns: Maximum turns before draw
         max_discussion_rounds: Max rounds per discussion
+        emit_fn: Optional callback for emitting events
 
     Returns:
         ExtendedEpisodeRecord
@@ -211,4 +232,5 @@ async def run_single_team_episode(
         blue_team=blue_team,
         max_turns=max_turns,
         max_discussion_rounds=max_discussion_rounds,
+        emit_fn=emit_fn,
     )

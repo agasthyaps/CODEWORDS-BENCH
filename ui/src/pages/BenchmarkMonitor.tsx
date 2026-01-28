@@ -697,15 +697,34 @@ export default function BenchmarkMonitor({ models }: Props) {
             <div className="modal-body">
               {selectedGamePeek.stale_warning && (
                 <div className="stale-warning">
-                  ⚠️ Game state is stale (no updates for &gt;60s). The game may be hung.
+                  ⚠️ Game running for &gt;5 minutes without updates. Consider restarting if stuck.
                 </div>
               )}
 
               <div className="peek-info-row">
                 <span><strong>Duration:</strong> {formatDuration(selectedGamePeek.duration_seconds)}</span>
-                <span><strong>Turn:</strong> {selectedGamePeek.current_turn ?? "Unknown"}</span>
-                <span><strong>Last Update:</strong> {new Date(selectedGamePeek.last_update).toLocaleTimeString()}</span>
+                <span><strong>Turn:</strong> {selectedGamePeek.current_turn ?? "N/A"}</span>
+                <span><strong>Seed:</strong> {runningGames.find(g => g.game_id === selectedGamePeek.game_id)?.seed ?? "N/A"}</span>
               </div>
+
+              {/* Show models involved */}
+              {(() => {
+                const game = runningGames.find(g => g.game_id === selectedGamePeek.game_id);
+                if (!game?.models) return null;
+                return (
+                  <div className="peek-section">
+                    <h4>Models</h4>
+                    <div className="models-list">
+                      {Object.entries(game.models).map(([role, model]) => (
+                        <div key={role} className="model-item">
+                          <span className="model-role">{role}:</span>
+                          <span className="model-id">{model}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {selectedGamePeek.recent_transcript.length > 0 && (
                 <div className="peek-section">
@@ -735,8 +754,8 @@ export default function BenchmarkMonitor({ models }: Props) {
               {selectedGamePeek.recent_transcript.length === 0 &&
                Object.keys(selectedGamePeek.agent_scratchpads).length === 0 && (
                 <div className="no-peek-data">
-                  No live state captured yet. The game may have just started or isn't
-                  streaming live updates.
+                  <p>Live state streaming is not yet implemented for cloud benchmark games.</p>
+                  <p>The game is running - use <strong>Restart</strong> if it appears stuck (running &gt; 10 min).</p>
                 </div>
               )}
             </div>

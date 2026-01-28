@@ -1583,8 +1583,12 @@ def peek_game(game_id: str) -> GamePeekResponse:
     now = datetime.utcnow()
     duration = (now - game_info.started_at).total_seconds()
 
-    if live_state:
-        stale_warning = (now - live_state.last_update).total_seconds() > 60
+    # Stale threshold: 5 minutes (games can legitimately take a while per turn)
+    stale_threshold_seconds = 300
+
+    if live_state and (live_state.recent_transcript or live_state.agent_scratchpads):
+        # We have actual live state data
+        stale_warning = (now - live_state.last_update).total_seconds() > stale_threshold_seconds
         return GamePeekResponse(
             game_id=game_id,
             game_type=game_info.game_type,
@@ -1597,17 +1601,18 @@ def peek_game(game_id: str) -> GamePeekResponse:
             stale_warning=stale_warning,
         )
     else:
-        # No live state yet
+        # No live state captured - show stale warning only if running > 5 min
+        stale_warning = duration > stale_threshold_seconds
         return GamePeekResponse(
             game_id=game_id,
             game_type=game_info.game_type,
-            current_turn=None,
+            current_turn=game_info.current_turn,
             recent_transcript=[],
             agent_scratchpads={},
             started_at=game_info.started_at.isoformat(),
             duration_seconds=duration,
             last_update=game_info.started_at.isoformat(),
-            stale_warning=True,
+            stale_warning=stale_warning,
         )
 
 

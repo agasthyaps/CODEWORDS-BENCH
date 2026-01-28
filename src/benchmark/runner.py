@@ -177,6 +177,7 @@ async def run_single_game(
     mode: GameMode,
     seed: int,
     config: ExperimentConfig,
+    emit_fn: Any | None = None,
 ) -> tuple[ExtendedEpisodeRecord, EpisodeMetrics]:
     """Run a single benchmark game."""
     game_config = GameConfig.for_mode(mode, seed=seed)
@@ -200,6 +201,7 @@ async def run_single_game(
         blue_team=blue_team,
         max_turns=config.max_turns,
         max_discussion_rounds=config.max_discussion_rounds,
+        emit_fn=emit_fn,
     )
 
     metrics = compute_episode_metrics(episode)

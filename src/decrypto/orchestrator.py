@@ -214,6 +214,7 @@ async def run_episode(
     episode_id: str,
     timestamp: datetime | None = None,
     metadata: dict[str, Any] | None = None,
+    emit_fn: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> DecryptoEpisodeRecord:
     """
     Run a full Decrypto episode using strict snapshot semantics.
@@ -222,8 +223,14 @@ async def run_episode(
     counters = initial_counters()
     history: list[RoundLog] = []
 
+    def emit(event_type: str, data: dict[str, Any]) -> None:
+        if emit_fn:
+            emit_fn(event_type, data)
+
     winner: TeamKey | None = None
     reason: str | None = None
+
+    emit("game_start", {"episode_id": episode_id, "max_rounds": config.max_rounds})
 
     for r in range(1, config.max_rounds + 1):
         # Pre-generated codes per team for determinism.
@@ -258,6 +265,15 @@ async def run_episode(
         )
 
         history.append(round_log)
+
+        # Emit round complete event
+        emit("round_complete", {
+            "round": r,
+            "red_intercepts": counters["red"]["intercepts"],
+            "red_miscommunications": counters["red"]["miscommunications"],
+            "blue_intercepts": counters["blue"]["intercepts"],
+            "blue_miscommunications": counters["blue"]["miscommunications"],
+        })
 
         # Terminal check after single reveal/update.
         w2, reason2 = check_winner(counters, round_number=r, max_rounds=config.max_rounds)

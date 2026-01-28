@@ -120,6 +120,7 @@ async def run_single_game(
     game_index: int,
     temperature: float,
     episodes_dir: Path,
+    emit_fn: Any | None = None,
 ) -> tuple[DecryptoEpisodeRecord, DecryptoBenchmarkResult]:
     decrypto_config = DecryptoConfig(max_rounds=8, seed=seed)
     game_id, actual_seed, keys, code_sequences = create_game(decrypto_config)
@@ -163,6 +164,7 @@ async def run_single_game(
         episode_id=f"{seed:04d}-{game_index:02d}-{game_id}",
         timestamp=datetime.utcnow(),
         metadata=metadata,
+        emit_fn=emit_fn,
     )
     duration = time.time() - start
 
