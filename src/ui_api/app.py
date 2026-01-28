@@ -12,7 +12,7 @@ from typing import Any, AsyncGenerator, Literal
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
@@ -1345,6 +1345,58 @@ def pause_benchmark() -> dict[str, str]:
 
     _benchmark_runner.request_pause()
     return {"status": "pause_requested"}
+
+
+@app.post("/benchmark/cancel")
+async def cancel_benchmark() -> dict[str, str]:
+    """Cancel the running benchmark immediately."""
+    global _benchmark_runner, _benchmark_task
+
+    if not _benchmark_runner or not _benchmark_task:
+        raise HTTPException(404, "No benchmark running")
+
+    # Request pause to stop workers
+    _benchmark_runner.request_pause()
+
+    # Cancel the task
+    if not _benchmark_task.done():
+        _benchmark_task.cancel()
+        try:
+            await _benchmark_task
+        except asyncio.CancelledError:
+            pass
+
+    # Update state
+    _benchmark_runner.state.status = "cancelled"
+    _benchmark_runner.state.save()
+
+    return {"status": "cancelled"}
+
+
+@app.get("/benchmark/download/{experiment_name}")
+async def download_benchmark_results(experiment_name: str) -> FileResponse:
+    """Download benchmark results as a zip file."""
+    import shutil
+    import tempfile
+    from src.cloud_benchmark.config import get_data_dir
+
+    data_dir = get_data_dir()
+    exp_dir = data_dir / experiment_name
+
+    if not exp_dir.exists():
+        raise HTTPException(404, f"Experiment not found: {experiment_name}")
+
+    # Create temp zip file
+    temp_dir = tempfile.mkdtemp()
+    zip_base = Path(temp_dir) / experiment_name
+    zip_path = shutil.make_archive(str(zip_base), "zip", exp_dir)
+
+    return FileResponse(
+        path=zip_path,
+        media_type="application/zip",
+        filename=f"{experiment_name}.zip",
+        background=BackgroundTasks(),  # Clean up happens after response
+    )
 
 
 @app.get("/benchmark/findings")

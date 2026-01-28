@@ -153,3 +153,14 @@ export async function fetchExperiments() {
   if (!res.ok) throw new Error("Failed to get experiments");
   return res.json();
 }
+
+export async function cancelBenchmark() {
+  const res = await fetch(`${API_BASE}/benchmark/cancel`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to cancel benchmark");
+  return res.json();
+}
+
+export function downloadBenchmarkResults(experimentName: string) {
+  // Direct download via browser
+  window.location.href = `${API_BASE}/benchmark/download/${experimentName}`;
+}

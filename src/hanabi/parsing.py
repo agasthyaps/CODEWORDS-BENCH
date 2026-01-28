@@ -249,8 +249,12 @@ Respond with ONLY the JSON object."""
 def fallback_action(hint_tokens: int, hand_size: int) -> Action:
     """
     Generate a safe fallback action when parsing fails.
-    
-    Strategy: If hints available, discard oldest card. Otherwise play oldest.
+
+    PARSE_FAILURE fallback strategy:
+    - If hints available (tokens < 8), discard oldest card (safest option)
+    - If no discards possible (tokens = 8), play oldest card (risky but necessary)
+
+    Discarding oldest is generally safe and regains a hint token.
     """
     if hint_tokens < 8:  # Can discard
         return DiscardAction(card_position=0)

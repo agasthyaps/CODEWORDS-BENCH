@@ -31,7 +31,7 @@ class BenchmarkState(BaseModel):
     """
 
     experiment_name: str
-    status: Literal["running", "paused", "complete", "error"] = "running"
+    status: Literal["running", "paused", "complete", "error", "cancelled"] = "running"
     started_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

@@ -2720,6 +2720,95 @@ button.small {
   filter: brightness(0.9);
 }
 
+.benchmark-action .cancel-btn {
+  background: var(--error);
+}
+
+.benchmark-action .cancel-btn:hover {
+  background: var(--error);
+  filter: brightness(0.9);
+}
+
+.benchmark-action .action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.benchmark-action .action-buttons button {
+  flex: 1;
+}
+
+.resume-btn {
+  width: 100%;
+  padding: 10px 16px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--success);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.resume-btn:hover {
+  background: var(--success);
+  filter: brightness(0.9);
+}
+
+.download-btn {
+  width: 100%;
+  padding: 10px 16px;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.download-btn:hover {
+  background: var(--bg-hover);
+}
+
+.exp-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.exp-download-btn,
+.exp-resume-btn {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.exp-download-btn:hover,
+.exp-resume-btn:hover {
+  background: var(--bg-hover);
+}
+
+.exp-resume-btn {
+  background: var(--success-bg);
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.exp-resume-btn:hover {
+  background: var(--success);
+  color: white;
+}
+
 /* Status Badge */
 .status-badge {
   font-size: 10px;
@@ -2747,6 +2836,11 @@ button.small {
 }
 
 .status-badge.error {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
+.status-badge.cancelled {
   background: var(--error-bg);
   color: var(--error);
 }

@@ -6,6 +6,8 @@ import {
   fetchExperiments,
   startBenchmark,
   pauseBenchmark,
+  cancelBenchmark,
+  downloadBenchmarkResults,
   openEventStream,
 } from "../api";
 import { ModelInfo } from "../types";
@@ -15,7 +17,7 @@ type Props = {
 };
 
 type BenchmarkStatus = {
-  status: "idle" | "running" | "paused" | "complete" | "error";
+  status: "idle" | "running" | "paused" | "complete" | "error" | "cancelled";
   experiment_name?: string;
   started_at?: string;
   codenames?: GameTypeProgress;
@@ -103,14 +105,27 @@ export default function BenchmarkMonitor({ models }: Props) {
       .catch(console.error);
   }, []);
 
-  // Load findings when status changes
+  // Poll findings while running or when status changes
   useEffect(() => {
-    if (status.status !== "idle") {
-      fetchBenchmarkFindings()
-        .then(setFindings)
-        .catch(console.error);
+    if (status.status === "idle") {
+      return;
     }
-  }, [status.findings_count, status.status]);
+
+    // Initial load
+    fetchBenchmarkFindings()
+      .then(setFindings)
+      .catch(console.error);
+
+    // Poll findings every 10 seconds while running
+    if (status.status === "running") {
+      const interval = setInterval(() => {
+        fetchBenchmarkFindings()
+          .then(setFindings)
+          .catch(console.error);
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [status.status]);
 
   // Generate experiment name
   useEffect(() => {
@@ -190,6 +205,52 @@ export default function BenchmarkMonitor({ models }: Props) {
   const handlePause = async () => {
     try {
       await pauseBenchmark();
+      const newStatus = await fetchBenchmarkStatus();
+      setStatus(newStatus);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!confirm("Are you sure you want to cancel the benchmark? This cannot be undone.")) {
+      return;
+    }
+    try {
+      await cancelBenchmark();
+      const newStatus = await fetchBenchmarkStatus();
+      setStatus(newStatus);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const handleDownload = () => {
+    if (status.experiment_name) {
+      downloadBenchmarkResults(status.experiment_name);
+    }
+  };
+
+  const handleResume = async () => {
+    if (!status.experiment_name) return;
+
+    setError(null);
+    try {
+      // Resume by calling start with the same experiment name
+      // The backend will load existing state and continue from where it left off
+      await startBenchmark({
+        experiment_name: status.experiment_name,
+        model_ids: selectedModels.length >= 2 ? selectedModels : [], // Will use existing config
+        seed_count: seedCount,
+        run_codenames: runCodenames,
+        run_decrypto: runDecrypto,
+        run_hanabi: runHanabi,
+        codenames_concurrency: codenamesConcurrency,
+        decrypto_concurrency: decryptoConcurrency,
+        hanabi_concurrency: hanabiConcurrency,
+        interim_analysis_batch_size: analysisBatchSize,
+      });
+
       const newStatus = await fetchBenchmarkStatus();
       setStatus(newStatus);
     } catch (e) {
@@ -354,9 +415,14 @@ export default function BenchmarkMonitor({ models }: Props) {
 
           <div className="benchmark-action">
             {isRunning ? (
-              <button onClick={handlePause} className="pause-btn">
-                Pause Benchmark
-              </button>
+              <div className="action-buttons">
+                <button onClick={handlePause} className="pause-btn">
+                  Pause
+                </button>
+                <button onClick={handleCancel} className="cancel-btn">
+                  Cancel
+                </button>
+              </div>
             ) : (
               <button onClick={handleStart} disabled={!canStart}>
                 Start Benchmark ({totalGames} games)
@@ -405,6 +471,18 @@ export default function BenchmarkMonitor({ models }: Props) {
             <div className="error-banner">
               Last error: {status.last_error}
             </div>
+          )}
+
+          {status.experiment_name && (status.status === "paused" || status.status === "cancelled") && (
+            <button onClick={handleResume} className="resume-btn">
+              Continue Benchmark
+            </button>
+          )}
+
+          {status.experiment_name && (status.status === "complete" || status.status === "paused" || status.status === "cancelled" || status.status === "error") && (
+            <button onClick={handleDownload} className="download-btn">
+              Download Results
+            </button>
           )}
         </div>
 
@@ -491,6 +569,34 @@ export default function BenchmarkMonitor({ models }: Props) {
                 {exp.findings_count > 0 && (
                   <span className="exp-findings">{exp.findings_count} findings</span>
                 )}
+                <div className="exp-actions">
+                  {(exp.status === "paused" || exp.status === "cancelled") && (
+                    <button
+                      className="exp-resume-btn"
+                      onClick={() => {
+                        setExperimentName(exp.experiment_name);
+                        // Trigger resume with this experiment
+                        startBenchmark({
+                          experiment_name: exp.experiment_name,
+                          model_ids: selectedModels,
+                          seed_count: seedCount,
+                          run_codenames: runCodenames,
+                          run_decrypto: runDecrypto,
+                          run_hanabi: runHanabi,
+                        }).then(() => fetchBenchmarkStatus().then(setStatus))
+                          .catch((e) => setError(String(e)));
+                      }}
+                    >
+                      Resume
+                    </button>
+                  )}
+                  <button
+                    className="exp-download-btn"
+                    onClick={() => downloadBenchmarkResults(exp.experiment_name)}
+                  >
+                    Download
+                  </button>
+                </div>
               </div>
             ))}
           </div>

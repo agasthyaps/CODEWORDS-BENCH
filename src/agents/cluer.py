@@ -51,41 +51,82 @@ def parse_clue_response(response: str) -> ParsedClue | None:
     - Brackets around values
     - Trailing punctuation
     - UNLIMITED keyword -> -1
+    - Markdown code blocks
+    - Various separators (: or =)
+    - Fallback patterns for less structured responses
     """
-    # Extract CLUE
+    # Strip markdown code blocks if present
+    cleaned = re.sub(r"```\w*\n?", "", response)
+    cleaned = cleaned.strip()
+
+    word: str | None = None
+    number: int | None = None
+
+    # Try primary format: CLUE: [word]
     clue_match = re.search(
-        r"CLUE\s*:\s*\[?\s*([A-Za-z]+)\s*\]?",
-        response,
+        r"CLUE\s*[:=]\s*\[?\s*([A-Za-z][A-Za-z0-9]*)\s*\]?",
+        cleaned,
         re.IGNORECASE
     )
-    if not clue_match:
-        return None
+    if clue_match:
+        word = clue_match.group(1).upper().strip()
 
-    word = clue_match.group(1).upper().strip()
-
-    # Extract NUMBER
+    # Try primary format: NUMBER: [number]
     number_match = re.search(
-        r"NUMBER\s*:\s*\[?\s*(UNLIMITED|\d+)\s*\]?",
-        response,
+        r"NUMBER\s*[:=]\s*\[?\s*(UNLIMITED|\d+)\s*\]?",
+        cleaned,
         re.IGNORECASE
     )
-    if not number_match:
-        return None
+    if number_match:
+        number_str = number_match.group(1).upper().strip()
+        if number_str == "UNLIMITED":
+            number = -1
+        else:
+            try:
+                number = int(number_str)
+            except ValueError:
+                pass
 
-    number_str = number_match.group(1).upper().strip()
-    if number_str == "UNLIMITED":
-        number = -1
-    else:
-        try:
-            number = int(number_str)
-        except ValueError:
-            return None
+    # Fallback: try to find "clue is X" or "my clue: X" patterns
+    if word is None:
+        fallback_clue = re.search(
+            r"(?:my\s+)?clue(?:\s+is)?[:=\s]+\*?\*?([A-Za-z][A-Za-z0-9]*)\*?\*?",
+            cleaned,
+            re.IGNORECASE
+        )
+        if fallback_clue:
+            word = fallback_clue.group(1).upper().strip()
+
+    # Fallback: look for a standalone uppercase word that looks like a clue
+    # (all caps word of 3+ letters, not common words)
+    if word is None:
+        # Look for **WORD** or *WORD* markdown emphasis
+        emphasis_match = re.search(r"\*\*([A-Z][A-Z0-9]+)\*\*", cleaned)
+        if emphasis_match and len(emphasis_match.group(1)) >= 3:
+            word = emphasis_match.group(1).upper()
+
+    # Fallback for number: look for "for X words" or "number is X"
+    if number is None:
+        fallback_num = re.search(
+            r"(?:for|number\s+is|count[:=]?)\s*(\d+)",
+            cleaned,
+            re.IGNORECASE
+        )
+        if fallback_num:
+            try:
+                number = int(fallback_num.group(1))
+            except ValueError:
+                pass
+
+    # If we still don't have both, fail
+    if word is None or number is None:
+        return None
 
     # Extract PREDICTED_SUCCESS (optional, 0.0-1.0)
     predicted_success: float | None = None
     success_match = re.search(
-        r"PREDICTED_SUCCESS\s*:\s*\[?\s*([\d.]+)\s*\]?",
-        response,
+        r"PREDICTED_SUCCESS\s*[:=]\s*\[?\s*([\d.]+)\s*\]?",
+        cleaned,
         re.IGNORECASE
     )
     if success_match:
@@ -99,8 +140,8 @@ def parse_clue_response(response: str) -> ParsedClue | None:
     # Extract PREDICTED_GUESSES (optional, comma-separated words)
     predicted_guesses: list[str] | None = None
     guesses_match = re.search(
-        r"PREDICTED_GUESSES\s*:\s*\[?\s*([A-Za-z,\s]+)\s*\]?",
-        response,
+        r"PREDICTED_GUESSES\s*[:=]\s*\[?\s*([A-Za-z,\s]+)\s*\]?",
+        cleaned,
         re.IGNORECASE
     )
     if guesses_match:
@@ -112,8 +153,8 @@ def parse_clue_response(response: str) -> ParsedClue | None:
 
     # Extract REASONING (optional, everything after REASONING:)
     reasoning_match = re.search(
-        r"REASONING\s*:\s*(.+?)(?:SCRATCHPAD|$)",
-        response,
+        r"REASONING\s*[:=]\s*(.+?)(?:SCRATCHPAD|$)",
+        cleaned,
         re.IGNORECASE | re.DOTALL
     )
     reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
@@ -246,7 +287,7 @@ class CluerAgent:
         self,
         state: GameState,
         scratchpad_content: str = "",
-    ) -> tuple[Clue, AgentTrace, str | None]:
+    ) -> tuple[Clue | None, AgentTrace, str | None]:
         """
         Generate a clue for the current game state.
 
@@ -296,10 +337,20 @@ class CluerAgent:
             parsed = parse_clue_response(response.content)
 
             if parsed is None:
-                error = "Could not parse clue from response. Please use the exact format: CLUE: [word], NUMBER: [number], REASONING: [text]"
+                error = "Could not parse clue from response."
                 validation_errors.append(error)
                 messages.append({"role": "assistant", "content": response.content})
-                messages.append({"role": "user", "content": f"Error: {error}\n\nPlease try again."})
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "I couldn't find your clue. Please respond with this exact format:\n\n"
+                        "CLUE: YOURWORD\n"
+                        "NUMBER: 2\n"
+                        "REASONING: Your explanation here\n\n"
+                        "Make sure CLUE is a single word (letters only, no spaces or hyphens) "
+                        "and NUMBER is a digit (0-9) or UNLIMITED."
+                    )
+                })
                 retry_count += 1
                 continue
 
@@ -348,14 +399,14 @@ class CluerAgent:
 
             return clue, trace, scratchpad_addition
 
-        # Max retries exceeded
+        # Max retries exceeded - pass the turn instead of crashing
         trace = AgentTrace(
             agent_id=self.config.agent_id,
             turn_number=state.turn_number,
             prompt_sent=f"SYSTEM:\n{system_prompt}\n\nUSER:\n{user_prompt}",
             raw_response="\n---\n".join(all_responses),
-            parsed_result=None,
-            validation_errors=validation_errors,
+            parsed_result={"fallback": "pass", "reason": "Could not parse clue after retries"},
+            validation_errors=validation_errors + [f"FALLBACK: Passing turn after {retry_count} parse failures"],
             retry_count=retry_count,
             model=self.config.model,
             temperature=self.config.temperature,
@@ -364,7 +415,5 @@ class CluerAgent:
             output_tokens=total_output_tokens,
         )
 
-        raise RuntimeError(
-            f"Failed to generate valid clue after {self.config.max_retries} retries. "
-            f"Errors: {validation_errors}"
-        )
+        # Return None for clue to signal a pass
+        return None, trace, scratchpad_addition

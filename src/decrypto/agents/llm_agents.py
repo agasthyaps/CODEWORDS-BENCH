@@ -231,8 +231,11 @@ class DecryptoCluerLLM:
         if clueset2 is not None:
             return clueset2, {"reasoning": obj2.get("reasoning", "")}, scratchpad_addition
 
-        # Failure: return placeholder clues
-        return ClueSet(clues=("CLUEA", "CLUEB", "CLUEC")), {}, scratchpad_addition
+        # Failure: return fallback clues that hint at positions (best we can do)
+        # Using ordinal words gives teammates a slim chance if they catch on
+        return ClueSet(clues=("FIRST", "SECOND", "THIRD")), {
+            "reasoning": "PARSE_FAILURE: Could not parse clue response, using positional fallback"
+        }, scratchpad_addition
 
 
 @dataclass(frozen=True)
@@ -344,12 +347,12 @@ class DecryptoGuesserLLM:
                 parse_retry_used=True,
             ), scratchpad_addition
 
-        # Final fallback
+        # Final fallback - use default guess with 0 confidence to signal parse failure
         return GuesserIndependent(
             agent_id=self.agent_id,
             guess=(1, 2, 3),
             confidence=0.0,
-            rationale="",
+            rationale="PARSE_FAILURE: Could not parse guess response",
             parse_ok=False,
             parse_error="retry_parse_failed",
             parse_retry_used=True,

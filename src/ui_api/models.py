@@ -148,7 +148,7 @@ class GameTypeProgressResponse(BaseModel):
 class BenchmarkStatusResponse(BaseModel):
     """Response for benchmark status."""
 
-    status: Literal["idle", "running", "paused", "complete", "error"]
+    status: Literal["idle", "running", "paused", "complete", "error", "cancelled"]
     experiment_name: str | None = None
     started_at: str | None = None
     codenames: GameTypeProgressResponse | None = None
