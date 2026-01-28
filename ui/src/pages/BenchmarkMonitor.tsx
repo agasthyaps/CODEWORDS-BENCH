@@ -80,6 +80,7 @@ export default function BenchmarkMonitor({ models }: Props) {
   const [findings, setFindings] = useState<FindingSummary[]>([]);
   const [selectedFinding, setSelectedFinding] = useState<FindingDetail | null>(null);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [expandedExperiment, setExpandedExperiment] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Polling status
@@ -555,48 +556,83 @@ export default function BenchmarkMonitor({ models }: Props) {
       )}
 
       {/* Previous Experiments */}
-      {experiments.length > 0 && status.status === "idle" && (
+      {experiments.length > 0 && (
         <div className="panel previous-experiments">
           <h3>Previous Experiments</h3>
           <div className="experiments-list">
             {experiments.map((exp) => (
-              <div key={exp.experiment_name} className="experiment-item">
-                <span className="exp-name">{exp.experiment_name}</span>
-                <span className={`exp-status ${exp.status}`}>{exp.status}</span>
-                <span className="exp-stats">
-                  {exp.total_completed} completed, {exp.total_failed} failed
-                </span>
-                {exp.findings_count > 0 && (
-                  <span className="exp-findings">{exp.findings_count} findings</span>
-                )}
-                <div className="exp-actions">
-                  {(exp.status === "paused" || exp.status === "cancelled") && (
-                    <button
-                      className="exp-resume-btn"
-                      onClick={() => {
-                        setExperimentName(exp.experiment_name);
-                        // Trigger resume with this experiment
-                        startBenchmark({
-                          experiment_name: exp.experiment_name,
-                          model_ids: selectedModels,
-                          seed_count: seedCount,
-                          run_codenames: runCodenames,
-                          run_decrypto: runDecrypto,
-                          run_hanabi: runHanabi,
-                        }).then(() => fetchBenchmarkStatus().then(setStatus))
-                          .catch((e) => setError(String(e)));
-                      }}
-                    >
-                      Resume
-                    </button>
+              <div
+                key={exp.experiment_name}
+                className={`experiment-item ${expandedExperiment === exp.experiment_name ? "expanded" : ""}`}
+              >
+                <div
+                  className="experiment-header"
+                  onClick={() => setExpandedExperiment(
+                    expandedExperiment === exp.experiment_name ? null : exp.experiment_name
                   )}
-                  <button
-                    className="exp-download-btn"
-                    onClick={() => downloadBenchmarkResults(exp.experiment_name)}
-                  >
-                    Download
-                  </button>
+                >
+                  <span className="exp-expand">{expandedExperiment === exp.experiment_name ? "▼" : "▶"}</span>
+                  <span className="exp-name">{exp.experiment_name}</span>
+                  <span className={`exp-status ${exp.status}`}>{exp.status}</span>
+                  <span className="exp-stats">
+                    {exp.total_completed} completed, {exp.total_failed} failed
+                  </span>
+                  {exp.findings_count > 0 && (
+                    <span className="exp-findings">{exp.findings_count} findings</span>
+                  )}
                 </div>
+
+                {expandedExperiment === exp.experiment_name && (
+                  <div className="experiment-details">
+                    <div className="exp-detail-row">
+                      <span className="exp-detail-label">Started:</span>
+                      <span>{exp.started_at ? new Date(exp.started_at).toLocaleString() : "Unknown"}</span>
+                    </div>
+                    <div className="exp-detail-row">
+                      <span className="exp-detail-label">Games:</span>
+                      <span>{exp.total_completed} completed, {exp.total_failed} failed</span>
+                    </div>
+                    <div className="exp-detail-row">
+                      <span className="exp-detail-label">Findings:</span>
+                      <span>{exp.findings_count} analysis reports</span>
+                    </div>
+
+                    <div className="exp-actions-row">
+                      {(exp.status === "paused" || exp.status === "cancelled" || exp.status === "running") && (
+                        <button
+                          className="exp-action-btn resume"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExperimentName(exp.experiment_name);
+                            startBenchmark({
+                              experiment_name: exp.experiment_name,
+                              model_ids: selectedModels.length >= 2 ? selectedModels : [],
+                              seed_count: seedCount,
+                              run_codenames: runCodenames,
+                              run_decrypto: runDecrypto,
+                              run_hanabi: runHanabi,
+                            }).then(() => {
+                              fetchBenchmarkStatus().then(setStatus);
+                              fetchExperiments().then(setExperiments);
+                            }).catch((e) => setError(String(e)));
+                          }}
+                          disabled={isRunning}
+                        >
+                          {exp.status === "running" ? "Reconnect" : "Resume"}
+                        </button>
+                      )}
+                      <button
+                        className="exp-action-btn download"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          downloadBenchmarkResults(exp.experiment_name);
+                        }}
+                      >
+                        Download Results
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

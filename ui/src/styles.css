@@ -2775,40 +2775,6 @@ button.small {
   background: var(--bg-hover);
 }
 
-.exp-actions {
-  display: flex;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.exp-download-btn,
-.exp-resume-btn {
-  padding: 4px 8px;
-  font-size: 11px;
-  background: var(--bg-elevated);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.exp-download-btn:hover,
-.exp-resume-btn:hover {
-  background: var(--bg-hover);
-}
-
-.exp-resume-btn {
-  background: var(--success-bg);
-  color: var(--success);
-  border-color: var(--success);
-}
-
-.exp-resume-btn:hover {
-  background: var(--success);
-  color: white;
-}
-
 /* Status Badge */
 .status-badge {
   font-size: 10px;
@@ -3097,13 +3063,35 @@ button.small {
 }
 
 .experiment-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
   background: var(--bg-elevated);
   border-radius: 6px;
   font-size: 12px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  transition: border-color 0.15s ease;
+}
+
+.experiment-item.expanded {
+  border-color: var(--border);
+}
+
+.experiment-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.experiment-header:hover {
+  background: var(--bg-hover);
+}
+
+.exp-expand {
+  color: var(--text-muted);
+  font-size: 10px;
+  width: 12px;
 }
 
 .exp-name {
@@ -3130,9 +3118,83 @@ button.small {
   color: var(--warning);
 }
 
+.exp-status.running {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.exp-status.cancelled,
+.exp-status.error {
+  background: var(--error-bg);
+  color: var(--error);
+}
+
 .exp-stats {
   color: var(--text-secondary);
   margin-left: auto;
+}
+
+.exp-findings {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.experiment-details {
+  padding: 12px 16px 16px 36px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-inset);
+}
+
+.exp-detail-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.exp-detail-label {
+  color: var(--text-muted);
+  min-width: 80px;
+}
+
+.exp-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.exp-action-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.exp-action-btn.resume {
+  background: var(--success);
+  color: white;
+}
+
+.exp-action-btn.resume:hover:not(:disabled) {
+  filter: brightness(0.9);
+}
+
+.exp-action-btn.resume:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.exp-action-btn.download {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.exp-action-btn.download:hover {
+  background: var(--bg-hover);
 }
 
 .exp-findings {
