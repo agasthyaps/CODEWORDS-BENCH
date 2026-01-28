@@ -78,19 +78,30 @@ class BenchmarkState(BaseModel):
     @classmethod
     def load_or_create(
         cls, config: CloudBenchmarkConfig
-    ) -> "BenchmarkState":
-        """Load existing state or create new one."""
+    ) -> tuple["BenchmarkState", CloudBenchmarkConfig]:
+        """
+        Load existing state or create new one.
+
+        When resuming, if the request has empty model_ids, use saved config.
+        Returns both the state and the (possibly updated) config to use.
+        """
         existing = cls.load(config.experiment_name)
         if existing:
-            # Validate config compatibility
-            if existing.config_snapshot:
-                # Basic check - model_ids should match
-                if existing.config_snapshot.get("model_ids") != config.model_ids:
+            # If resuming with empty model_ids, use the saved config
+            if existing.config_snapshot and not config.model_ids:
+                # Restore config from snapshot
+                saved_config = CloudBenchmarkConfig.model_validate(existing.config_snapshot)
+                return existing, saved_config
+
+            # Validate config compatibility if model_ids provided
+            if existing.config_snapshot and config.model_ids:
+                saved_model_ids = existing.config_snapshot.get("model_ids", [])
+                if saved_model_ids != config.model_ids:
                     raise ValueError(
                         "Cannot resume: model_ids changed. "
                         "Use a new experiment name or delete the existing state."
                     )
-            return existing
+            return existing, config
 
         # Create new state
         state = cls(
@@ -99,7 +110,7 @@ class BenchmarkState(BaseModel):
         )
 
         # Initialize progress totals (will be set by runner)
-        return state
+        return state, config
 
     def save(self) -> None:
         """Save state atomically using temp file + rename."""

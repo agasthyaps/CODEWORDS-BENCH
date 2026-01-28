@@ -51,8 +51,8 @@ class CloudBenchmarkRunner:
     """
 
     def __init__(self, config: CloudBenchmarkConfig):
-        self.config = config
-        self.state = BenchmarkState.load_or_create(config)
+        # load_or_create may return updated config (from saved snapshot when resuming)
+        self.state, self.config = BenchmarkState.load_or_create(config)
         self._pause_requested = False
         self._event_queue: asyncio.Queue[BenchmarkEvent] = asyncio.Queue()
         self._start_time: float | None = None
