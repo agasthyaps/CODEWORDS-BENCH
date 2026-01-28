@@ -61,12 +61,17 @@ export default function Home({ onNavigate }: Props) {
     <div className="page home-page">
       {/* Hero Section */}
       <section className="home-hero">
-        <h1>MindGames</h1>
-        <p className="tagline">Measuring how models think about each other</p>
-        <p className="subtitle">
-          A research platform for evaluating Theory of Mind and multi-agent
-          coordination through cooperative and competitive games.
-        </p>
+        <div className="hero-content">
+          <h1>MindGames</h1>
+          <p className="tagline">Measuring how models think about each other</p>
+          <p className="subtitle">
+            Evaluating Theory of Mind through cooperative and competitive games—how
+            well do language models reason about beliefs, knowledge, and intentions?
+          </p>
+        </div>
+        <div className="hero-meta">
+          <span className="version-tag">v1.0</span>
+        </div>
       </section>
 
       {/* Leaderboard Section */}

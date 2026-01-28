@@ -17,7 +17,8 @@ def _repo_root() -> Path:
 
 
 def _base_dir() -> Path:
-    return _repo_root() / "ui_sessions"
+    """Base directory for UI sessions - stored in benchmark_results for persistence."""
+    return _repo_root() / "benchmark_results" / "sessions"
 
 
 def _game_dir(game_type: GameType) -> Path:

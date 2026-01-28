@@ -76,14 +76,14 @@ class LeaderboardData(BaseModel):
     hanabi_rankings: list[HanabiRanking]
 
 
-def _ui_sessions_dir() -> Path:
-    """Get the ui_sessions directory."""
-    return Path(__file__).resolve().parents[2] / "ui_sessions"
-
-
 def _benchmark_results_dir() -> Path:
-    """Get the benchmark_results directory."""
+    """Get the benchmark_results directory (persistent storage)."""
     return Path(__file__).resolve().parents[2] / "benchmark_results"
+
+
+def _sessions_dir() -> Path:
+    """Get the sessions directory within benchmark_results."""
+    return _benchmark_results_dir() / "sessions"
 
 
 def _normalize_model_name(model_id: str) -> str:
@@ -99,21 +99,22 @@ def _extract_codenames_models(episode: dict) -> list[tuple[str, bool]]:
     Extract models from a Codenames episode.
 
     Returns list of (model, won) tuples for each model that participated.
+    Handles both UI sessions (cluer) and benchmark (cluer_model) formats.
     """
     metadata = episode.get("metadata", {})
     winner = episode.get("winner", "").upper()
     results = []
 
-    # Red team
+    # Red team - try both formats
     red_team = metadata.get("red_team", {})
-    red_cluer = red_team.get("cluer")
+    red_cluer = red_team.get("cluer") or red_team.get("cluer_model")
     if red_cluer:
         red_won = winner == "RED"
         results.append((red_cluer, red_won))
 
-    # Blue team
+    # Blue team - try both formats
     blue_team = metadata.get("blue_team", {})
-    blue_cluer = blue_team.get("cluer")
+    blue_cluer = blue_team.get("cluer") or blue_team.get("cluer_model")
     if blue_cluer:
         blue_won = winner == "BLUE"
         results.append((blue_cluer, blue_won))
@@ -199,7 +200,11 @@ def _load_episode_file(path: Path) -> dict | None:
 
 def scan_all_episodes() -> dict[str, list[dict]]:
     """
-    Scan all episode files from ui_sessions AND benchmark_results.
+    Scan all episode files from benchmark_results/ (consolidated storage).
+
+    Scans:
+    - benchmark_results/sessions/{codenames,decrypto,hanabi}/ (UI sessions)
+    - benchmark_results/*/episodes/ (cloud benchmark experiments)
 
     Returns dict mapping game_type -> list of episode dicts.
     """
@@ -222,29 +227,30 @@ def scan_all_episodes() -> dict[str, list[dict]]:
         if game_type:
             episodes[game_type].append(data)
 
-    # 1. Scan ui_sessions/{game_type}/
-    ui_dir = _ui_sessions_dir()
-    for game_type in episodes.keys():
-        game_dir = ui_dir / game_type
-        if not game_dir.exists():
-            continue
-        for path in game_dir.glob("*.json"):
-            data = _load_episode_file(path)
-            if data:
-                add_episode(data, path.name)
-
-    # 2. Scan benchmark_results/*/episodes/
     bench_dir = _benchmark_results_dir()
-    if bench_dir.exists():
-        for exp_dir in bench_dir.iterdir():
-            if not exp_dir.is_dir():
-                continue
-            episodes_dir = exp_dir / "episodes"
-            if episodes_dir.exists():
-                for path in episodes_dir.glob("*.json"):
-                    data = _load_episode_file(path)
-                    if data:
-                        add_episode(data, path.name)
+    if not bench_dir.exists():
+        return episodes
+
+    # 1. Scan sessions/{game_type}/ (UI sessions)
+    sessions_dir = _sessions_dir()
+    for game_type in episodes.keys():
+        game_dir = sessions_dir / game_type
+        if game_dir.exists():
+            for path in game_dir.glob("*.json"):
+                data = _load_episode_file(path)
+                if data:
+                    add_episode(data, path.name)
+
+    # 2. Scan */episodes/ (cloud benchmark experiments)
+    for exp_dir in bench_dir.iterdir():
+        if not exp_dir.is_dir() or exp_dir.name == "sessions":
+            continue
+        episodes_dir = exp_dir / "episodes"
+        if episodes_dir.exists():
+            for path in episodes_dir.glob("*.json"):
+                data = _load_episode_file(path)
+                if data:
+                    add_episode(data, path.name)
 
     return episodes
 
@@ -423,8 +429,8 @@ def build_leaderboard() -> LeaderboardData:
 
 
 def save_leaderboard(data: LeaderboardData) -> Path:
-    """Save leaderboard data to ui_sessions/leaderboard.json."""
-    path = _ui_sessions_dir() / "leaderboard.json"
+    """Save leaderboard data to benchmark_results/leaderboard.json."""
+    path = _benchmark_results_dir() / "leaderboard.json"
     path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(path, "w") as f:
@@ -435,7 +441,7 @@ def save_leaderboard(data: LeaderboardData) -> Path:
 
 def load_leaderboard() -> LeaderboardData | None:
     """Load leaderboard from disk if it exists."""
-    path = _ui_sessions_dir() / "leaderboard.json"
+    path = _benchmark_results_dir() / "leaderboard.json"
     if not path.exists():
         return None
 
