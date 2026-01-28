@@ -1216,13 +1216,23 @@ def refresh_leaderboard() -> dict[str, Any]:
     if bench_dir.exists():
         contents = list(bench_dir.iterdir())
         print(f"[LEADERBOARD] Contents: {[c.name for c in contents[:15]]}")
-        # Check for episodes subdirs
+        # Check structure of each subdir
         for c in contents[:10]:
-            if c.is_dir():
+            if c.is_dir() and c.name not in ('lost+found', 'sessions'):
+                subcontents = list(c.iterdir())[:10]
+                print(f"[LEADERBOARD]   {c.name}/: {[s.name for s in subcontents]}")
+                # Check for episodes subdir
                 eps_dir = c / "episodes"
                 if eps_dir.exists():
-                    eps_count = len(list(eps_dir.glob("*.json")))
-                    print(f"[LEADERBOARD]   {c.name}/episodes: {eps_count} files")
+                    eps_files = list(eps_dir.glob("*.json"))[:5]
+                    print(f"[LEADERBOARD]     episodes/: {len(list(eps_dir.glob('*.json')))} files - {[f.name for f in eps_files]}")
+
+        # Also check sessions dir
+        sessions_dir = bench_dir / "sessions"
+        if sessions_dir.exists():
+            print(f"[LEADERBOARD] sessions/ exists: {[d.name for d in sessions_dir.iterdir()]}")
+        else:
+            print(f"[LEADERBOARD] sessions/ does NOT exist")
 
     # Scan and log
     episodes = scan_all_episodes()
