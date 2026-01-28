@@ -31,7 +31,7 @@ class LLMProvider(ABC):
         self,
         messages: list[dict[str, str]],
         temperature: float = 0.7,
-        max_tokens: int = 1024,
+        max_tokens: int = 8192,
     ) -> LLMResponse:
         """Generate a completion from the LLM."""
         pass
@@ -60,7 +60,7 @@ class OpenRouterProvider(LLMProvider):
         self,
         messages: list[dict[str, str]],
         temperature: float = 0.7,
-        max_tokens: int = 1024,
+        max_tokens: int = 8192,
         max_retries: int = 3,
     ) -> LLMResponse:
         """Generate a completion using OpenRouter with retry logic."""
@@ -157,7 +157,7 @@ class OpenAIProvider(LLMProvider):
         self,
         messages: list[dict[str, str]],
         temperature: float = 0.7,
-        max_tokens: int = 1024,
+        max_tokens: int = 8192,
     ) -> LLMResponse:
         """Generate a completion using OpenAI API."""
         start_time = time.perf_counter()
@@ -218,7 +218,7 @@ class AnthropicProvider(LLMProvider):
         self,
         messages: list[dict[str, str]],
         temperature: float = 0.7,
-        max_tokens: int = 1024,
+        max_tokens: int = 8192,
     ) -> LLMResponse:
         """Generate a completion using Anthropic API."""
         start_time = time.perf_counter()
@@ -291,7 +291,7 @@ class MockProvider(LLMProvider):
         self,
         messages: list[dict[str, str]],
         temperature: float = 0.7,
-        max_tokens: int = 1024,
+        max_tokens: int = 8192,
     ) -> LLMResponse:
         """Return a mock response."""
         self.last_messages = messages
