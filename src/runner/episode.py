@@ -125,13 +125,19 @@ async def run_episode(
         )
         all_traces.append(turn_traces)
 
-        # Emit turn complete with clue and guesses
+        # Emit turn complete - extract clue info from trace if available
+        clue_info = None
+        if turn_traces.clue_trace and turn_traces.clue_trace.parsed_result:
+            pr = turn_traces.clue_trace.parsed_result
+            clue_info = {
+                "word": pr.get("clue_word") or pr.get("word"),
+                "count": pr.get("clue_count") or pr.get("count"),
+            }
+
         emit("turn_complete", {
             "turn": turn_count,
             "team": team.value,
-            "clue": turn_traces.clue.clue_word if turn_traces.clue else None,
-            "clue_count": turn_traces.clue.clue_count if turn_traces.clue else None,
-            "guesses": [g.guess for g in turn_traces.guesses] if turn_traces.guesses else [],
+            "clue": clue_info,
         })
 
         # Check for game over

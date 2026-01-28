@@ -269,10 +269,10 @@ async def run_episode(
         # Emit round complete event
         emit("round_complete", {
             "round": r,
-            "red_intercepts": counters["red"]["intercepts"],
-            "red_miscommunications": counters["red"]["miscommunications"],
-            "blue_intercepts": counters["blue"]["intercepts"],
-            "blue_miscommunications": counters["blue"]["miscommunications"],
+            "red_intercepts": counters["red"].own_interceptions,
+            "red_miscommunications": counters["red"].own_miscommunications,
+            "blue_intercepts": counters["blue"].own_interceptions,
+            "blue_miscommunications": counters["blue"].own_miscommunications,
         })
 
         # Terminal check after single reveal/update.
