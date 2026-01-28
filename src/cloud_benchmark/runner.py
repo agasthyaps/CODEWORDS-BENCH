@@ -32,7 +32,7 @@ from src.hanabi.metrics import compute_episode_metrics as compute_hanabi_metrics
 from .analysis import analyze_batch, InterimFinding
 from .config import CloudBenchmarkConfig
 from .events import BenchmarkEvent, GameTypeProgressData
-from .state import BenchmarkState
+from .state import BenchmarkState, RunningGameInfo, LiveGameState
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,12 @@ class CloudBenchmarkRunner:
         self._output_dir = self.config.get_output_path()
         self._output_dir.mkdir(parents=True, exist_ok=True)
 
+        # Running game tracking (in-memory only)
+        self._running_games: dict[str, RunningGameInfo] = {}
+        self._running_tasks: dict[str, asyncio.Task] = {}
+        self._game_locks: dict[str, asyncio.Lock] = {}
+        self._live_game_states: dict[str, LiveGameState] = {}
+
         # Initialize totals
         self._init_game_totals()
 
@@ -111,6 +117,143 @@ class CloudBenchmarkRunner:
         """Signal workers to stop after current games."""
         self._pause_requested = True
         logger.info("Pause requested - workers will stop after current games")
+
+    def get_running_games(self) -> list[RunningGameInfo]:
+        """Get list of all currently running games with their info."""
+        return list(self._running_games.values())
+
+    def get_live_game_state(self, game_id: str) -> LiveGameState | None:
+        """Get live state for a specific running game."""
+        return self._live_game_states.get(game_id)
+
+    def _register_running_game(
+        self,
+        game_id: str,
+        game_type: str,
+        matchup_id: str,
+        seed: int,
+        models: dict[str, str],
+        task: asyncio.Task,
+    ) -> None:
+        """Register a game as running."""
+        now = datetime.utcnow()
+        self._running_games[game_id] = RunningGameInfo(
+            game_id=game_id,
+            game_type=game_type,  # type: ignore
+            matchup_id=matchup_id,
+            seed=seed,
+            models=models,
+            started_at=now,
+            last_activity=now,
+        )
+        self._running_tasks[game_id] = task
+        self._live_game_states[game_id] = LiveGameState(
+            game_id=game_id,
+            game_type=game_type,  # type: ignore
+        )
+
+    def _unregister_running_game(self, game_id: str) -> None:
+        """Unregister a game from running tracking."""
+        self._running_games.pop(game_id, None)
+        self._running_tasks.pop(game_id, None)
+        self._live_game_states.pop(game_id, None)
+        self._game_locks.pop(game_id, None)
+
+    def _update_live_game_state(
+        self,
+        game_id: str,
+        current_turn: int | None = None,
+        transcript_event: dict | None = None,
+        scratchpad_update: tuple[str, str] | None = None,
+    ) -> None:
+        """Update live game state for peeking."""
+        if game_id not in self._live_game_states:
+            return
+
+        state = self._live_game_states[game_id]
+        state.last_update = datetime.utcnow()
+
+        if current_turn is not None:
+            state.current_turn = current_turn
+
+        if transcript_event is not None:
+            # Keep last 20 events
+            state.recent_transcript.append(transcript_event)
+            if len(state.recent_transcript) > 20:
+                state.recent_transcript = state.recent_transcript[-20:]
+
+        if scratchpad_update is not None:
+            agent_id, content = scratchpad_update
+            state.agent_scratchpads[agent_id] = content
+
+        # Also update the running game info
+        if game_id in self._running_games:
+            self._running_games[game_id].current_turn = current_turn
+            self._running_games[game_id].last_activity = datetime.utcnow()
+
+    async def cancel_game(self, game_id: str) -> bool:
+        """Cancel a specific running game."""
+        if game_id not in self._running_tasks:
+            return False
+
+        task = self._running_tasks[game_id]
+        if task.done():
+            return False
+
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        self._unregister_running_game(game_id)
+        return True
+
+    async def restart_game(self, game_id: str) -> bool:
+        """
+        Cancel a hung game and re-queue it for execution.
+
+        Returns True if the game was successfully cancelled and re-queued.
+        """
+        if game_id not in self._running_games:
+            return False
+
+        # Get or create lock for this game
+        if game_id not in self._game_locks:
+            self._game_locks[game_id] = asyncio.Lock()
+
+        async with self._game_locks[game_id]:
+            game_info = self._running_games.get(game_id)
+            if not game_info:
+                return False
+
+            # Cancel the running task
+            cancelled = await self.cancel_game(game_id)
+            if not cancelled:
+                return False
+
+            # Remove from completed_keys so it will be re-run
+            key = self.state.get_progress_key(
+                game_info.game_type,
+                game_info.matchup_id,
+                game_info.seed,
+                0,
+            )
+            self.state.completed_keys.discard(key)
+            self.state.save()
+
+            # Emit restart event
+            await self._emit(
+                BenchmarkEvent.game_restarted(
+                    game_type=game_info.game_type,  # type: ignore
+                    game_id=game_id,
+                    matchup_id=game_info.matchup_id,
+                    reason="Manual restart requested",
+                )
+            )
+
+            logger.info(f"Game {game_id} restarted and re-queued")
+            return True
 
     async def _emit(self, event: BenchmarkEvent) -> None:
         """Emit an event to the queue."""
@@ -288,6 +431,18 @@ class CloudBenchmarkRunner:
                     )
                 )
 
+                # Register as running (task will be set after creation)
+                current_task = asyncio.current_task()
+                if current_task:
+                    self._register_running_game(
+                        game_id=game_id,
+                        game_type="codenames",
+                        matchup_id=matchup_id,
+                        seed=seed,
+                        models=models,
+                        task=current_task,
+                    )
+
                 try:
                     start_time = time.time()
                     result = await self._run_single_codenames_game(
@@ -330,6 +485,7 @@ class CloudBenchmarkRunner:
                         self._pause_requested = True
 
                 finally:
+                    self._unregister_running_game(game_id)
                     self.state.mark_running("codenames", -1)
                     self.state.save()
 
@@ -421,6 +577,18 @@ class CloudBenchmarkRunner:
                     )
                 )
 
+                # Register as running
+                current_task = asyncio.current_task()
+                if current_task:
+                    self._register_running_game(
+                        game_id=game_id,
+                        game_type="decrypto",
+                        matchup_id=matchup_id,
+                        seed=seed,
+                        models=models,
+                        task=current_task,
+                    )
+
                 try:
                     start_time = time.time()
                     result = await self._run_single_decrypto_game(matchup, seed, game_idx)
@@ -462,6 +630,7 @@ class CloudBenchmarkRunner:
                         self._pause_requested = True
 
                 finally:
+                    self._unregister_running_game(game_id)
                     self.state.mark_running("decrypto", -1)
                     self.state.save()
 
@@ -531,6 +700,18 @@ class CloudBenchmarkRunner:
                     )
                 )
 
+                # Register as running
+                current_task = asyncio.current_task()
+                if current_task:
+                    self._register_running_game(
+                        game_id=game_id,
+                        game_type="hanabi",
+                        matchup_id=model_combo,
+                        seed=seed,
+                        models=models,
+                        task=current_task,
+                    )
+
                 try:
                     start_time = time.time()
                     result = await self._run_single_hanabi_game(model, seed)
@@ -572,6 +753,7 @@ class CloudBenchmarkRunner:
                         self._pause_requested = True
 
                 finally:
+                    self._unregister_running_game(game_id)
                     self.state.mark_running("hanabi", -1)
                     self.state.save()
 

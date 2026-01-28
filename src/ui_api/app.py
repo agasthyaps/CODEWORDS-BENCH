@@ -6,6 +6,7 @@ import json
 import logging
 import random
 import uuid
+from datetime import datetime
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Literal
@@ -60,10 +61,12 @@ from .models import (
     DecryptoStartRequest,
     FindingDetail,
     FindingSummary,
+    GamePeekResponse,
     GameTypeProgressResponse,
     HanabiStartRequest,
     JobStartResponse,
     ReplaySummary,
+    RunningGameResponse,
     TeamRoleConfig,
     TeamSelection,
 )
@@ -1532,6 +1535,95 @@ def get_benchmark_finding(finding_id: str, experiment_name: str | None = None) -
         model=finding.model,
         usage=finding.usage,
     )
+
+
+@app.get("/benchmark/running-games")
+def get_running_games() -> list[RunningGameResponse]:
+    """List all currently running games with their durations."""
+    if not _benchmark_runner:
+        return []
+
+    now = datetime.utcnow()
+    running_games = _benchmark_runner.get_running_games()
+
+    return [
+        RunningGameResponse(
+            game_id=g.game_id,
+            game_type=g.game_type,
+            matchup_id=g.matchup_id,
+            seed=g.seed,
+            models=g.models,
+            started_at=g.started_at.isoformat(),
+            duration_seconds=(now - g.started_at).total_seconds(),
+            current_turn=g.current_turn,
+        )
+        for g in running_games
+    ]
+
+
+@app.get("/benchmark/game-peek/{game_id}")
+def peek_game(game_id: str) -> GamePeekResponse:
+    """Get live state of a running game (current turn, recent transcript, scratchpads)."""
+    if not _benchmark_runner:
+        raise HTTPException(404, "No benchmark running")
+
+    # Get running game info
+    running_games = {g.game_id: g for g in _benchmark_runner.get_running_games()}
+    game_info = running_games.get(game_id)
+
+    if not game_info:
+        raise HTTPException(404, f"Game not found: {game_id}")
+
+    # Get live state
+    live_state = _benchmark_runner.get_live_game_state(game_id)
+
+    now = datetime.utcnow()
+    duration = (now - game_info.started_at).total_seconds()
+
+    if live_state:
+        stale_warning = (now - live_state.last_update).total_seconds() > 60
+        return GamePeekResponse(
+            game_id=game_id,
+            game_type=game_info.game_type,
+            current_turn=live_state.current_turn,
+            recent_transcript=live_state.recent_transcript,
+            agent_scratchpads=live_state.agent_scratchpads,
+            started_at=game_info.started_at.isoformat(),
+            duration_seconds=duration,
+            last_update=live_state.last_update.isoformat(),
+            stale_warning=stale_warning,
+        )
+    else:
+        # No live state yet
+        return GamePeekResponse(
+            game_id=game_id,
+            game_type=game_info.game_type,
+            current_turn=None,
+            recent_transcript=[],
+            agent_scratchpads={},
+            started_at=game_info.started_at.isoformat(),
+            duration_seconds=duration,
+            last_update=game_info.started_at.isoformat(),
+            stale_warning=True,
+        )
+
+
+@app.post("/benchmark/restart-game/{game_id}")
+async def restart_game(game_id: str) -> dict[str, Any]:
+    """Cancel a hung game and re-queue it for execution."""
+    if not _benchmark_runner:
+        raise HTTPException(404, "No benchmark running")
+
+    success = await _benchmark_runner.restart_game(game_id)
+
+    if not success:
+        raise HTTPException(400, f"Could not restart game: {game_id}")
+
+    return {
+        "status": "restarted",
+        "game_id": game_id,
+        "message": "Game cancelled and re-queued for execution",
+    }
 
 
 @app.get("/benchmark/experiments")

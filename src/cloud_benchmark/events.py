@@ -15,6 +15,8 @@ class EventType(str, Enum):
     GAME_START = "game_start"
     GAME_COMPLETE = "game_complete"
     GAME_ERROR = "game_error"
+    GAME_TIMEOUT = "game_timeout"
+    GAME_RESTARTED = "game_restarted"
     PROGRESS = "progress"
     FINDING = "finding"
     BENCHMARK_COMPLETE = "benchmark_complete"
@@ -107,6 +109,25 @@ class BenchmarkErrorEvent(BaseModel):
     recoverable: bool
 
 
+class GameTimeoutEvent(BaseModel):
+    """Emitted when a game is detected as potentially hung."""
+
+    game_type: Literal["codenames", "decrypto", "hanabi"]
+    game_id: str
+    matchup_id: str | None = None
+    duration_seconds: float
+    current_turn: int | None = None
+
+
+class GameRestartedEvent(BaseModel):
+    """Emitted when a hung game is restarted."""
+
+    game_type: Literal["codenames", "decrypto", "hanabi"]
+    game_id: str
+    matchup_id: str | None = None
+    reason: str
+
+
 class BenchmarkEvent(BaseModel):
     """Wrapper for all benchmark events."""
 
@@ -116,6 +137,8 @@ class BenchmarkEvent(BaseModel):
         GameStartEvent
         | GameCompleteEvent
         | GameErrorEvent
+        | GameTimeoutEvent
+        | GameRestartedEvent
         | ProgressEvent
         | FindingEvent
         | BenchmarkCompleteEvent
@@ -266,4 +289,42 @@ class BenchmarkEvent(BaseModel):
         return cls(
             event_type=EventType.BENCHMARK_ERROR,
             data=BenchmarkErrorEvent(error=error, recoverable=recoverable),
+        )
+
+    @classmethod
+    def game_timeout(
+        cls,
+        game_type: Literal["codenames", "decrypto", "hanabi"],
+        game_id: str,
+        duration_seconds: float,
+        matchup_id: str | None = None,
+        current_turn: int | None = None,
+    ) -> "BenchmarkEvent":
+        return cls(
+            event_type=EventType.GAME_TIMEOUT,
+            data=GameTimeoutEvent(
+                game_type=game_type,
+                game_id=game_id,
+                matchup_id=matchup_id,
+                duration_seconds=duration_seconds,
+                current_turn=current_turn,
+            ),
+        )
+
+    @classmethod
+    def game_restarted(
+        cls,
+        game_type: Literal["codenames", "decrypto", "hanabi"],
+        game_id: str,
+        reason: str,
+        matchup_id: str | None = None,
+    ) -> "BenchmarkEvent":
+        return cls(
+            event_type=EventType.GAME_RESTARTED,
+            data=GameRestartedEvent(
+                game_type=game_type,
+                game_id=game_id,
+                matchup_id=matchup_id,
+                reason=reason,
+            ),
         )

@@ -13,6 +13,30 @@ from pydantic import BaseModel, Field
 from .config import CloudBenchmarkConfig, get_data_dir
 
 
+class RunningGameInfo(BaseModel):
+    """Info about a currently running game (in-memory only, not persisted)."""
+
+    game_id: str
+    game_type: Literal["codenames", "decrypto", "hanabi"]
+    matchup_id: str
+    seed: int
+    models: dict[str, str]  # role -> model_id
+    started_at: datetime
+    current_turn: int | None = None
+    last_activity: datetime | None = None
+
+
+class LiveGameState(BaseModel):
+    """Live state of a running game for peeking."""
+
+    game_id: str
+    game_type: Literal["codenames", "decrypto", "hanabi"]
+    current_turn: int | None = None
+    recent_transcript: list[dict] = Field(default_factory=list)  # Last N events
+    agent_scratchpads: dict[str, str] = Field(default_factory=dict)  # agent_id -> scratchpad
+    last_update: datetime = Field(default_factory=datetime.utcnow)
+
+
 class GameTypeProgress(BaseModel):
     """Progress tracking for a single game type."""
 

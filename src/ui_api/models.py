@@ -181,3 +181,33 @@ class FindingDetail(BaseModel):
     analysis: str
     model: str
     usage: dict | None = None
+
+
+# Running Game Models (for hung game detection)
+
+
+class RunningGameResponse(BaseModel):
+    """Info about a currently running game."""
+
+    game_id: str
+    game_type: Literal["codenames", "decrypto", "hanabi"]
+    matchup_id: str
+    seed: int
+    models: dict[str, str]  # role -> model_id
+    started_at: str
+    duration_seconds: float
+    current_turn: int | None = None
+
+
+class GamePeekResponse(BaseModel):
+    """Live state of a running game for debugging."""
+
+    game_id: str
+    game_type: Literal["codenames", "decrypto", "hanabi"]
+    current_turn: int | None = None
+    recent_transcript: list[dict]  # Last N events
+    agent_scratchpads: dict[str, str]  # agent_id -> scratchpad content
+    started_at: str
+    duration_seconds: float
+    last_update: str
+    stale_warning: bool = False  # True if last_update is > 60s ago
