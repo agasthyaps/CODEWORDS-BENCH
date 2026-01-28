@@ -4,12 +4,17 @@ import {
   fetchBenchmarkFindings,
   fetchBenchmarkFinding,
   fetchExperiments,
+  fetchRunningGames,
+  peekGame,
+  restartGame,
   startBenchmark,
   pauseBenchmark,
   cancelBenchmark,
   forceStopBenchmark,
   downloadBenchmarkResults,
   openEventStream,
+  RunningGame,
+  GamePeek,
 } from "../api";
 import { ModelInfo } from "../types";
 
@@ -86,6 +91,11 @@ export default function BenchmarkMonitor({ models }: Props) {
   const [expFindingsLoading, setExpFindingsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Running games state
+  const [runningGames, setRunningGames] = useState<RunningGame[]>([]);
+  const [selectedGamePeek, setSelectedGamePeek] = useState<GamePeek | null>(null);
+  const [peekLoading, setPeekLoading] = useState(false);
+
   // Load findings when an experiment is expanded
   useEffect(() => {
     if (expandedExperiment) {
@@ -142,6 +152,27 @@ export default function BenchmarkMonitor({ models }: Props) {
       }, 10000);
       return () => clearInterval(interval);
     }
+  }, [status.status]);
+
+  // Poll running games while benchmark is running
+  useEffect(() => {
+    if (status.status !== "running") {
+      setRunningGames([]);
+      return;
+    }
+
+    // Initial load
+    fetchRunningGames()
+      .then(setRunningGames)
+      .catch(console.error);
+
+    // Poll every 3 seconds
+    const interval = setInterval(() => {
+      fetchRunningGames()
+        .then(setRunningGames)
+        .catch(console.error);
+    }, 3000);
+    return () => clearInterval(interval);
   }, [status.status]);
 
   // Generate experiment name
@@ -282,6 +313,44 @@ export default function BenchmarkMonitor({ models }: Props) {
     } catch (e) {
       console.error("Failed to load finding", e);
     }
+  };
+
+  const handlePeekGame = async (gameId: string) => {
+    setPeekLoading(true);
+    try {
+      const peek = await peekGame(gameId);
+      setSelectedGamePeek(peek);
+    } catch (e) {
+      setError(`Failed to peek at game: ${e}`);
+    } finally {
+      setPeekLoading(false);
+    }
+  };
+
+  const handleRestartGame = async (gameId: string) => {
+    if (!confirm(`Restart game "${gameId}"? This will cancel the current execution and re-queue it.`)) {
+      return;
+    }
+    try {
+      await restartGame(gameId);
+      // Refresh running games
+      const games = await fetchRunningGames();
+      setRunningGames(games);
+      setSelectedGamePeek(null);
+    } catch (e) {
+      setError(`Failed to restart game: ${e}`);
+    }
+  };
+
+  const formatDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    if (mins >= 60) {
+      const hrs = Math.floor(mins / 60);
+      const remainMins = mins % 60;
+      return `${hrs}h ${remainMins}m`;
+    }
+    return `${mins}m ${secs}s`;
   };
 
   const isRunning = status.status === "running";
@@ -501,6 +570,45 @@ export default function BenchmarkMonitor({ models }: Props) {
               Download Results
             </button>
           )}
+
+          {/* Running Games Section */}
+          {isRunning && runningGames.length > 0 && (
+            <div className="running-games-section">
+              <h4>Running Games ({runningGames.length})</h4>
+              <div className="running-games-list">
+                {runningGames.map((game) => (
+                  <div key={game.game_id} className="running-game-item">
+                    <div className="running-game-header">
+                      <span className={`game-type-badge ${game.game_type}`}>
+                        {game.game_type === "codenames" ? "CN" : game.game_type === "decrypto" ? "DC" : "HB"}
+                      </span>
+                      <span className="running-game-id" title={game.game_id}>
+                        {game.game_id.length > 20 ? game.game_id.slice(0, 20) + "..." : game.game_id}
+                      </span>
+                      <span className={`running-game-duration ${game.duration_seconds > 300 ? "warning" : ""} ${game.duration_seconds > 600 ? "danger" : ""}`}>
+                        {formatDuration(game.duration_seconds)}
+                      </span>
+                    </div>
+                    <div className="running-game-actions">
+                      <button
+                        className="peek-btn"
+                        onClick={() => handlePeekGame(game.game_id)}
+                        disabled={peekLoading}
+                      >
+                        Peek
+                      </button>
+                      <button
+                        className="restart-btn"
+                        onClick={() => handleRestartGame(game.game_id)}
+                      >
+                        Restart
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Findings Panel */}
@@ -566,6 +674,86 @@ export default function BenchmarkMonitor({ models }: Props) {
                   <> | Tokens: {selectedFinding.usage.input_tokens}+{selectedFinding.usage.output_tokens}</>
                 )}
               </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Game Peek Modal */}
+      {selectedGamePeek && (
+        <div className="finding-modal-backdrop" onClick={() => setSelectedGamePeek(null)}>
+          <div className="finding-modal game-peek-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>
+                <span className={`game-type-badge ${selectedGamePeek.game_type}`}>
+                  {selectedGamePeek.game_type}
+                </span>
+                {selectedGamePeek.game_id}
+              </h3>
+              <button className="close-btn" onClick={() => setSelectedGamePeek(null)}>
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              {selectedGamePeek.stale_warning && (
+                <div className="stale-warning">
+                  ⚠️ Game state is stale (no updates for &gt;60s). The game may be hung.
+                </div>
+              )}
+
+              <div className="peek-info-row">
+                <span><strong>Duration:</strong> {formatDuration(selectedGamePeek.duration_seconds)}</span>
+                <span><strong>Turn:</strong> {selectedGamePeek.current_turn ?? "Unknown"}</span>
+                <span><strong>Last Update:</strong> {new Date(selectedGamePeek.last_update).toLocaleTimeString()}</span>
+              </div>
+
+              {selectedGamePeek.recent_transcript.length > 0 && (
+                <div className="peek-section">
+                  <h4>Recent Events ({selectedGamePeek.recent_transcript.length})</h4>
+                  <div className="transcript-preview">
+                    {selectedGamePeek.recent_transcript.slice(-10).map((event, i) => (
+                      <pre key={i} className="transcript-event">
+                        {JSON.stringify(event, null, 2)}
+                      </pre>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {Object.keys(selectedGamePeek.agent_scratchpads).length > 0 && (
+                <div className="peek-section">
+                  <h4>Agent Scratchpads</h4>
+                  {Object.entries(selectedGamePeek.agent_scratchpads).map(([agentId, content]) => (
+                    <div key={agentId} className="scratchpad-preview">
+                      <strong>{agentId}:</strong>
+                      <pre>{content.slice(-500)}{content.length > 500 ? "..." : ""}</pre>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedGamePeek.recent_transcript.length === 0 &&
+               Object.keys(selectedGamePeek.agent_scratchpads).length === 0 && (
+                <div className="no-peek-data">
+                  No live state captured yet. The game may have just started or isn't
+                  streaming live updates.
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                className="restart-btn danger"
+                onClick={() => handleRestartGame(selectedGamePeek.game_id)}
+              >
+                Restart This Game
+              </button>
+              <button
+                className="refresh-btn"
+                onClick={() => handlePeekGame(selectedGamePeek.game_id)}
+                disabled={peekLoading}
+              >
+                {peekLoading ? "Loading..." : "Refresh"}
+              </button>
             </div>
           </div>
         </div>

@@ -3311,3 +3311,248 @@ button.small {
 .exp-findings {
   color: var(--accent);
 }
+
+/* Running Games Section */
+.running-games-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.running-games-section h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0 0 10px 0;
+}
+
+.running-games-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.running-game-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.running-game-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.running-game-id {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.running-game-duration {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.running-game-duration.warning {
+  color: var(--warning);
+}
+
+.running-game-duration.danger {
+  color: var(--error);
+  font-weight: 600;
+}
+
+.running-game-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.running-game-actions button {
+  padding: 4px 8px;
+  font-size: 10px;
+  font-weight: 500;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.peek-btn {
+  background: var(--bg-inset);
+  color: var(--text-secondary);
+  border: 1px solid var(--border) !important;
+}
+
+.peek-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.peek-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.restart-btn {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.restart-btn:hover {
+  filter: brightness(0.9);
+}
+
+.restart-btn.danger {
+  background: var(--error);
+  color: white;
+}
+
+.restart-btn.danger:hover {
+  filter: brightness(0.9);
+}
+
+/* Game Peek Modal */
+.game-peek-modal {
+  max-width: 700px;
+}
+
+.game-peek-modal .modal-header h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stale-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.peek-info-row {
+  display: flex;
+  gap: 20px;
+  font-size: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 12px;
+}
+
+.peek-info-row span {
+  color: var(--text-secondary);
+}
+
+.peek-info-row strong {
+  color: var(--text);
+}
+
+.peek-section {
+  margin-bottom: 16px;
+}
+
+.peek-section h4 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0 0 8px 0;
+}
+
+.transcript-preview {
+  max-height: 250px;
+  overflow-y: auto;
+  background: var(--bg-inset);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.transcript-event {
+  font-size: 10px;
+  font-family: monospace;
+  margin: 0 0 8px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: pre-wrap;
+  color: var(--text-secondary);
+}
+
+.transcript-event:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.scratchpad-preview {
+  background: var(--bg-inset);
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.scratchpad-preview strong {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.scratchpad-preview pre {
+  font-size: 10px;
+  font-family: monospace;
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--text-secondary);
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.no-peek-data {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.game-peek-modal .modal-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.refresh-btn {
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.refresh-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

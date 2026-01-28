@@ -173,3 +173,48 @@ export function downloadBenchmarkResults(experimentName: string) {
   // Direct download via browser
   window.location.href = `${API_BASE}/benchmark/download/${experimentName}`;
 }
+
+// Running games management
+
+export type RunningGame = {
+  game_id: string;
+  game_type: "codenames" | "decrypto" | "hanabi";
+  matchup_id: string;
+  seed: number;
+  models: Record<string, string>;
+  started_at: string;
+  duration_seconds: number;
+  current_turn: number | null;
+};
+
+export type GamePeek = {
+  game_id: string;
+  game_type: "codenames" | "decrypto" | "hanabi";
+  current_turn: number | null;
+  recent_transcript: Record<string, unknown>[];
+  agent_scratchpads: Record<string, string>;
+  started_at: string;
+  duration_seconds: number;
+  last_update: string;
+  stale_warning: boolean;
+};
+
+export async function fetchRunningGames(): Promise<RunningGame[]> {
+  const res = await fetch(`${API_BASE}/benchmark/running-games`);
+  if (!res.ok) throw new Error("Failed to get running games");
+  return res.json();
+}
+
+export async function peekGame(gameId: string): Promise<GamePeek> {
+  const res = await fetch(`${API_BASE}/benchmark/game-peek/${encodeURIComponent(gameId)}`);
+  if (!res.ok) throw new Error("Failed to peek at game");
+  return res.json();
+}
+
+export async function restartGame(gameId: string) {
+  const res = await fetch(`${API_BASE}/benchmark/restart-game/${encodeURIComponent(gameId)}`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to restart game");
+  return res.json();
+}
