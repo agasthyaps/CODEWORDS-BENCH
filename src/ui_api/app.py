@@ -1561,7 +1561,7 @@ def get_running_games() -> list[RunningGameResponse]:
     ]
 
 
-@app.get("/benchmark/game-peek/{game_id}")
+@app.get("/benchmark/game-peek")
 def peek_game(game_id: str) -> GamePeekResponse:
     """Get live state of a running game (current turn, recent transcript, scratchpads)."""
     if not _benchmark_runner:
@@ -1572,6 +1572,9 @@ def peek_game(game_id: str) -> GamePeekResponse:
     game_info = running_games.get(game_id)
 
     if not game_info:
+        # Log available games for debugging
+        available = list(running_games.keys())[:5]
+        logger.warning(f"Game not found: {game_id!r}, available: {available}")
         raise HTTPException(404, f"Game not found: {game_id}")
 
     # Get live state
@@ -1608,7 +1611,7 @@ def peek_game(game_id: str) -> GamePeekResponse:
         )
 
 
-@app.post("/benchmark/restart-game/{game_id}")
+@app.post("/benchmark/restart-game")
 async def restart_game(game_id: str) -> dict[str, Any]:
     """Cancel a hung game and re-queue it for execution."""
     if not _benchmark_runner:

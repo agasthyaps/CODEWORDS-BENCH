@@ -206,15 +206,21 @@ export async function fetchRunningGames(): Promise<RunningGame[]> {
 }
 
 export async function peekGame(gameId: string): Promise<GamePeek> {
-  const res = await fetch(`${API_BASE}/benchmark/game-peek/${encodeURIComponent(gameId)}`);
-  if (!res.ok) throw new Error("Failed to peek at game");
+  const res = await fetch(`${API_BASE}/benchmark/game-peek?game_id=${encodeURIComponent(gameId)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+    throw new Error(err.detail || `Failed to peek at game (${res.status})`);
+  }
   return res.json();
 }
 
 export async function restartGame(gameId: string) {
-  const res = await fetch(`${API_BASE}/benchmark/restart-game/${encodeURIComponent(gameId)}`, {
+  const res = await fetch(`${API_BASE}/benchmark/restart-game?game_id=${encodeURIComponent(gameId)}`, {
     method: "POST",
   });
-  if (!res.ok) throw new Error("Failed to restart game");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+    throw new Error(err.detail || `Failed to restart game (${res.status})`);
+  }
   return res.json();
 }
