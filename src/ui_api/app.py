@@ -1184,30 +1184,56 @@ def get_stats(replay_id: str) -> dict[str, Any] | None:
 
 @app.get("/leaderboard")
 def get_leaderboard() -> dict[str, Any]:
-    """Return current leaderboard data, auto-generating if missing."""
-    from .leaderboard_builder import build_leaderboard, load_leaderboard, save_leaderboard
+    """Return current leaderboard data, auto-generating if missing or stale."""
+    from .leaderboard_builder import build_leaderboard, load_leaderboard, save_leaderboard, _benchmark_results_dir
+
+    bench_dir = _benchmark_results_dir()
+    logger.info("Leaderboard request - benchmark_dir: %s, exists: %s", bench_dir, bench_dir.exists())
 
     data = load_leaderboard()
-    if data is None:
-        # Auto-generate if missing
+
+    # Rebuild if missing or has 0 episodes (might be stale)
+    if data is None or sum(data.total_episodes.values()) == 0:
+        logger.info("Leaderboard missing or empty, rebuilding...")
         data = build_leaderboard()
         save_leaderboard(data)
+        logger.info("Generated leaderboard with %d episodes, %d models",
+                    sum(data.total_episodes.values()), len(data.overall_rankings))
 
     return data.model_dump(mode="json")
 
 
 @app.post("/leaderboard/refresh")
-async def refresh_leaderboard(background: BackgroundTasks) -> dict[str, str]:
-    """Trigger leaderboard recomputation in background."""
-    from .leaderboard_builder import build_leaderboard, save_leaderboard
+def refresh_leaderboard() -> dict[str, Any]:
+    """Recompute leaderboard synchronously and return result."""
+    from .leaderboard_builder import build_leaderboard, save_leaderboard, scan_all_episodes, _benchmark_results_dir
 
-    def recompute() -> None:
-        data = build_leaderboard()
-        save_leaderboard(data)
-        logger.info("Leaderboard refreshed with %d models", len(data.overall_rankings))
+    bench_dir = _benchmark_results_dir()
+    logger.info("Refreshing leaderboard - benchmark_dir: %s, exists: %s", bench_dir, bench_dir.exists())
 
-    background.add_task(recompute)
-    return {"status": "refresh_started"}
+    # Log what we find
+    if bench_dir.exists():
+        contents = list(bench_dir.iterdir())
+        logger.info("benchmark_results contents: %s", [c.name for c in contents[:10]])
+
+    # Scan and log
+    episodes = scan_all_episodes()
+    logger.info("Scanned episodes: codenames=%d, decrypto=%d, hanabi=%d",
+                episodes.get("codenames", []) and len(episodes["codenames"]),
+                episodes.get("decrypto", []) and len(episodes["decrypto"]),
+                episodes.get("hanabi", []) and len(episodes["hanabi"]))
+
+    data = build_leaderboard()
+    save_leaderboard(data)
+
+    logger.info("Leaderboard refreshed: %d models, %d total games",
+                len(data.overall_rankings), sum(data.total_episodes.values()))
+
+    return {
+        "status": "refreshed",
+        "total_episodes": data.total_episodes,
+        "models_count": len(data.overall_rankings),
+    }
 
 
 @app.post("/batch/start", response_model=JobStartResponse)

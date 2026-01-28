@@ -1844,6 +1844,290 @@ button.small {
   font-weight: 500;
 }
 
+/* Research Insights Section */
+.insights-section {
+  margin-top: 64px;
+}
+
+.insights-section h2 {
+  font-family: 'Space Grotesk', sans-serif;
+  margin-bottom: 24px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+}
+
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+
+.insight-card {
+  background: var(--bg-surface);
+  padding: 28px;
+  position: relative;
+}
+
+.insight-card:hover {
+  background: var(--bg-elevated);
+}
+
+.insight-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #f5a623;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.insight-card h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+}
+
+.insight-card p {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 20px;
+}
+
+/* Insight Data Points */
+.insight-data {
+  display: flex;
+  gap: 24px;
+}
+
+.data-point {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.data-value {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.data-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Specialization Chart */
+.specialization-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.spec-row {
+  display: grid;
+  grid-template-columns: 100px 120px 1fr 60px;
+  align-items: center;
+  gap: 12px;
+}
+
+.spec-dimension {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.spec-dimension.cooperative { color: #22c55e; }
+.spec-dimension.adversarial { color: #f5a623; }
+.spec-dimension.collaborative { color: #3b82f6; }
+
+.spec-model {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.spec-bar {
+  height: 8px;
+  background: #22c55e;
+  transition: width 0.5s ease;
+}
+
+.spec-bar.adversarial { background: #f5a623; }
+.spec-bar.collaborative { background: #3b82f6; }
+
+.spec-score {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* Scale Comparison Chart */
+.scale-comparison {
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  padding: 20px 0;
+}
+
+.scale-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.scale-bar-container {
+  width: 48px;
+  height: 100px;
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: flex-end;
+}
+
+.scale-bar {
+  width: 100%;
+  background: #f5a623;
+  transition: height 0.5s ease;
+}
+
+.scale-bar.large { background: #f5a623; }
+.scale-bar.small { background: var(--text-muted); }
+
+.scale-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.scale-value {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.scale-note {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px;
+  color: #f5a623;
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* Role Chart */
+.role-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.role-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 80px;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-model {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.role-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.role-bar {
+  height: 14px;
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  transition: width 0.5s ease;
+}
+
+.role-bar span {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  color: white;
+  font-weight: 500;
+}
+
+.role-bar.cluer { background: #f5a623; }
+.role-bar.guesser { background: var(--text-muted); }
+
+.role-pref {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* Insights Responsive */
+@media (max-width: 900px) {
+  .insights-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .spec-row {
+    grid-template-columns: 80px 100px 1fr 50px;
+  }
+
+  .role-row {
+    grid-template-columns: 100px 1fr 70px;
+  }
+}
+
+@media (max-width: 600px) {
+  .insight-card {
+    padding: 20px;
+  }
+
+  .insight-data {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .spec-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .spec-bar {
+    max-width: 200px;
+  }
+
+  .role-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .scale-comparison {
+    gap: 32px;
+  }
+}
+
 /* Games Section - Grid Navigation */
 .games-section {
   margin-top: 64px;

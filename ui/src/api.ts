@@ -96,9 +96,16 @@ export async function fetchLeaderboard(): Promise<LeaderboardData> {
   return res.json();
 }
 
-export async function refreshLeaderboard(): Promise<{ status: string }> {
+export async function refreshLeaderboard(): Promise<{
+  status: string;
+  total_episodes?: { codenames: number; decrypto: number; hanabi: number };
+  models_count?: number;
+}> {
   const res = await fetch(`${API_BASE}/leaderboard/refresh`, { method: "POST" });
-  if (!res.ok) throw new Error("Failed to refresh leaderboard");
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Failed to refresh leaderboard: ${text}`);
+  }
   return res.json();
 }
 
