@@ -136,14 +136,16 @@ export async function pauseBenchmark() {
   return res.json();
 }
 
-export async function fetchBenchmarkFindings() {
-  const res = await fetch(`${API_BASE}/benchmark/findings`);
+export async function fetchBenchmarkFindings(experimentName?: string) {
+  const params = experimentName ? `?experiment_name=${encodeURIComponent(experimentName)}` : "";
+  const res = await fetch(`${API_BASE}/benchmark/findings${params}`);
   if (!res.ok) throw new Error("Failed to get findings");
   return res.json();
 }
 
-export async function fetchBenchmarkFinding(findingId: string) {
-  const res = await fetch(`${API_BASE}/benchmark/findings/${findingId}`);
+export async function fetchBenchmarkFinding(findingId: string, experimentName?: string) {
+  const params = experimentName ? `?experiment_name=${encodeURIComponent(experimentName)}` : "";
+  const res = await fetch(`${API_BASE}/benchmark/findings/${findingId}${params}`);
   if (!res.ok) throw new Error("Failed to get finding");
   return res.json();
 }

@@ -3197,6 +3197,82 @@ button.small {
   background: var(--bg-hover);
 }
 
+.exp-findings-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.exp-findings-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.exp-findings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.exp-finding-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--bg-elevated);
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.exp-finding-item:hover {
+  background: var(--bg-hover);
+}
+
+.exp-finding-item .finding-type {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.exp-finding-item .finding-type.codenames {
+  background: var(--red-subtle);
+  color: var(--red);
+}
+
+.exp-finding-item .finding-type.decrypto {
+  background: var(--blue-subtle);
+  color: var(--blue);
+}
+
+.exp-finding-item .finding-type.hanabi {
+  background: var(--accent-subtle);
+  color: var(--accent);
+}
+
+.exp-finding-item .finding-batch {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.exp-finding-item .finding-games {
+  color: var(--text-muted);
+}
+
+.exp-finding-item .finding-preview {
+  color: var(--text-secondary);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .exp-findings {
   color: var(--accent);
 }

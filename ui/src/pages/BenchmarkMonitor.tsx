@@ -81,7 +81,19 @@ export default function BenchmarkMonitor({ models }: Props) {
   const [selectedFinding, setSelectedFinding] = useState<FindingDetail | null>(null);
   const [experiments, setExperiments] = useState<Experiment[]>([]);
   const [expandedExperiment, setExpandedExperiment] = useState<string | null>(null);
+  const [expFindings, setExpFindings] = useState<FindingSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Load findings when an experiment is expanded
+  useEffect(() => {
+    if (expandedExperiment) {
+      fetchBenchmarkFindings(expandedExperiment)
+        .then(setExpFindings)
+        .catch(() => setExpFindings([]));
+    } else {
+      setExpFindings([]);
+    }
+  }, [expandedExperiment]);
 
   // Polling status
   useEffect(() => {
@@ -259,9 +271,9 @@ export default function BenchmarkMonitor({ models }: Props) {
     }
   };
 
-  const loadFindingDetail = async (findingId: string) => {
+  const loadFindingDetail = async (findingId: string, experimentName?: string) => {
     try {
-      const detail = await fetchBenchmarkFinding(findingId);
+      const detail = await fetchBenchmarkFinding(findingId, experimentName);
       setSelectedFinding(detail);
     } catch (e) {
       console.error("Failed to load finding", e);
@@ -592,10 +604,6 @@ export default function BenchmarkMonitor({ models }: Props) {
                       <span className="exp-detail-label">Games:</span>
                       <span>{exp.total_completed} completed, {exp.total_failed} failed</span>
                     </div>
-                    <div className="exp-detail-row">
-                      <span className="exp-detail-label">Findings:</span>
-                      <span>{exp.findings_count} analysis reports</span>
-                    </div>
 
                     <div className="exp-actions-row">
                       {(exp.status === "paused" || exp.status === "cancelled" || exp.status === "running") && (
@@ -631,6 +639,31 @@ export default function BenchmarkMonitor({ models }: Props) {
                         Download Results
                       </button>
                     </div>
+
+                    {expFindings.length > 0 && (
+                      <div className="exp-findings-section">
+                        <div className="exp-findings-header">Analysis Findings ({expFindings.length})</div>
+                        <div className="exp-findings-list">
+                          {expFindings.map((f) => (
+                            <div
+                              key={f.finding_id}
+                              className="exp-finding-item"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                loadFindingDetail(f.finding_id, exp.experiment_name);
+                              }}
+                            >
+                              <span className={`finding-type ${f.game_type}`}>
+                                {f.game_type === "codenames" ? "CN" : f.game_type === "decrypto" ? "DC" : "HB"}
+                              </span>
+                              <span className="finding-batch">Batch {f.batch_number}</span>
+                              <span className="finding-games">{f.games_analyzed} games</span>
+                              <span className="finding-preview">{f.preview.slice(0, 80)}...</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

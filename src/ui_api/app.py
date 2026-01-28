@@ -1213,14 +1213,19 @@ async def start_benchmark(
     """Start or resume a cloud benchmark run."""
     global _benchmark_runner, _benchmark_task
 
-    # Check if already running
+    # Check if already running in memory
     if _benchmark_runner and _benchmark_task and not _benchmark_task.done():
         raise HTTPException(409, "Benchmark already running")
 
-    # Check existing state
+    # Check existing state - if state says "running" but no in-memory runner,
+    # this was interrupted (crash/deploy) and we should allow resuming
     existing = BenchmarkState.load(req.experiment_name)
     if existing and existing.status == "running":
-        raise HTTPException(409, "Benchmark already running (check state)")
+        # Mark as interrupted so it can be resumed
+        existing.status = "paused"
+        existing.last_error = "Interrupted (server restart detected)"
+        existing.save()
+        logger.info(f"Marked interrupted experiment {req.experiment_name} as paused")
 
     # Create config
     config = CloudBenchmarkConfig(
@@ -1269,7 +1274,22 @@ async def start_benchmark(
 def benchmark_status() -> BenchmarkStatusResponse:
     """Get current benchmark status."""
     if not _benchmark_runner:
+        # Check if there's an active task that's still running
+        if _benchmark_task and not _benchmark_task.done():
+            # Runner was cleared but task still running - shouldn't happen
+            return BenchmarkStatusResponse(status="error", last_error="Runner state inconsistent")
         return BenchmarkStatusResponse(status="idle")
+
+    # Check if task is actually still running
+    if _benchmark_task and _benchmark_task.done():
+        # Task finished but runner still exists - check for exceptions
+        try:
+            _benchmark_task.result()
+        except Exception as e:
+            if _benchmark_runner.state.status == "running":
+                _benchmark_runner.state.status = "error"
+                _benchmark_runner.state.last_error = str(e)
+                _benchmark_runner.state.save()
 
     state = _benchmark_runner.state
 
@@ -1400,12 +1420,24 @@ async def download_benchmark_results(experiment_name: str) -> FileResponse:
 
 
 @app.get("/benchmark/findings")
-def get_benchmark_findings() -> list[FindingSummary]:
-    """List all interim findings for the current benchmark."""
-    if not _benchmark_runner:
+def get_benchmark_findings(experiment_name: str | None = None) -> list[FindingSummary]:
+    """List all interim findings for a benchmark.
+
+    If experiment_name is provided, loads findings for that experiment.
+    Otherwise uses the currently running benchmark.
+    """
+    from src.cloud_benchmark.config import get_data_dir
+
+    if experiment_name:
+        output_dir = get_data_dir() / experiment_name
+    elif _benchmark_runner:
+        output_dir = _benchmark_runner.config.get_output_path()
+    else:
         return []
 
-    output_dir = _benchmark_runner.config.get_output_path()
+    if not output_dir.exists():
+        return []
+
     findings = list_findings(output_dir)
 
     return [
@@ -1422,12 +1454,21 @@ def get_benchmark_findings() -> list[FindingSummary]:
 
 
 @app.get("/benchmark/findings/{finding_id}")
-def get_benchmark_finding(finding_id: str) -> FindingDetail:
-    """Get a specific finding by ID."""
-    if not _benchmark_runner:
-        raise HTTPException(404, "No benchmark running")
+def get_benchmark_finding(finding_id: str, experiment_name: str | None = None) -> FindingDetail:
+    """Get a specific finding by ID.
 
-    output_dir = _benchmark_runner.config.get_output_path()
+    If experiment_name is provided, loads from that experiment.
+    Otherwise uses the currently running benchmark.
+    """
+    from src.cloud_benchmark.config import get_data_dir
+
+    if experiment_name:
+        output_dir = get_data_dir() / experiment_name
+    elif _benchmark_runner:
+        output_dir = _benchmark_runner.config.get_output_path()
+    else:
+        raise HTTPException(404, "No benchmark running and no experiment_name provided")
+
     finding = load_finding(output_dir, finding_id)
 
     if not finding:
