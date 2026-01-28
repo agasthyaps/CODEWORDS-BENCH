@@ -1177,6 +1177,39 @@ def get_stats(replay_id: str) -> dict[str, Any] | None:
     return load_stats_report(replay_id)
 
 
+# ============================================================
+# Leaderboard endpoints
+# ============================================================
+
+
+@app.get("/leaderboard")
+def get_leaderboard() -> dict[str, Any]:
+    """Return current leaderboard data, auto-generating if missing."""
+    from .leaderboard_builder import build_leaderboard, load_leaderboard, save_leaderboard
+
+    data = load_leaderboard()
+    if data is None:
+        # Auto-generate if missing
+        data = build_leaderboard()
+        save_leaderboard(data)
+
+    return data.model_dump(mode="json")
+
+
+@app.post("/leaderboard/refresh")
+async def refresh_leaderboard(background: BackgroundTasks) -> dict[str, str]:
+    """Trigger leaderboard recomputation in background."""
+    from .leaderboard_builder import build_leaderboard, save_leaderboard
+
+    def recompute() -> None:
+        data = build_leaderboard()
+        save_leaderboard(data)
+        logger.info("Leaderboard refreshed with %d models", len(data.overall_rankings))
+
+    background.add_task(recompute)
+    return {"status": "refresh_started"}
+
+
 @app.post("/batch/start", response_model=JobStartResponse)
 async def start_batch(req: BatchStartRequest, background: BackgroundTasks) -> JobStartResponse:
     ensure_storage()

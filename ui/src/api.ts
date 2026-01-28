@@ -86,6 +86,22 @@ export async function fetchStats(replayId: string) {
   return res.json();
 }
 
+// Leaderboard APIs
+
+import type { LeaderboardData } from "./types";
+
+export async function fetchLeaderboard(): Promise<LeaderboardData> {
+  const res = await fetch(`${API_BASE}/leaderboard`);
+  if (!res.ok) throw new Error("Failed to load leaderboard");
+  return res.json();
+}
+
+export async function refreshLeaderboard(): Promise<{ status: string }> {
+  const res = await fetch(`${API_BASE}/leaderboard/refresh`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to refresh leaderboard");
+  return res.json();
+}
+
 export function openEventStream(path: string) {
   return new EventSource(`${API_BASE}${path}`);
 }

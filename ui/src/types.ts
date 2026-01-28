@@ -98,3 +98,48 @@ export interface HanabiInitPayload {
   player_order: string[];
   episode_id: string;
 }
+
+// Leaderboard types
+export interface CodenamesRanking {
+  model: string;
+  games: number;
+  wins: number;
+  win_rate: number;
+}
+
+export interface DecryptoRanking {
+  model: string;
+  games: number;
+  wins: number;
+  win_rate: number;
+}
+
+export interface HanabiRanking {
+  model: string;
+  games: number;
+  avg_score: number;
+  score_pct: number;
+}
+
+export interface OverallRanking {
+  rank: number;
+  model: string;
+  games_played: number;
+  overall_score: number;
+  codenames_score: number | null;
+  decrypto_score: number | null;
+  hanabi_score: number | null;
+}
+
+export interface LeaderboardData {
+  generated_at: string;
+  total_episodes: {
+    codenames: number;
+    decrypto: number;
+    hanabi: number;
+  };
+  overall_rankings: OverallRanking[];
+  codenames_rankings: CodenamesRanking[];
+  decrypto_rankings: DecryptoRanking[];
+  hanabi_rankings: HanabiRanking[];
+}

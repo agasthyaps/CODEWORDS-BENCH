@@ -29,7 +29,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">Codewords</div>
+        <div className="brand">MindGames</div>
         <div className="nav-group">
           <nav className="nav">
             <button
