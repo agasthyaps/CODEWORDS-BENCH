@@ -548,8 +548,8 @@ def compute_decrypto_rankings(stats: dict[str, ModelStats]) -> list[DecryptoRank
                 intercept_accuracy=round(intercept_acc, 3),
             ))
 
-    # Sort by win rate descending (could also sort by intercept for "pure ToM")
-    rankings.sort(key=lambda x: (-x.win_rate, -x.games))
+    # Sort by intercept accuracy for "pure ToM" ranking, then decode accuracy, then games
+    rankings.sort(key=lambda x: (-x.intercept_accuracy, -x.decode_accuracy, -x.games))
     return rankings
 
 

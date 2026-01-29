@@ -243,7 +243,13 @@ export default function BenchmarkMonitor({ models }: Props) {
         setCostEstimate(estimate);
       } catch (e) {
         console.warn("Cost estimation failed:", e);
-        setCostEstimate(null);
+        setCostEstimate({
+          estimated_cost_usd: 0,
+          estimated_cost_display: "N/A",
+          breakdown: {},
+          confidence: "low",
+          notes: ["Cost estimation unavailable"],
+        });
       } finally {
         setCostLoading(false);
       }
@@ -393,6 +399,13 @@ export default function BenchmarkMonitor({ models }: Props) {
 
   const isRunning = status.status === "running";
   const canStart = !isRunning && selectedModels.length >= 2 && experimentName.trim();
+  const costEstimateDisplay = costEstimate ?? {
+    estimated_cost_usd: 0,
+    estimated_cost_display: "N/A",
+    breakdown: {},
+    confidence: "low" as const,
+    notes: ["Cost estimation unavailable"],
+  };
 
   return (
     <div className="page benchmark-monitor">
@@ -553,15 +566,15 @@ export default function BenchmarkMonitor({ models }: Props) {
                   Start Benchmark ({totalGames} games)
                 </button>
                 {/* Cost Estimate */}
-                {costEstimate && (
-                  <div className={`cost-estimate confidence-${costEstimate?.confidence ?? 'low'}`}>
+                {totalGames > 0 && (
+                  <div className={`cost-estimate confidence-${costEstimateDisplay.confidence ?? 'low'}`}>
                     <span className="cost-value">
-                      {costLoading ? "..." : costEstimate?.estimated_cost_display}
+                      {costLoading ? "..." : costEstimateDisplay.estimated_cost_display}
                     </span>
                     <span className="cost-label">est. cost</span>
-                    {costEstimate?.confidence !== "high" && (
-                      <span className="cost-confidence" title={costEstimate?.notes?.join("; ")}>
-                        ({costEstimate?.confidence})
+                    {costEstimateDisplay.confidence !== "high" && (
+                      <span className="cost-confidence" title={costEstimateDisplay.notes?.join("; ")}>
+                        ({costEstimateDisplay.confidence})
                       </span>
                     )}
                   </div>

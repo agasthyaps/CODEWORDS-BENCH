@@ -90,7 +90,7 @@ export default function Home({ onNavigate }: Props) {
           </p>
         </div>
         <div className="hero-meta">
-          <span className="version-tag">v1.0</span>
+          <span className="version-tag">v0.1.0</span>
         </div>
       </section>
 

@@ -86,6 +86,22 @@ export default function BatchRunner({ models, defaultModel }: Props) {
     setHanabiPlayers([defaultModel, defaultModel, defaultModel]);
   }, [baseTeam, defaultModel]);
 
+  // Parse seed list from input
+  const parsedSeedList = useMemo(() => {
+    try {
+      return seedListInput
+        .split(/[,\s]+/)
+        .map(s => parseInt(s.trim(), 10))
+        .filter(n => !isNaN(n));
+    } catch {
+      return [];
+    }
+  }, [seedListInput]);
+
+  // Calculate total games based on seed mode and game type
+  const seedsCount = seedMode === "list" ? parsedSeedList.length : count;
+  const totalGames = gameType === "both" ? seedsCount * 2 : seedsCount;
+
   // Estimate cost when config changes
   useEffect(() => {
     if (totalGames === 0) {
@@ -113,7 +129,13 @@ export default function BatchRunner({ models, defaultModel }: Props) {
         setCostEstimate(estimate);
       } catch (e) {
         console.warn("Cost estimation failed:", e);
-        setCostEstimate(null);
+        setCostEstimate({
+          estimated_cost_usd: 0,
+          estimated_cost_display: "N/A",
+          breakdown: {},
+          confidence: "low",
+          notes: ["Cost estimation unavailable"],
+        });
       } finally {
         setCostLoading(false);
       }
@@ -124,21 +146,13 @@ export default function BatchRunner({ models, defaultModel }: Props) {
     return () => clearTimeout(timer);
   }, [gameType, red.cluer, hanabiPlayers, seedsCount, totalGames]);
 
-  // Parse seed list from input
-  const parsedSeedList = useMemo(() => {
-    try {
-      return seedListInput
-        .split(/[,\s]+/)
-        .map(s => parseInt(s.trim(), 10))
-        .filter(n => !isNaN(n));
-    } catch {
-      return [];
-    }
-  }, [seedListInput]);
-
-  // Calculate total games based on seed mode and game type
-  const seedsCount = seedMode === "list" ? parsedSeedList.length : count;
-  const totalGames = gameType === "both" ? seedsCount * 2 : seedsCount;
+  const costEstimateDisplay = costEstimate ?? {
+    estimated_cost_usd: 0,
+    estimated_cost_display: "N/A",
+    breakdown: {},
+    confidence: "low" as const,
+    notes: ["Cost estimation unavailable"],
+  };
 
   function buildSelection(): TeamSelection {
     return { red, blue };
@@ -413,15 +427,15 @@ export default function BatchRunner({ models, defaultModel }: Props) {
             </button>
 
             {/* Cost Estimate */}
-            {costEstimate && status !== "running" && (
-              <div className={`cost-estimate confidence-${costEstimate?.confidence ?? 'low'}`}>
+            {totalGames > 0 && status !== "running" && (
+              <div className={`cost-estimate confidence-${costEstimateDisplay.confidence ?? 'low'}`}>
                 <span className="cost-value">
-                  {costLoading ? "..." : costEstimate?.estimated_cost_display}
+                  {costLoading ? "..." : costEstimateDisplay.estimated_cost_display}
                 </span>
                 <span className="cost-label">est. cost</span>
-                {costEstimate?.confidence !== "high" && (
-                  <span className="cost-confidence" title={costEstimate?.notes?.join("; ")}>
-                    ({costEstimate?.confidence})
+                {costEstimateDisplay.confidence !== "high" && (
+                  <span className="cost-confidence" title={costEstimateDisplay.notes?.join("; ")}>
+                    ({costEstimateDisplay.confidence})
                   </span>
                 )}
               </div>

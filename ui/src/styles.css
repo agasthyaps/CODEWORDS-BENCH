@@ -1426,7 +1426,6 @@ button.small {
   color: var(--text-muted);
   line-height: 1.8;
   margin-bottom: 0;
-  max-width: 500px;
   border-left: 2px solid #f5a623;
   padding-left: 16px;
 }
