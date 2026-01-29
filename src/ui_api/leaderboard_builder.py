@@ -180,11 +180,12 @@ def _extract_decrypto_models(episode: dict) -> list[tuple[str, bool, int, int, i
             for action in actions:
                 if not isinstance(action, dict):
                     continue
-                action_type = action.get("type", "") or action.get("action_type", "")
+                # Check multiple possible field names for action type
+                action_type = (action.get("kind") or action.get("type") or action.get("action_type") or "").lower()
                 team = (action.get("team") or "").lower()
                 correct = action.get("correct") or action.get("success")
 
-                if "decode" in action_type.lower():
+                if action_type == "decode":
                     if team == "red":
                         red_decode_attempts += 1
                         if correct:
@@ -193,7 +194,7 @@ def _extract_decrypto_models(episode: dict) -> list[tuple[str, bool, int, int, i
                         blue_decode_attempts += 1
                         if correct:
                             blue_decode_successes += 1
-                elif "intercept" in action_type.lower():
+                elif action_type == "intercept":
                     if team == "red":
                         red_intercept_attempts += 1
                         if correct:
@@ -359,9 +360,9 @@ def scan_all_episodes() -> dict[str, list[dict]]:
 
     Scans multiple patterns:
     - benchmark_results/sessions/{codenames,decrypto,hanabi}/ (UI sessions)
+    - benchmark_results/{codenames,decrypto,hanabi}/episodes/ (production structure)
     - benchmark_results/*/episodes/ (cloud benchmark - flat episodes dir)
-    - benchmark_results/*/{codenames,decrypto,hanabi}/ (cloud benchmark - by game type)
-    - benchmark_results/**/*.json (recursive fallback for any JSON files)
+    - benchmark_results/*/{codenames,decrypto,hanabi}/episodes/ (nested structure)
 
     Returns dict mapping game_type -> list of episode dicts.
     """
@@ -398,12 +399,21 @@ def scan_all_episodes() -> dict[str, list[dict]]:
                 if data:
                     add_episode(data, path.name)
 
-    # 2. Scan experiment directories
+    # 2. Scan {game_type}/episodes/ directly under benchmark_results (production structure)
+    for game_type in ("codenames", "decrypto", "hanabi"):
+        game_eps_dir = bench_dir / game_type / "episodes"
+        if game_eps_dir.exists():
+            for path in game_eps_dir.glob("*.json"):
+                data = _load_episode_file(path)
+                if data:
+                    add_episode(data, path.name)
+
+    # 3. Scan experiment directories
     for exp_dir in bench_dir.iterdir():
         if not exp_dir.is_dir() or exp_dir.name in ("sessions", "lost+found"):
             continue
 
-        # Pattern A: */episodes/ (flat episodes directory)
+        # Pattern: */episodes/ (flat episodes directory)
         episodes_dir = exp_dir / "episodes"
         if episodes_dir.exists():
             for path in episodes_dir.glob("*.json"):
@@ -411,7 +421,7 @@ def scan_all_episodes() -> dict[str, list[dict]]:
                 if data:
                     add_episode(data, path.name)
 
-        # Pattern B: */{game_type}/episodes/ (cloud benchmark structure)
+        # Also check */{game_type}/episodes/ (nested cloud benchmark structure)
         for game_type in ("codenames", "decrypto", "hanabi"):
             game_eps_dir = exp_dir / game_type / "episodes"
             if game_eps_dir.exists():
