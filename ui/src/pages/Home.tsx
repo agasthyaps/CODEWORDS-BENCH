@@ -403,40 +403,48 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
 
   return (
     <div className="leaderboard-table-wrapper">
+      <div className="score-explanation">
+        <span className="score-explanation-label">Overall Score:</span>
+        {useEfficiency
+          ? " Average of Hanabi efficiency (score/turn), Decrypto win rate, and Codenames win rate. Efficiency-based ranking rewards models that coordinate quickly, not just persistently."
+          : " Average of Hanabi raw score (out of 25), Decrypto win rate, and Codenames win rate. Raw scores can favor models that play more turns."
+        }
+      </div>
       <table className="leaderboard-table">
         <thead>
           <tr>
             <th className="col-rank">#</th>
             <th className="col-model">Model</th>
-            <th className="col-score" title={useEfficiency
-              ? "Efficiency-based composite: Hanabi efficiency + Decrypto win rate + Codenames win rate"
-              : "Raw score composite: Hanabi raw score + Decrypto win rate + Codenames win rate"
-            }>
-              Overall
+            <th className="col-score">
+              <span className="tooltip-trigger" data-tooltip={useEfficiency
+                ? "Efficiency-based composite: Hanabi efficiency + Decrypto win rate + Codenames win rate"
+                : "Raw score composite: Hanabi raw score + Decrypto win rate + Codenames win rate"
+              }>
+                Overall
+              </span>
             </th>
-            <th
-              className="col-dimension"
-              title={useEfficiency
-                ? "Hanabi Efficiency: Score per turn — measures convention establishment speed and true cooperative ToM"
-                : "Hanabi Raw Score: Average points out of 25 — can be misleading if model plays many turns"
-              }
-            >
-              Cooperative
+            <th className="col-dimension">
+              <span className="tooltip-trigger" data-tooltip={useEfficiency
+                ? "Hanabi Efficiency: Score per turn — measures convention establishment speed"
+                : "Hanabi Raw Score: Average points out of 25"
+              }>
+                Cooperative
+              </span>
             </th>
-            <th
-              className="col-dimension"
-              title="Decrypto: Win rate. Hover cells for decode/intercept breakdown."
-            >
-              Adversarial
+            <th className="col-dimension">
+              <span className="tooltip-trigger" data-tooltip="Decrypto win rate. Hover cells for decode/intercept breakdown.">
+                Adversarial
+              </span>
             </th>
-            <th
-              className="col-dimension"
-              title="Codenames: Win rate — semantic coordination capability"
-            >
-              Collaborative
+            <th className="col-dimension">
+              <span className="tooltip-trigger" data-tooltip="Codenames win rate — semantic coordination">
+                Collaborative
+              </span>
             </th>
-            <th className="col-games" title="Total games played across all game types">
-              Games
+            <th className="col-games">
+              <span className="tooltip-trigger" data-tooltip="Total games played across all game types">
+                Games
+              </span>
             </th>
           </tr>
         </thead>
@@ -446,7 +454,7 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
             const hanabiScore = useEfficiency ? r.hanabi_score : r.raw_hanabi_score;
 
             return (
-              <tr key={r.model} title={`${r.model}: Overall ${overallScore.toFixed(1)}% across ${r.games_played} games`}>
+              <tr key={r.model}>
                 <td className={`rank rank-${r.rank}`}>{r.rank}</td>
                 <td className="model-name">{r.model}</td>
                 <td className="overall-score">
@@ -458,33 +466,39 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
                     />
                   </div>
                 </td>
-                <td
-                  className="dimension-score cooperative"
-                  title={r.hanabi_efficiency !== null
+                <td className="dimension-score cooperative">
+                <span
+                  className="tooltip-cell"
+                  data-tooltip={r.hanabi_efficiency !== null
                     ? `Efficiency: ${(r.hanabi_efficiency * 100).toFixed(1)}% | Raw: ${r.raw_hanabi_score?.toFixed(0) ?? "—"}%`
                     : "No Hanabi games played"
                   }
                 >
                   {hanabiScore !== null ? `${hanabiScore.toFixed(0)}%` : "—"}
                   {useEfficiency && r.hanabi_efficiency !== null && (
-                    <span className="efficiency-indicator" title="Efficiency metric">⚡</span>
+                    <span className="efficiency-indicator">⚡</span>
                   )}
-                </td>
-                <td
-                  className="dimension-score adversarial"
-                  title={r.decrypto_decode !== null
+                </span>
+              </td>
+              <td className="dimension-score adversarial">
+                <span
+                  className="tooltip-cell"
+                  data-tooltip={r.decrypto_decode !== null
                     ? `Decode: ${r.decrypto_decode.toFixed(0)}% | Intercept: ${r.decrypto_intercept?.toFixed(0) ?? "—"}%`
                     : "No Decrypto games played"
                   }
                 >
                   {r.decrypto_score !== null ? `${r.decrypto_score.toFixed(0)}%` : "—"}
-                </td>
-                <td
-                  className="dimension-score collaborative"
-                  title={r.codenames_score !== null ? `Codenames win rate: ${r.codenames_score.toFixed(0)}%` : "No Codenames games played"}
+                </span>
+              </td>
+              <td className="dimension-score collaborative">
+                <span
+                  className="tooltip-cell"
+                  data-tooltip={r.codenames_score !== null ? `Win rate: ${r.codenames_score.toFixed(0)}%` : "No Codenames games played"}
                 >
                   {r.codenames_score !== null ? `${r.codenames_score.toFixed(0)}%` : "—"}
-                </td>
+                </span>
+              </td>
                 <td className="games-count">{r.games_played}</td>
               </tr>
             );
