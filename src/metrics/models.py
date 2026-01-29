@@ -33,6 +33,7 @@ class TeamMetrics(BaseModel):
 
     # ToM metrics (Theory of Mind)
     avg_cluer_surprise: float | None = None  # Avg Brier score: (predicted - actual)^2
+    avg_cluer_bias: float | None = None  # Avg (predicted - actual); +overconfident, -underconfident
     avg_clue_interpretability: float | None = None  # Avg Jaccard similarity of targets vs guesses
     top1_match_rate: float | None = None  # % of turns where first guess matched first target
 

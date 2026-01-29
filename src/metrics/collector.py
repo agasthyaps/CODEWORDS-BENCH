@@ -173,9 +173,24 @@ def compute_team_metrics(
         consensus_rate=consensus_rate,
         avg_discussion_length=avg_discussion_length,
         avg_cluer_surprise=tom_metrics.get("avg_surprise"),
+        avg_cluer_bias=tom_metrics.get("avg_bias"),
         avg_clue_interpretability=tom_metrics.get("avg_interpretability"),
         top1_match_rate=tom_metrics.get("top1_match_rate"),
     )
+
+
+def _compute_cluer_outcome(
+    actual_guesses: list[dict],
+    predicted_targets: list[str] | None,
+) -> float:
+    """Compute actual outcome for cluer prediction (1.0 success, 0.0 failure)."""
+    if not actual_guesses:
+        return 0.0
+    if predicted_targets:
+        correct_guesses = {g.get("word", "").upper() for g in actual_guesses if g.get("correct", False)}
+        predicted_set = {t.upper() for t in predicted_targets}
+        return 1.0 if predicted_set.issubset(correct_guesses) else 0.0
+    return 1.0 if any(g.get("correct", False) for g in actual_guesses) else 0.0
 
 
 def compute_cluer_surprise(
@@ -188,31 +203,28 @@ def compute_cluer_surprise(
     
     Brier score = (predicted_success - actual_outcome)^2
     Lower is better (0 = perfect calibration).
-    
-    Args:
-        predicted_success: Cluer's predicted probability of success (0.0-1.0)
-        actual_guesses: List of guess events from the turn
-        predicted_targets: List of words the cluer expected to be guessed
-    
-    Returns:
-        Brier score or None if no prediction available
     """
     if predicted_success is None:
         return None
-    
-    # Compute actual outcome: 1.0 if all predicted targets were guessed correctly
-    if not actual_guesses:
-        actual_outcome = 0.0
-    elif predicted_targets:
-        # Check if all predicted targets were guessed correctly
-        correct_guesses = {g.get("word", "").upper() for g in actual_guesses if g.get("correct", False)}
-        predicted_set = {t.upper() for t in predicted_targets}
-        actual_outcome = 1.0 if predicted_set.issubset(correct_guesses) else 0.0
-    else:
-        # No predicted targets - check if any correct guesses
-        actual_outcome = 1.0 if any(g.get("correct", False) for g in actual_guesses) else 0.0
-    
+    actual_outcome = _compute_cluer_outcome(actual_guesses, predicted_targets)
     return (predicted_success - actual_outcome) ** 2
+
+
+def compute_cluer_bias(
+    predicted_success: float | None,
+    actual_guesses: list[dict],
+    predicted_targets: list[str] | None,
+) -> float | None:
+    """
+    Compute signed bias for cluer predictions.
+    
+    Bias = predicted_success - actual_outcome
+    Positive = overconfident, negative = underconfident.
+    """
+    if predicted_success is None:
+        return None
+    actual_outcome = _compute_cluer_outcome(actual_guesses, predicted_targets)
+    return predicted_success - actual_outcome
 
 
 def compute_clue_interpretability(
@@ -277,6 +289,7 @@ def compute_tom_metrics(
     team_turns = [t for t in turn_traces if t.team == team]
     
     surprises: list[float] = []
+    biases: list[float] = []
     interpretabilities: list[float] = []
     top1_matches: list[bool] = []
     
@@ -296,10 +309,13 @@ def compute_tom_metrics(
             and e.get("event_type") == "guess"
         ]
         
-        # Compute surprise (Brier score)
+        # Compute surprise (Brier score) + bias
         surprise = compute_cluer_surprise(predicted_success, turn_guesses, predicted_targets)
         if surprise is not None:
             surprises.append(surprise)
+        bias = compute_cluer_bias(predicted_success, turn_guesses, predicted_targets)
+        if bias is not None:
+            biases.append(bias)
         
         # Compute interpretability
         interp = compute_clue_interpretability(predicted_targets, turn_guesses)
@@ -310,6 +326,7 @@ def compute_tom_metrics(
     
     return {
         "avg_surprise": sum(surprises) / len(surprises) if surprises else None,
+        "avg_bias": sum(biases) / len(biases) if biases else None,
         "avg_interpretability": sum(interpretabilities) / len(interpretabilities) if interpretabilities else None,
         "top1_match_rate": sum(top1_matches) / len(top1_matches) if top1_matches else None,
     }

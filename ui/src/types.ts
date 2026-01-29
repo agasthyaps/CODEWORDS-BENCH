@@ -105,6 +105,8 @@ export interface CodenamesRanking {
   games: number;
   wins: number;
   win_rate: number;
+  avg_cluer_surprise?: number | null;
+  avg_cluer_bias?: number | null;
 }
 
 export interface DecryptoRanking {
@@ -112,8 +114,14 @@ export interface DecryptoRanking {
   games: number;
   wins: number;
   win_rate: number;
-  decode_accuracy: number;  // Teammate understanding
-  intercept_accuracy: number;  // Opponent modeling (pure ToM)
+  decode_accuracy: number | null;  // Teammate understanding
+  intercept_accuracy: number | null;  // Opponent modeling (pure ToM)
+  avoid_intercept_rate?: number | null;  // Defense: avoid being intercepted
+  adversarial_score?: number | null;  // Composite adversarial score
+  decode_brier?: number | null;
+  intercept_brier?: number | null;
+  decode_bias?: number | null;
+  intercept_bias?: number | null;
 }
 
 export interface HanabiRanking {
@@ -142,6 +150,15 @@ export interface OverallRanking {
   hanabi_efficiency: number | null;
   decrypto_decode: number | null;
   decrypto_intercept: number | null;
+  decrypto_avoid_intercept?: number | null;
+  decrypto_adversarial?: number | null;
+  decrypto_win_rate?: number | null;
+  codenames_cluer_surprise?: number | null;
+  codenames_cluer_bias?: number | null;
+  decrypto_decode_brier?: number | null;
+  decrypto_intercept_brier?: number | null;
+  decrypto_decode_bias?: number | null;
+  decrypto_intercept_bias?: number | null;
 }
 
 export interface LeaderboardData {

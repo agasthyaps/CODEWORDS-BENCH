@@ -188,6 +188,8 @@ def compute_episode_scores(episode: DecryptoEpisodeRecord) -> dict[str, Any]:
     decode_logloss: dict[TeamKey, list[float]] = {"red": [], "blue": []}
     intercept_brier: dict[TeamKey, list[float]] = {"red": [], "blue": []}
     intercept_logloss: dict[TeamKey, list[float]] = {"red": [], "blue": []}
+    decode_bias: dict[TeamKey, list[float]] = {"red": [], "blue": []}
+    intercept_bias: dict[TeamKey, list[float]] = {"red": [], "blue": []}
 
     # Parse success rates
     parse_ok_count: dict[TeamKey, int] = {"red": 0, "blue": 0}
@@ -219,6 +221,7 @@ def compute_episode_scores(episode: DecryptoEpisodeRecord) -> dict[str, Any]:
                     y = 1.0 if decode_action.correct else 0.0
                     decode_brier[team].append(brier(p, y))
                     decode_logloss[team].append(log_loss(p, y))
+                    decode_bias[team].append(p - y)
                 
                 # Parse success tracking
                 if decode_action.consensus.parse_ok:
@@ -238,6 +241,7 @@ def compute_episode_scores(episode: DecryptoEpisodeRecord) -> dict[str, Any]:
                         y = 1.0 if intercept_action.correct else 0.0
                         intercept_brier[team].append(brier(p, y))
                         intercept_logloss[team].append(log_loss(p, y))
+                        intercept_bias[team].append(p - y)
 
             # State-conditioned decode accuracy
             bucket = _bucket(team, r)
@@ -263,6 +267,8 @@ def compute_episode_scores(episode: DecryptoEpisodeRecord) -> dict[str, Any]:
             "decode_log_loss": {t: _safe_mean(decode_logloss[t]) for t in ("red", "blue")},
             "intercept_brier": {t: _safe_mean(intercept_brier[t]) for t in ("red", "blue")},
             "intercept_log_loss": {t: _safe_mean(intercept_logloss[t]) for t in ("red", "blue")},
+            "decode_bias": {t: _safe_mean(decode_bias[t]) for t in ("red", "blue")},
+            "intercept_bias": {t: _safe_mean(intercept_bias[t]) for t in ("red", "blue")},
         },
         "adaptation": {
             "decode_success_by_state": {

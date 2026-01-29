@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { fetchLeaderboard, refreshLeaderboard } from "../api";
 import type {
   LeaderboardData,
@@ -67,15 +67,41 @@ export default function Home({ onNavigate }: Props) {
     });
   };
 
+  const formatPct01 = (value?: number | null) =>
+    value === null || value === undefined ? "—" : `${(value * 100).toFixed(0)}%`;
+
+  const formatBrier = (value?: number | null) =>
+    value === null || value === undefined ? "Brier —" : `Brier ${value.toFixed(3)}`;
+
   // Compute dynamic insights from leaderboard
   const bestCooperative = leaderboard?.hanabi_rankings[0];
   const bestAdversarial = leaderboard?.decrypto_rankings[0];
   const bestCollaborative = leaderboard?.codenames_rankings[0];
 
-  // Top 3 models by win rate for each game
-  const topCodenames = leaderboard?.codenames_rankings.slice(0, 3) || [];
-  const topDecrypto = leaderboard?.decrypto_rankings.slice(0, 3) || [];
-  const topHanabi = leaderboard?.hanabi_rankings.slice(0, 3) || [];
+  const bestAdversarialDecode = bestAdversarial?.decode_accuracy ?? null;
+  const bestAdversarialIntercept = bestAdversarial?.intercept_accuracy ?? null;
+  const bestAdversarialAvoid = bestAdversarial?.avoid_intercept_rate ?? null;
+  const bestAdversarialComposite = bestAdversarial?.adversarial_score ?? null;
+
+  const decodeCodenamesCorrelation = useMemo(() => {
+    if (!leaderboard) return null;
+    const pairs = leaderboard.overall_rankings
+      .map((r) => [r.decrypto_decode, r.codenames_score] as const)
+      .filter(([decode, codenames]) => decode !== null && codenames !== null)
+      .map(([decode, codenames]) => [decode as number, codenames as number]);
+
+    if (pairs.length < 2) return null;
+    const xs = pairs.map(([x]) => x);
+    const ys = pairs.map(([, y]) => y);
+    const meanX = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const meanY = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const cov = xs.reduce((sum, x, i) => sum + (x - meanX) * (ys[i] - meanY), 0);
+    const varX = xs.reduce((sum, x) => sum + (x - meanX) ** 2, 0);
+    const varY = ys.reduce((sum, y) => sum + (y - meanY) ** 2, 0);
+    const denom = Math.sqrt(varX * varY);
+    if (denom === 0) return null;
+    return { r: cov / denom, n: pairs.length };
+  }, [leaderboard]);
 
   return (
     <div className="page home-page">
@@ -86,7 +112,7 @@ export default function Home({ onNavigate }: Props) {
           <p className="tagline">Measuring how models think about each other</p>
           <p className="subtitle">
             Evaluating Theory of Mind through cooperative and competitive games—how
-            well do language models reason about beliefs, knowledge, and intentions?
+            well do language models reason about beliefs, knowledge, and intentions? (and a meta-experiment in semi-automated research)
           </p>
         </div>
         <div className="hero-meta">
@@ -163,11 +189,17 @@ export default function Home({ onNavigate }: Props) {
             icon="⚔️"
             title="Adversarial ToM"
             subtitle="Decrypto"
-            description="Opponent modeling capability"
+            description="Intercept skill + defensive ambiguity"
             rankings={leaderboard.decrypto_rankings}
-            metric="intercept_accuracy"
-            formatValue={(r: DecryptoRanking) => `${(r.intercept_accuracy * 100).toFixed(0)}% int`}
-            secondaryValue={(r: DecryptoRanking) => `${(r.decode_accuracy * 100).toFixed(0)}% dec`}
+            metric="adversarial_score"
+            formatValue={(r: DecryptoRanking) =>
+              r.adversarial_score === null || r.adversarial_score === undefined
+                ? "—"
+                : `${(r.adversarial_score * 100).toFixed(0)}% adv`
+            }
+            secondaryValue={(r: DecryptoRanking) =>
+              `${formatPct01(r.intercept_accuracy)} int · ${formatPct01(r.avoid_intercept_rate)} avoid`
+            }
             color="adversarial"
             onClick={() => onNavigate("decrypto")}
           />
@@ -179,6 +211,7 @@ export default function Home({ onNavigate }: Props) {
             rankings={leaderboard.codenames_rankings}
             metric="win_rate"
             formatValue={(r: CodenamesRanking) => `${(r.win_rate * 100).toFixed(0)}%`}
+            secondaryValue={(r: CodenamesRanking) => formatBrier(r.avg_cluer_surprise)}
             color="collaborative"
             onClick={() => onNavigate("codenames")}
           />
@@ -245,25 +278,38 @@ export default function Home({ onNavigate }: Props) {
               <h3>The Opponent Modeling Gap</h3>
               <p>
                 Decode (understanding teammates) is much easier than intercept (modeling opponents).
-                This gap isolates opponent modeling as the core ToM challenge.
+                Avoiding interception captures defensive signaling on top of direct interception skill.
               </p>
               {bestAdversarial && (
                 <div className="decode-intercept-gap">
                   <div className="gap-bar">
-                    <div className="gap-segment decode" style={{ width: `${bestAdversarial.decode_accuracy * 100}%` }}>
+                    <div className="gap-segment decode" style={{ width: `${(bestAdversarialDecode ?? 0) * 100}%` }}>
                       <span className="gap-label">Decode</span>
-                      <span className="gap-value">{(bestAdversarial.decode_accuracy * 100).toFixed(0)}%</span>
+                      <span className="gap-value">{formatPct01(bestAdversarialDecode)}</span>
                     </div>
                   </div>
                   <div className="gap-bar">
-                    <div className="gap-segment intercept" style={{ width: `${bestAdversarial.intercept_accuracy * 100}%` }}>
+                    <div className="gap-segment intercept" style={{ width: `${(bestAdversarialIntercept ?? 0) * 100}%` }}>
                       <span className="gap-label">Intercept</span>
-                      <span className="gap-value">{(bestAdversarial.intercept_accuracy * 100).toFixed(0)}%</span>
+                      <span className="gap-value">{formatPct01(bestAdversarialIntercept)}</span>
                     </div>
                   </div>
-                  <div className="gap-note">
-                    Gap: {((bestAdversarial.decode_accuracy - bestAdversarial.intercept_accuracy) * 100).toFixed(0)} pts
+                  <div className="gap-bar">
+                    <div className="gap-segment avoid" style={{ width: `${(bestAdversarialAvoid ?? 0) * 100}%` }}>
+                      <span className="gap-label">Avoid</span>
+                      <span className="gap-value">{formatPct01(bestAdversarialAvoid)}</span>
+                    </div>
                   </div>
+                  {bestAdversarialDecode !== null && bestAdversarialIntercept !== null && (
+                    <div className="gap-note">
+                      Gap: {((bestAdversarialDecode - bestAdversarialIntercept) * 100).toFixed(0)} pts
+                    </div>
+                  )}
+                  {decodeCodenamesCorrelation && (
+                    <div className="gap-note">
+                      Decode↔Codenames correlation: r={decodeCodenamesCorrelation.r.toFixed(2)} (n={decodeCodenamesCorrelation.n})
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -293,10 +339,10 @@ export default function Home({ onNavigate }: Props) {
                   <span className="spec-model">{bestAdversarial?.model || "—"}</span>
                   <div
                     className="spec-bar adversarial"
-                    style={{ width: bestAdversarial ? `${bestAdversarial.intercept_accuracy * 100 * 3}%` : "0%" }}
+                    style={{ width: bestAdversarialComposite !== null ? `${bestAdversarialComposite * 100 * 3}%` : "0%" }}
                   ></div>
                   <span className="spec-score">
-                    {bestAdversarial ? `${(bestAdversarial.intercept_accuracy * 100).toFixed(0)}%` : "—"}
+                    {bestAdversarialComposite !== null ? `${(bestAdversarialComposite * 100).toFixed(0)}%` : "—"}
                   </span>
                 </div>
                 <div className="spec-row">
@@ -389,6 +435,18 @@ export default function Home({ onNavigate }: Props) {
 
 // Leaderboard Table Component
 function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRanking[]; useEfficiency: boolean }) {
+  const [expandedModel, setExpandedModel] = useState<string | null>(null);
+
+  const formatBias = (value?: number | null) => {
+    if (value === null || value === undefined) return "Bias —";
+    const label = value > 0.05 ? "over" : value < -0.05 ? "under" : "calibrated";
+    const sign = value >= 0 ? "+" : "";
+    return `Bias ${sign}${value.toFixed(2)} (${label})`;
+  };
+
+  const formatBrier = (value?: number | null) =>
+    value === null || value === undefined ? "Brier —" : `Brier ${value.toFixed(3)}`;
+
   // Sort rankings based on selected metric
   const sortedRankings = [...rankings].sort((a, b) => {
     const aScore = useEfficiency ? a.overall_score : a.raw_overall_score;
@@ -406,8 +464,8 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
       <div className="score-explanation">
         <span className="score-explanation-label">Overall Score:</span>
         {useEfficiency
-          ? " Average of Hanabi efficiency (score/turn), Decrypto win rate, and Codenames win rate. Efficiency-based ranking rewards models that coordinate quickly, not just persistently."
-          : " Average of Hanabi raw score (out of 25), Decrypto win rate, and Codenames win rate. Raw scores can favor models that play more turns."
+          ? " Average of Hanabi efficiency (score/turn), Decrypto adversarial score, and Codenames win rate. Efficiency-based ranking rewards models that coordinate quickly, not just persistently."
+          : " Average of Hanabi raw score (out of 25), Decrypto adversarial score, and Codenames win rate. Raw scores can favor models that play more turns."
         }
       </div>
       <table className="leaderboard-table">
@@ -417,8 +475,8 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
             <th className="col-model">Model</th>
             <th className="col-score">
               <span className="tooltip-trigger" data-tooltip={useEfficiency
-                ? "Efficiency-based composite: Hanabi efficiency + Decrypto win rate + Codenames win rate"
-                : "Raw score composite: Hanabi raw score + Decrypto win rate + Codenames win rate"
+                ? "Efficiency-based composite: Hanabi efficiency + Decrypto adversarial score + Codenames win rate"
+                : "Raw score composite: Hanabi raw score + Decrypto adversarial score + Codenames win rate"
               }>
                 Overall
               </span>
@@ -432,12 +490,12 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
               </span>
             </th>
             <th className="col-dimension">
-              <span className="tooltip-trigger" data-tooltip="Decrypto win rate. Hover cells for decode/intercept breakdown.">
+              <span className="tooltip-trigger" data-tooltip="Adversarial composite: 70% intercept success + 30% avoid being intercepted. Hover cells for breakdown.">
                 Adversarial
               </span>
             </th>
             <th className="col-dimension">
-              <span className="tooltip-trigger" data-tooltip="Codenames win rate — semantic coordination">
+              <span className="tooltip-trigger" data-tooltip="Codenames win rate — semantic coordination. Hover for cluer surprise (Brier, lower=better).">
                 Collaborative
               </span>
             </th>
@@ -452,55 +510,94 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
           {sortedRankings.map((r) => {
             const overallScore = useEfficiency ? r.overall_score : r.raw_overall_score;
             const hanabiScore = useEfficiency ? r.hanabi_score : r.raw_hanabi_score;
+            const isExpanded = expandedModel === r.model;
 
             return (
-              <tr key={r.model}>
-                <td className={`rank rank-${r.rank}`}>{r.rank}</td>
-                <td className="model-name">{r.model}</td>
-                <td className="overall-score">
-                  <span className="score-value">{overallScore.toFixed(1)}</span>
-                  <div className="score-bar">
-                    <div
-                      className="score-bar-fill"
-                      style={{ width: `${overallScore}%` }}
-                    />
-                  </div>
+              <Fragment key={r.model}>
+                <tr>
+                  <td className={`rank rank-${r.rank}`}>{r.rank}</td>
+                  <td className="model-name">
+                    <button
+                      type="button"
+                      className={`row-expander ${isExpanded ? "open" : ""}`}
+                      onClick={() => setExpandedModel(isExpanded ? null : r.model)}
+                      aria-expanded={isExpanded}
+                      aria-label={`Toggle details for ${r.model}`}
+                    >
+                      ▸
+                    </button>
+                    <span>{r.model}</span>
+                  </td>
+                  <td className="overall-score">
+                    <span className="score-value">{overallScore.toFixed(1)}</span>
+                    <div className="score-bar">
+                      <div
+                        className="score-bar-fill"
+                        style={{ width: `${overallScore}%` }}
+                      />
+                    </div>
+                  </td>
+                  <td className="dimension-score cooperative">
+                  <span
+                    className="tooltip-cell"
+                    data-tooltip={r.hanabi_efficiency !== null
+                      ? `Efficiency: ${(r.hanabi_efficiency * 100).toFixed(1)}% | Raw: ${r.raw_hanabi_score?.toFixed(0) ?? "—"}%`
+                      : "No Hanabi games played"
+                    }
+                  >
+                    {hanabiScore !== null ? `${hanabiScore.toFixed(0)}%` : "—"}
+                    {useEfficiency && r.hanabi_efficiency !== null && (
+                      <span className="efficiency-indicator">⚡</span>
+                    )}
+                  </span>
                 </td>
-                <td className="dimension-score cooperative">
-                <span
-                  className="tooltip-cell"
-                  data-tooltip={r.hanabi_efficiency !== null
-                    ? `Efficiency: ${(r.hanabi_efficiency * 100).toFixed(1)}% | Raw: ${r.raw_hanabi_score?.toFixed(0) ?? "—"}%`
-                    : "No Hanabi games played"
-                  }
-                >
-                  {hanabiScore !== null ? `${hanabiScore.toFixed(0)}%` : "—"}
-                  {useEfficiency && r.hanabi_efficiency !== null && (
-                    <span className="efficiency-indicator">⚡</span>
-                  )}
-                </span>
-              </td>
-              <td className="dimension-score adversarial">
-                <span
-                  className="tooltip-cell"
-                  data-tooltip={r.decrypto_decode !== null
-                    ? `Decode: ${r.decrypto_decode.toFixed(0)}% | Intercept: ${r.decrypto_intercept?.toFixed(0) ?? "—"}%`
-                    : "No Decrypto games played"
-                  }
-                >
-                  {r.decrypto_score !== null ? `${r.decrypto_score.toFixed(0)}%` : "—"}
-                </span>
-              </td>
-              <td className="dimension-score collaborative">
-                <span
-                  className="tooltip-cell"
-                  data-tooltip={r.codenames_score !== null ? `Win rate: ${r.codenames_score.toFixed(0)}%` : "No Codenames games played"}
-                >
-                  {r.codenames_score !== null ? `${r.codenames_score.toFixed(0)}%` : "—"}
-                </span>
-              </td>
-                <td className="games-count">{r.games_played}</td>
-              </tr>
+                <td className="dimension-score adversarial">
+                  <span
+                    className="tooltip-cell"
+                    data-tooltip={r.decrypto_score !== null
+                      ? `Adversarial: ${r.decrypto_score.toFixed(0)}% | Win: ${r.decrypto_win_rate?.toFixed(0) ?? "—"}% | Decode: ${r.decrypto_decode?.toFixed(0) ?? "—"}% | Intercept: ${r.decrypto_intercept?.toFixed(0) ?? "—"}% | Avoid: ${r.decrypto_avoid_intercept?.toFixed(0) ?? "—"}%`
+                      : "No Decrypto games played"
+                    }
+                  >
+                    {r.decrypto_score !== null ? `${r.decrypto_score.toFixed(0)}%` : "—"}
+                  </span>
+                </td>
+                <td className="dimension-score collaborative">
+                  <span
+                    className="tooltip-cell"
+                    data-tooltip={r.codenames_score !== null
+                      ? `Win rate: ${r.codenames_score.toFixed(0)}% | Cluer surprise (Brier, lower=better): ${r.codenames_cluer_surprise?.toFixed(3) ?? "—"}`
+                      : "No Codenames games played"}
+                  >
+                    {r.codenames_score !== null ? `${r.codenames_score.toFixed(0)}%` : "—"}
+                  </span>
+                </td>
+                  <td className="games-count">{r.games_played}</td>
+                </tr>
+                {isExpanded && (
+                  <tr className="leaderboard-detail">
+                    <td colSpan={7}>
+                      <div className="detail-grid">
+                        <div className="detail-card">
+                          <div className="detail-title">Codenames Calibration</div>
+                          <div className="detail-metric">{formatBrier(r.codenames_cluer_surprise)}</div>
+                          <div className="detail-sub">{formatBias(r.codenames_cluer_bias)}</div>
+                        </div>
+                        <div className="detail-card">
+                          <div className="detail-title">Decrypto Decode Calibration</div>
+                          <div className="detail-metric">{formatBrier(r.decrypto_decode_brier)}</div>
+                          <div className="detail-sub">{formatBias(r.decrypto_decode_bias)}</div>
+                        </div>
+                        <div className="detail-card">
+                          <div className="detail-title">Decrypto Intercept Calibration</div>
+                          <div className="detail-metric">{formatBrier(r.decrypto_intercept_brier)}</div>
+                          <div className="detail-sub">{formatBias(r.decrypto_intercept_bias)}</div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             );
           })}
         </tbody>
