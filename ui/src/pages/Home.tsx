@@ -509,7 +509,9 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
         <tbody>
           {sortedRankings.map((r) => {
             const overallScore = useEfficiency ? r.overall_score : r.raw_overall_score;
-            const hanabiScore = useEfficiency ? r.hanabi_score : r.raw_hanabi_score;
+            const hanabiScore = useEfficiency
+              ? (r.hanabi_efficiency !== null ? r.hanabi_efficiency * 100 : null)
+              : r.raw_hanabi_score;
             const isExpanded = expandedModel === r.model;
 
             return (
