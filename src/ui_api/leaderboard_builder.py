@@ -258,11 +258,11 @@ def scan_all_episodes() -> dict[str, list[dict]]:
                 if data:
                     add_episode(data, path.name)
 
-        # Pattern B: */{game_type}/ (organized by game type)
+        # Pattern B: */{game_type}/episodes/ (cloud benchmark structure)
         for game_type in ("codenames", "decrypto", "hanabi"):
-            game_dir = exp_dir / game_type
-            if game_dir.exists():
-                for path in game_dir.glob("*.json"):
+            game_eps_dir = exp_dir / game_type / "episodes"
+            if game_eps_dir.exists():
+                for path in game_eps_dir.glob("*.json"):
                     data = _load_episode_file(path)
                     if data:
                         add_episode(data, path.name)

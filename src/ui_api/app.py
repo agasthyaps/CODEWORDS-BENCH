@@ -1226,12 +1226,12 @@ def refresh_leaderboard() -> dict[str, Any]:
                 if eps_dir.exists():
                     eps_count = len(list(eps_dir.glob("*.json")))
                     print(f"[LEADERBOARD]     -> episodes/: {eps_count} files")
-                # Check for game type subdirs
+                # Check for game type subdirs with episodes
                 for game in ("codenames", "decrypto", "hanabi"):
-                    game_dir = c / game
-                    if game_dir.exists():
-                        game_count = len(list(game_dir.glob("*.json")))
-                        print(f"[LEADERBOARD]     -> {game}/: {game_count} files")
+                    game_eps_dir = c / game / "episodes"
+                    if game_eps_dir.exists():
+                        game_count = len(list(game_eps_dir.glob("*.json")))
+                        print(f"[LEADERBOARD]     -> {game}/episodes/: {game_count} files")
 
         # Also check sessions dir
         sessions_dir = bench_dir / "sessions"
