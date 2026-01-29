@@ -15,9 +15,7 @@ from src.decrypto.models import DecryptoEpisodeRecord
 from src.metrics import compute_episode_metrics
 from src.runner.episode import ExtendedEpisodeRecord
 
-# Composite weights for Decrypto adversarial score
-ADVERSARIAL_INTERCEPT_WEIGHT = 0.7
-ADVERSARIAL_AVOID_WEIGHT = 0.3
+# Decrypto adversarial score uses intercept accuracy only.
 
 
 class ModelStats(BaseModel):
@@ -716,15 +714,10 @@ def compute_decrypto_rankings(stats: dict[str, ModelStats]) -> list[DecryptoRank
                 avoid_intercept = 1 - (s.decrypto_opp_intercept_successes / s.decrypto_opp_intercept_attempts)
 
             adversarial_score = None
-            if intercept_acc is not None and avoid_intercept is not None:
-                adversarial_score = (
-                    (intercept_acc * ADVERSARIAL_INTERCEPT_WEIGHT)
-                    + (avoid_intercept * ADVERSARIAL_AVOID_WEIGHT)
-                )
+            if intercept_acc is not None and decode_acc is not None:
+                adversarial_score = intercept_acc * decode_acc
             elif intercept_acc is not None:
                 adversarial_score = intercept_acc
-            elif avoid_intercept is not None:
-                adversarial_score = avoid_intercept
 
             decode_brier = None
             intercept_brier = None
@@ -754,11 +747,10 @@ def compute_decrypto_rankings(stats: dict[str, ModelStats]) -> list[DecryptoRank
                 intercept_bias=round(intercept_bias, 4) if intercept_bias is not None else None,
             ))
 
-    # Sort by adversarial score, then intercept accuracy, then games
+    # Sort by intercept accuracy (adversarial score), then games
     rankings.sort(
         key=lambda x: (
             -(x.adversarial_score if x.adversarial_score is not None else -1),
-            -(x.intercept_accuracy if x.intercept_accuracy is not None else -1),
             -x.games,
         )
     )
@@ -875,15 +867,11 @@ def compute_overall_rankings(stats: dict[str, ModelStats]) -> list[OverallRankin
             avoid_intercept = 100 - (
                 (s.decrypto_opp_intercept_successes / s.decrypto_opp_intercept_attempts) * 100
             )
-        if intercept_acc is not None and avoid_intercept is not None:
-            adversarial_score = (
-                (intercept_acc * ADVERSARIAL_INTERCEPT_WEIGHT)
-                + (avoid_intercept * ADVERSARIAL_AVOID_WEIGHT)
-            )
+        adversarial_score = None
+        if intercept_acc is not None and decode_acc is not None:
+            adversarial_score = (intercept_acc / 100) * (decode_acc / 100) * 100
         elif intercept_acc is not None:
             adversarial_score = intercept_acc
-        elif avoid_intercept is not None:
-            adversarial_score = avoid_intercept
 
         if s.decrypto_decode_brier_count > 0:
             decode_brier = s.decrypto_decode_brier_sum / s.decrypto_decode_brier_count

@@ -189,7 +189,7 @@ export default function Home({ onNavigate }: Props) {
             icon="⚔️"
             title="Adversarial ToM"
             subtitle="Decrypto"
-            description="Intercept skill + defensive ambiguity"
+            description="Intercept skill penalized by miscommunications"
             rankings={leaderboard.decrypto_rankings}
             metric="adversarial_score"
             formatValue={(r: DecryptoRanking) =>
@@ -198,7 +198,7 @@ export default function Home({ onNavigate }: Props) {
                 : `${(r.adversarial_score * 100).toFixed(0)}% adv`
             }
             secondaryValue={(r: DecryptoRanking) =>
-              `${formatPct01(r.intercept_accuracy)} int · ${formatPct01(r.avoid_intercept_rate)} avoid`
+              `${formatPct01(r.intercept_accuracy)} int · ${formatPct01(r.decode_accuracy)} dec`
             }
             color="adversarial"
             onClick={() => onNavigate("decrypto")}
@@ -278,7 +278,7 @@ export default function Home({ onNavigate }: Props) {
               <h3>The Opponent Modeling Gap</h3>
               <p>
                 Decode (understanding teammates) is much easier than intercept (modeling opponents).
-                Avoiding interception captures defensive signaling on top of direct interception skill.
+                Adversarial score multiplies intercept by decode to penalize miscommunications.
               </p>
               {bestAdversarial && (
                 <div className="decode-intercept-gap">
@@ -296,7 +296,7 @@ export default function Home({ onNavigate }: Props) {
                   </div>
                   <div className="gap-bar">
                     <div className="gap-segment avoid" style={{ width: `${(bestAdversarialAvoid ?? 0) * 100}%` }}>
-                      <span className="gap-label">Avoid</span>
+                      <span className="gap-label">Avoid (ctx)</span>
                       <span className="gap-value">{formatPct01(bestAdversarialAvoid)}</span>
                     </div>
                   </div>
@@ -464,8 +464,8 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
       <div className="score-explanation">
         <span className="score-explanation-label">Overall Score:</span>
         {useEfficiency
-          ? " Average of Hanabi efficiency (score/turn), Decrypto adversarial score, and Codenames win rate. Efficiency-based ranking rewards models that coordinate quickly, not just persistently."
-          : " Average of Hanabi raw score (out of 25), Decrypto adversarial score, and Codenames win rate. Raw scores can favor models that play more turns."
+          ? " Average of Hanabi efficiency (score/turn), Decrypto adversarial score (intercept × decode), and Codenames win rate. Efficiency-based ranking rewards models that coordinate quickly, not just persistently."
+          : " Average of Hanabi raw score (out of 25), Decrypto adversarial score (intercept × decode), and Codenames win rate. Raw scores can favor models that play more turns."
         }
       </div>
       <table className="leaderboard-table">
@@ -475,8 +475,8 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
             <th className="col-model">Model</th>
             <th className="col-score">
               <span className="tooltip-trigger" data-tooltip={useEfficiency
-                ? "Efficiency-based composite: Hanabi efficiency + Decrypto adversarial score + Codenames win rate"
-                : "Raw score composite: Hanabi raw score + Decrypto adversarial score + Codenames win rate"
+                ? "Efficiency-based composite: Hanabi efficiency + Decrypto (intercept × decode) + Codenames win rate"
+                : "Raw score composite: Hanabi raw score + Decrypto (intercept × decode) + Codenames win rate"
               }>
                 Overall
               </span>
@@ -490,7 +490,7 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
               </span>
             </th>
             <th className="col-dimension">
-              <span className="tooltip-trigger" data-tooltip="Adversarial composite: 70% intercept success + 30% avoid being intercepted. Hover cells for breakdown.">
+              <span className="tooltip-trigger" data-tooltip="Adversarial score = intercept × decode (penalizes miscommunications). Hover cells for breakdown.">
                 Adversarial
               </span>
             </th>
@@ -554,11 +554,11 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
                 <td className="dimension-score adversarial">
                   <span
                     className="tooltip-cell"
-                    data-tooltip={r.decrypto_score !== null
-                      ? `Adversarial: ${r.decrypto_score.toFixed(0)}% | Win: ${r.decrypto_win_rate?.toFixed(0) ?? "—"}% | Decode: ${r.decrypto_decode?.toFixed(0) ?? "—"}% | Intercept: ${r.decrypto_intercept?.toFixed(0) ?? "—"}% | Avoid: ${r.decrypto_avoid_intercept?.toFixed(0) ?? "—"}%`
-                      : "No Decrypto games played"
-                    }
-                  >
+                  data-tooltip={r.decrypto_score !== null
+                    ? `Adversarial: ${r.decrypto_score.toFixed(0)}% | Intercept: ${r.decrypto_intercept?.toFixed(0) ?? "—"}% | Decode: ${r.decrypto_decode?.toFixed(0) ?? "—"}% | Miscomm: ${r.decrypto_decode !== null ? (100 - r.decrypto_decode).toFixed(0) : "—"}% | Avoid (context): ${r.decrypto_avoid_intercept?.toFixed(0) ?? "—"}% | Win: ${r.decrypto_win_rate?.toFixed(0) ?? "—"}%`
+                    : "No Decrypto games played"
+                  }
+                >
                     {r.decrypto_score !== null ? `${r.decrypto_score.toFixed(0)}%` : "—"}
                   </span>
                 </td>
