@@ -104,7 +104,7 @@ def _extract_codenames_models(episode: dict) -> list[tuple[str, bool]]:
     Handles both UI sessions (cluer) and benchmark (cluer_model) formats.
     """
     metadata = episode.get("metadata", {})
-    winner = episode.get("winner", "").upper()
+    winner = (episode.get("winner") or "").upper()
     results = []
 
     # Red team - try both formats
@@ -131,7 +131,7 @@ def _extract_decrypto_models(episode: dict) -> list[tuple[str, bool]]:
     Returns list of (model, won) tuples.
     """
     metadata = episode.get("metadata", {})
-    winner = episode.get("winner", "").lower()
+    winner = (episode.get("winner") or "").lower()
     results = []
 
     # Red team
