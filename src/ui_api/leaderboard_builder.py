@@ -159,14 +159,28 @@ def _extract_hanabi_models(episode: dict) -> list[tuple[str, int]]:
     Since Hanabi is cooperative with same model for all players,
     we return just one entry per unique model.
     """
-    metadata = episode.get("metadata", {})
-    player_models = metadata.get("player_models", {})
-    score = episode.get("final_score", 0)
+    metadata = episode.get("metadata", {}) or {}
+    score = episode.get("final_score") or 0
 
-    # Get unique models (usually all same)
-    unique_models = set(player_models.values())
+    # Try multiple locations for model info
+    # 1. metadata.model (cloud benchmark format)
+    model = metadata.get("model")
+    if model:
+        return [(model, score)]
 
-    return [(model, score) for model in unique_models if model]
+    # 2. metadata.player_models (alternative format)
+    player_models = metadata.get("player_models", {}) or {}
+    if player_models:
+        unique_models = set(player_models.values())
+        return [(m, score) for m in unique_models if m]
+
+    # 3. config.model (fallback)
+    config = episode.get("config", {}) or {}
+    model = config.get("model")
+    if model:
+        return [(model, score)]
+
+    return []
 
 
 def _detect_game_type(episode: dict, filename: str) -> str | None:
@@ -300,7 +314,7 @@ def compute_model_stats(episodes: dict[str, list[dict]]) -> dict[str, ModelStats
             if model not in stats:
                 stats[model] = ModelStats(model=model)
             stats[model].hanabi_games += 1
-            stats[model].hanabi_total_score += score
+            stats[model].hanabi_total_score += int(score) if score else 0
 
     return dict(stats)
 

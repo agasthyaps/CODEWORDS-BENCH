@@ -1244,6 +1244,13 @@ def refresh_leaderboard() -> dict[str, Any]:
     episodes = scan_all_episodes()
     print(f"[LEADERBOARD] Scanned: codenames={len(episodes['codenames'])}, decrypto={len(episodes['decrypto'])}, hanabi={len(episodes['hanabi'])}")
 
+    # Debug: show sample hanabi episode structure
+    if episodes['hanabi']:
+        sample = episodes['hanabi'][0]
+        print(f"[LEADERBOARD] Sample hanabi keys: {list(sample.keys())[:10]}")
+        print(f"[LEADERBOARD] Sample hanabi metadata: {sample.get('metadata', {})}")
+        print(f"[LEADERBOARD] Sample hanabi final_score: {sample.get('final_score')}")
+
     data = build_leaderboard()
     save_leaderboard(data)
 
