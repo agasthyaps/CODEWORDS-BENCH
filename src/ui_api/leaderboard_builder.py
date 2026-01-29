@@ -359,10 +359,10 @@ def scan_all_episodes() -> dict[str, list[dict]]:
     Scan all episode files from benchmark_results/ (consolidated storage).
 
     Scans multiple patterns:
-    - benchmark_results/sessions/{codenames,decrypto,hanabi}/ (UI sessions)
-    - benchmark_results/{codenames,decrypto,hanabi}/episodes/ (production structure)
-    - benchmark_results/*/episodes/ (cloud benchmark - flat episodes dir)
-    - benchmark_results/*/{codenames,decrypto,hanabi}/episodes/ (nested structure)
+    - benchmark_results/sessions/{game_type}/*.json (UI sessions)
+    - benchmark_results/{game_type}/episodes/*.json (direct game type dirs)
+    - benchmark_results/{run_name}/episodes/*.json (flat run structure)
+    - benchmark_results/{run_name}/{game_type}/episodes/*.json (production structure)
 
     Returns dict mapping game_type -> list of episode dicts.
     """
@@ -408,9 +408,9 @@ def scan_all_episodes() -> dict[str, list[dict]]:
                 if data:
                     add_episode(data, path.name)
 
-    # 3. Scan experiment directories
+    # 3. Scan run directories (benchmark_results/{run_name}/{game_type}/episodes/)
     for exp_dir in bench_dir.iterdir():
-        if not exp_dir.is_dir() or exp_dir.name in ("sessions", "lost+found"):
+        if not exp_dir.is_dir() or exp_dir.name in ("sessions", "lost+found", "codenames", "decrypto", "hanabi"):
             continue
 
         # Pattern: */episodes/ (flat episodes directory)
