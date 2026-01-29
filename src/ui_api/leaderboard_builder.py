@@ -21,9 +21,15 @@ class ModelStats(BaseModel):
     # Decrypto
     decrypto_games: int = 0
     decrypto_wins: int = 0
+    decrypto_decode_attempts: int = 0
+    decrypto_decode_successes: int = 0
+    decrypto_intercept_attempts: int = 0
+    decrypto_intercept_successes: int = 0
     # Hanabi
     hanabi_games: int = 0
     hanabi_total_score: int = 0
+    hanabi_total_turns: int = 0
+    hanabi_turn_limit_hits: int = 0
 
 
 class CodenamesRanking(BaseModel):
@@ -42,6 +48,8 @@ class DecryptoRanking(BaseModel):
     games: int
     wins: int
     win_rate: float
+    decode_accuracy: float = 0.0  # Teammate understanding
+    intercept_accuracy: float = 0.0  # Opponent modeling (pure ToM)
 
 
 class HanabiRanking(BaseModel):
@@ -51,6 +59,10 @@ class HanabiRanking(BaseModel):
     games: int
     avg_score: float
     score_pct: float  # As percentage of max 25
+    # Efficiency metrics (the key insight from research)
+    efficiency: float = 0.0  # score/turn - measures true cooperative ToM
+    avg_turns: float = 0.0
+    turn_limit_pct: float = 0.0  # % games hitting turn limit
 
 
 class OverallRanking(BaseModel):
@@ -59,10 +71,18 @@ class OverallRanking(BaseModel):
     rank: int
     model: str
     games_played: int
-    overall_score: float  # 0-100 composite
+    overall_score: float  # 0-100 composite (efficiency-based)
+    # Per-game scores (0-100)
     codenames_score: float | None = None
     decrypto_score: float | None = None
-    hanabi_score: float | None = None
+    hanabi_score: float | None = None  # Efficiency-based
+    # Alternative: raw score composite (for comparison toggle)
+    raw_overall_score: float = 0.0
+    raw_hanabi_score: float | None = None  # Raw avg score as pct
+    # Detailed metrics for tooltip/display
+    hanabi_efficiency: float | None = None
+    decrypto_decode: float | None = None
+    decrypto_intercept: float | None = None
 
 
 class LeaderboardData(BaseModel):
@@ -124,61 +144,131 @@ def _extract_codenames_models(episode: dict) -> list[tuple[str, bool]]:
     return results
 
 
-def _extract_decrypto_models(episode: dict) -> list[tuple[str, bool]]:
+def _extract_decrypto_models(episode: dict) -> list[tuple[str, bool, int, int, int, int]]:
     """
     Extract models from a Decrypto episode.
 
-    Returns list of (model, won) tuples.
+    Returns list of (model, won, decode_attempts, decode_successes, intercept_attempts, intercept_successes) tuples.
     """
     metadata = episode.get("metadata", {})
     winner = (episode.get("winner") or "").lower()
     results = []
+
+    # Parse round results to get decode/intercept stats
+    rounds = episode.get("rounds", [])
+
+    # Track per-team stats
+    red_decode_attempts = 0
+    red_decode_successes = 0
+    red_intercept_attempts = 0
+    red_intercept_successes = 0
+    blue_decode_attempts = 0
+    blue_decode_successes = 0
+    blue_intercept_attempts = 0
+    blue_intercept_successes = 0
+
+    for round_data in rounds:
+        # Each round has decode and intercept results for both teams
+        # Format varies - try multiple approaches
+        actions = round_data.get("actions", {})
+
+        # Check for decode results
+        red_decode = actions.get("red_decode") or round_data.get("red_decode_correct")
+        blue_decode = actions.get("blue_decode") or round_data.get("blue_decode_correct")
+
+        if red_decode is not None:
+            red_decode_attempts += 1
+            if red_decode is True or red_decode == "correct":
+                red_decode_successes += 1
+
+        if blue_decode is not None:
+            blue_decode_attempts += 1
+            if blue_decode is True or blue_decode == "correct":
+                blue_decode_successes += 1
+
+        # Check for intercept results
+        red_intercept = actions.get("red_intercept") or round_data.get("red_intercept_correct")
+        blue_intercept = actions.get("blue_intercept") or round_data.get("blue_intercept_correct")
+
+        if red_intercept is not None:
+            red_intercept_attempts += 1
+            if red_intercept is True or red_intercept == "correct":
+                red_intercept_successes += 1
+
+        if blue_intercept is not None:
+            blue_intercept_attempts += 1
+            if blue_intercept is True or blue_intercept == "correct":
+                blue_intercept_successes += 1
+
+    # If no rounds parsed, estimate from game outcome
+    # Standard Decrypto has ~8 rounds, so estimate
+    if red_decode_attempts == 0 and len(rounds) == 0:
+        num_rounds = 8  # Default estimate
+        red_decode_attempts = num_rounds
+        blue_decode_attempts = num_rounds
+        red_intercept_attempts = num_rounds
+        blue_intercept_attempts = num_rounds
+        # Can't know success rate without data
 
     # Red team
     red_team = metadata.get("red_team", {})
     red_cluer = red_team.get("cluer_model")
     if red_cluer:
         red_won = winner == "red"
-        results.append((red_cluer, red_won))
+        results.append((red_cluer, red_won, red_decode_attempts, red_decode_successes,
+                       red_intercept_attempts, red_intercept_successes))
 
     # Blue team
     blue_team = metadata.get("blue_team", {})
     blue_cluer = blue_team.get("cluer_model")
     if blue_cluer:
         blue_won = winner == "blue"
-        results.append((blue_cluer, blue_won))
+        results.append((blue_cluer, blue_won, blue_decode_attempts, blue_decode_successes,
+                       blue_intercept_attempts, blue_intercept_successes))
 
     return results
 
 
-def _extract_hanabi_models(episode: dict) -> list[tuple[str, int]]:
+def _extract_hanabi_models(episode: dict) -> list[tuple[str, int, int, bool]]:
     """
     Extract models from a Hanabi episode.
 
-    Returns list of (model, score) tuples.
+    Returns list of (model, score, turns, hit_turn_limit) tuples.
     Since Hanabi is cooperative with same model for all players,
     we return just one entry per unique model.
     """
     metadata = episode.get("metadata", {}) or {}
     score = episode.get("final_score") or 0
 
+    # Get turn count - check multiple locations
+    turns = len(episode.get("turns", []))
+    if turns == 0:
+        turns = metadata.get("total_turns", 0) or episode.get("total_turns", 0)
+
+    # Determine if game hit turn limit (vs ended by fuse-out or completion)
+    game_over_reason = (episode.get("game_over_reason") or "").lower()
+    hit_turn_limit = "turn" in game_over_reason or "limit" in game_over_reason
+    # Also check if turns is very high (200+) as indicator
+    if turns >= 200:
+        hit_turn_limit = True
+
     # Try multiple locations for model info
     # 1. metadata.model (cloud benchmark format)
     model = metadata.get("model")
     if model:
-        return [(model, score)]
+        return [(model, score, turns, hit_turn_limit)]
 
     # 2. metadata.player_models (alternative format)
     player_models = metadata.get("player_models", {}) or {}
     if player_models:
         unique_models = set(player_models.values())
-        return [(m, score) for m in unique_models if m]
+        return [(m, score, turns, hit_turn_limit) for m in unique_models if m]
 
     # 3. config.model (fallback)
     config = episode.get("config", {}) or {}
     model = config.get("model")
     if model:
-        return [(model, score)]
+        return [(model, score, turns, hit_turn_limit)]
 
     return []
 
@@ -301,20 +391,27 @@ def compute_model_stats(episodes: dict[str, list[dict]]) -> dict[str, ModelStats
 
     # Process Decrypto
     for ep in episodes.get("decrypto", []):
-        for model, won in _extract_decrypto_models(ep):
+        for model, won, decode_att, decode_succ, intercept_att, intercept_succ in _extract_decrypto_models(ep):
             if model not in stats:
                 stats[model] = ModelStats(model=model)
             stats[model].decrypto_games += 1
             if won:
                 stats[model].decrypto_wins += 1
+            stats[model].decrypto_decode_attempts += decode_att
+            stats[model].decrypto_decode_successes += decode_succ
+            stats[model].decrypto_intercept_attempts += intercept_att
+            stats[model].decrypto_intercept_successes += intercept_succ
 
     # Process Hanabi
     for ep in episodes.get("hanabi", []):
-        for model, score in _extract_hanabi_models(ep):
+        for model, score, turns, hit_limit in _extract_hanabi_models(ep):
             if model not in stats:
                 stats[model] = ModelStats(model=model)
             stats[model].hanabi_games += 1
             stats[model].hanabi_total_score += int(score) if score else 0
+            stats[model].hanabi_total_turns += int(turns) if turns else 0
+            if hit_limit:
+                stats[model].hanabi_turn_limit_hits += 1
 
     return dict(stats)
 
@@ -345,35 +442,60 @@ def compute_decrypto_rankings(stats: dict[str, ModelStats]) -> list[DecryptoRank
     for model, s in stats.items():
         if s.decrypto_games > 0:
             win_rate = s.decrypto_wins / s.decrypto_games
+
+            # Compute decode and intercept accuracy
+            decode_acc = 0.0
+            if s.decrypto_decode_attempts > 0:
+                decode_acc = s.decrypto_decode_successes / s.decrypto_decode_attempts
+
+            intercept_acc = 0.0
+            if s.decrypto_intercept_attempts > 0:
+                intercept_acc = s.decrypto_intercept_successes / s.decrypto_intercept_attempts
+
             rankings.append(DecryptoRanking(
                 model=_normalize_model_name(model),
                 games=s.decrypto_games,
                 wins=s.decrypto_wins,
                 win_rate=round(win_rate, 3),
+                decode_accuracy=round(decode_acc, 3),
+                intercept_accuracy=round(intercept_acc, 3),
             ))
 
-    # Sort by win rate descending
+    # Sort by win rate descending (could also sort by intercept for "pure ToM")
     rankings.sort(key=lambda x: (-x.win_rate, -x.games))
     return rankings
 
 
 def compute_hanabi_rankings(stats: dict[str, ModelStats]) -> list[HanabiRanking]:
-    """Compute Hanabi-specific rankings."""
+    """Compute Hanabi-specific rankings.
+
+    Key insight from research: efficiency (score/turn) is more meaningful than raw score.
+    GPT-5.2 has highest raw score but lowest efficiency due to hitting turn limit.
+    """
     rankings = []
 
     for model, s in stats.items():
         if s.hanabi_games > 0:
             avg_score = s.hanabi_total_score / s.hanabi_games
             score_pct = (avg_score / 25) * 100
+
+            # Efficiency metrics
+            avg_turns = s.hanabi_total_turns / s.hanabi_games if s.hanabi_total_turns > 0 else 0
+            efficiency = avg_score / avg_turns if avg_turns > 0 else 0
+            turn_limit_pct = (s.hanabi_turn_limit_hits / s.hanabi_games) * 100
+
             rankings.append(HanabiRanking(
                 model=_normalize_model_name(model),
                 games=s.hanabi_games,
                 avg_score=round(avg_score, 1),
                 score_pct=round(score_pct, 1),
+                efficiency=round(efficiency, 3),
+                avg_turns=round(avg_turns, 1),
+                turn_limit_pct=round(turn_limit_pct, 1),
             ))
 
-    # Sort by average score descending
-    rankings.sort(key=lambda x: (-x.avg_score, -x.games))
+    # Sort by EFFICIENCY descending (not raw score!) - this is the key research insight
+    rankings.sort(key=lambda x: (-x.efficiency, -x.games))
     return rankings
 
 
@@ -381,10 +503,24 @@ def compute_overall_rankings(stats: dict[str, ModelStats]) -> list[OverallRankin
     """
     Compute overall rankings using normalized scores.
 
-    Each game type contributes equally (33.3% each).
-    Score is normalized: win_rate * 100 for competitive games, score_pct for Hanabi.
+    Key research insight: We compute TWO composites:
+    1. Efficiency-based (default): Uses Hanabi efficiency, not raw score
+    2. Raw score-based: Uses traditional raw Hanabi score (for comparison)
+
+    This allows the UI to toggle between views and show how rankings flip.
     """
     rankings = []
+
+    # First pass: compute all metrics to find max values for normalization
+    hanabi_efficiencies = []
+    for model, s in stats.items():
+        if s.hanabi_games > 0 and s.hanabi_total_turns > 0:
+            avg_turns = s.hanabi_total_turns / s.hanabi_games
+            avg_score = s.hanabi_total_score / s.hanabi_games
+            eff = avg_score / avg_turns if avg_turns > 0 else 0
+            hanabi_efficiencies.append(eff)
+
+    max_efficiency = max(hanabi_efficiencies) if hanabi_efficiencies else 1.0
 
     for model, s in stats.items():
         total_games = s.codenames_games + s.decrypto_games + s.hanabi_games
@@ -394,7 +530,6 @@ def compute_overall_rankings(stats: dict[str, ModelStats]) -> list[OverallRankin
         # Compute per-game scores (0-100 scale)
         codenames_score = None
         decrypto_score = None
-        hanabi_score = None
 
         if s.codenames_games > 0:
             codenames_score = (s.codenames_wins / s.codenames_games) * 100
@@ -402,25 +537,56 @@ def compute_overall_rankings(stats: dict[str, ModelStats]) -> list[OverallRankin
         if s.decrypto_games > 0:
             decrypto_score = (s.decrypto_wins / s.decrypto_games) * 100
 
+        # Hanabi: compute both efficiency-based and raw score
+        hanabi_efficiency_score = None
+        raw_hanabi_score = None
+        hanabi_efficiency_val = None
         if s.hanabi_games > 0:
             avg_score = s.hanabi_total_score / s.hanabi_games
-            hanabi_score = (avg_score / 25) * 100
+            raw_hanabi_score = (avg_score / 25) * 100
 
-        # Compute overall as average of available scores
-        scores = [s for s in [codenames_score, decrypto_score, hanabi_score] if s is not None]
-        overall = sum(scores) / len(scores) if scores else 0
+            if s.hanabi_total_turns > 0:
+                avg_turns = s.hanabi_total_turns / s.hanabi_games
+                efficiency = avg_score / avg_turns if avg_turns > 0 else 0
+                hanabi_efficiency_val = efficiency
+                # Normalize efficiency to 0-100 scale
+                hanabi_efficiency_score = (efficiency / max_efficiency) * 100 if max_efficiency > 0 else 0
+
+        # Decrypto detailed metrics
+        decode_acc = None
+        intercept_acc = None
+        if s.decrypto_decode_attempts > 0:
+            decode_acc = (s.decrypto_decode_successes / s.decrypto_decode_attempts) * 100
+        if s.decrypto_intercept_attempts > 0:
+            intercept_acc = (s.decrypto_intercept_successes / s.decrypto_intercept_attempts) * 100
+
+        # Compute EFFICIENCY-BASED overall (using hanabi efficiency, not raw score)
+        eff_scores = [s for s in [codenames_score, decrypto_score, hanabi_efficiency_score] if s is not None]
+        overall_eff = sum(eff_scores) / len(eff_scores) if eff_scores else 0
+
+        # Compute RAW-BASED overall (using hanabi raw score)
+        raw_scores = [s for s in [codenames_score, decrypto_score, raw_hanabi_score] if s is not None]
+        overall_raw = sum(raw_scores) / len(raw_scores) if raw_scores else 0
 
         rankings.append(OverallRanking(
             rank=0,  # Will be set after sorting
             model=_normalize_model_name(model),
             games_played=total_games,
-            overall_score=round(overall, 1),
+            # Efficiency-based (default)
+            overall_score=round(overall_eff, 1),
             codenames_score=round(codenames_score, 1) if codenames_score else None,
             decrypto_score=round(decrypto_score, 1) if decrypto_score else None,
-            hanabi_score=round(hanabi_score, 1) if hanabi_score else None,
+            hanabi_score=round(hanabi_efficiency_score, 1) if hanabi_efficiency_score else None,
+            # Raw-based (for comparison toggle)
+            raw_overall_score=round(overall_raw, 1),
+            raw_hanabi_score=round(raw_hanabi_score, 1) if raw_hanabi_score else None,
+            # Detailed metrics
+            hanabi_efficiency=round(hanabi_efficiency_val, 3) if hanabi_efficiency_val else None,
+            decrypto_decode=round(decode_acc, 1) if decode_acc else None,
+            decrypto_intercept=round(intercept_acc, 1) if intercept_acc else None,
         ))
 
-    # Sort by overall score descending
+    # Sort by EFFICIENCY-BASED overall score descending (research-aligned default)
     rankings.sort(key=lambda x: (-x.overall_score, -x.games_played))
 
     # Assign ranks

@@ -17,6 +17,8 @@ export default function Home({ onNavigate }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Toggle between efficiency-based and raw score rankings
+  const [useEfficiency, setUseEfficiency] = useState(true);
 
   useEffect(() => {
     fetchLeaderboard()
@@ -103,13 +105,29 @@ export default function Home({ onNavigate }: Props) {
               </span>
             )}
           </div>
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing || loading}
-            className="refresh-btn"
-          >
-            {refreshing ? "Refreshing..." : "Refresh"}
-          </button>
+          <div className="leaderboard-controls">
+            <div className="ranking-toggle" title="Toggle between efficiency-based and raw score rankings to see how rankings change">
+              <button
+                className={`toggle-btn ${useEfficiency ? "active" : ""}`}
+                onClick={() => setUseEfficiency(true)}
+              >
+                Efficiency
+              </button>
+              <button
+                className={`toggle-btn ${!useEfficiency ? "active" : ""}`}
+                onClick={() => setUseEfficiency(false)}
+              >
+                Raw Score
+              </button>
+            </div>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing || loading}
+              className="refresh-btn"
+            >
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
         </div>
 
         {error && <div className="leaderboard-error">{error}</div>}
@@ -117,7 +135,7 @@ export default function Home({ onNavigate }: Props) {
         {loading ? (
           <div className="leaderboard-loading">Loading leaderboard...</div>
         ) : leaderboard && leaderboard.overall_rankings.length > 0 ? (
-          <LeaderboardTable rankings={leaderboard.overall_rankings} />
+          <LeaderboardTable rankings={leaderboard.overall_rankings} useEfficiency={useEfficiency} />
         ) : (
           <div className="leaderboard-empty">
             <p>No games recorded yet.</p>
@@ -133,10 +151,11 @@ export default function Home({ onNavigate }: Props) {
             icon="🤝"
             title="Cooperative ToM"
             subtitle="Hanabi"
-            description="What does my partner know?"
+            description="Convention establishment speed"
             rankings={leaderboard.hanabi_rankings}
-            metric="avg_score"
-            formatValue={(r: HanabiRanking) => `${r.avg_score}/25`}
+            metric="efficiency"
+            formatValue={(r: HanabiRanking) => `${(r.efficiency * 100).toFixed(0)}% eff`}
+            secondaryValue={(r: HanabiRanking) => `${r.avg_score}/25 raw`}
             color="cooperative"
             onClick={() => onNavigate("hanabi")}
           />
@@ -144,10 +163,11 @@ export default function Home({ onNavigate }: Props) {
             icon="⚔️"
             title="Adversarial ToM"
             subtitle="Decrypto"
-            description="What will my opponent infer?"
+            description="Opponent modeling capability"
             rankings={leaderboard.decrypto_rankings}
-            metric="win_rate"
-            formatValue={(r: DecryptoRanking) => `${(r.win_rate * 100).toFixed(0)}%`}
+            metric="intercept_accuracy"
+            formatValue={(r: DecryptoRanking) => `${(r.intercept_accuracy * 100).toFixed(0)}% int`}
+            secondaryValue={(r: DecryptoRanking) => `${(r.decode_accuracy * 100).toFixed(0)}% dec`}
             color="adversarial"
             onClick={() => onNavigate("decrypto")}
           />
@@ -155,7 +175,7 @@ export default function Home({ onNavigate }: Props) {
             icon="💬"
             title="Collaborative"
             subtitle="Codenames"
-            description="What associations resonate?"
+            description="Semantic coordination"
             rankings={leaderboard.codenames_rankings}
             metric="win_rate"
             formatValue={(r: CodenamesRanking) => `${(r.win_rate * 100).toFixed(0)}%`}
@@ -194,41 +214,78 @@ export default function Home({ onNavigate }: Props) {
         <section className="insights-section">
           <h2>Research Insights</h2>
           <div className="insights-grid">
-            {/* Key Finding - Static research insight */}
+            {/* The Efficiency Paradox */}
             <div className="insight-card insight-finding">
               <div className="insight-label">Key Finding</div>
-              <h3>The ToM Paradox</h3>
+              <h3>The Efficiency Paradox</h3>
               <p>
-                Explicit Theory of Mind language does not correlate with success.
-                Models with shorter, more direct reasoning consistently outperform
-                those with verbose social deliberation.
+                Raw scores and efficiency are negatively correlated. Models with highest
+                raw Hanabi scores have lowest efficiency—they succeed through persistence,
+                not coordination.
               </p>
               <div className="insight-data">
-                <div className="data-point">
-                  <span className="data-value">-0.34</span>
-                  <span className="data-label">Rationale Length vs Win Rate</span>
-                </div>
-                <div className="data-point">
-                  <span className="data-value">+0.06</span>
-                  <span className="data-label">ToM Density vs Win Rate</span>
-                </div>
+                {bestCooperative && (
+                  <>
+                    <div className="data-point">
+                      <span className="data-value">{(bestCooperative.efficiency * 100).toFixed(0)}%</span>
+                      <span className="data-label">Best Efficiency</span>
+                    </div>
+                    <div className="data-point">
+                      <span className="data-value">{bestCooperative.avg_turns.toFixed(0)}</span>
+                      <span className="data-label">Avg Turns</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
-            {/* Best By Dimension - Dynamic */}
+            {/* Opponent Modeling Gap */}
             <div className="insight-card insight-chart">
-              <div className="insight-label">Model Specialization</div>
-              <h3>Best By Dimension</h3>
+              <div className="insight-label">Adversarial ToM</div>
+              <h3>The Opponent Modeling Gap</h3>
+              <p>
+                Decode (understanding teammates) is much easier than intercept (modeling opponents).
+                This gap isolates opponent modeling as the core ToM challenge.
+              </p>
+              {bestAdversarial && (
+                <div className="decode-intercept-gap">
+                  <div className="gap-bar">
+                    <div className="gap-segment decode" style={{ width: `${bestAdversarial.decode_accuracy * 100}%` }}>
+                      <span className="gap-label">Decode</span>
+                      <span className="gap-value">{(bestAdversarial.decode_accuracy * 100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+                  <div className="gap-bar">
+                    <div className="gap-segment intercept" style={{ width: `${bestAdversarial.intercept_accuracy * 100}%` }}>
+                      <span className="gap-label">Intercept</span>
+                      <span className="gap-value">{(bestAdversarial.intercept_accuracy * 100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+                  <div className="gap-note">
+                    Gap: {((bestAdversarial.decode_accuracy - bestAdversarial.intercept_accuracy) * 100).toFixed(0)} pts
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Specialization */}
+            <div className="insight-card insight-chart">
+              <div className="insight-label">Multi-Dimensional</div>
+              <h3>ToM Is Not Monolithic</h3>
+              <p>
+                No model excels at all three ToM types. Different architectures and training
+                choices favor different aspects of social cognition.
+              </p>
               <div className="specialization-chart">
                 <div className="spec-row">
                   <span className="spec-dimension cooperative">Cooperative</span>
                   <span className="spec-model">{bestCooperative?.model || "—"}</span>
                   <div
                     className="spec-bar"
-                    style={{ width: bestCooperative ? `${bestCooperative.score_pct}%` : "0%" }}
+                    style={{ width: bestCooperative ? `${bestCooperative.efficiency * 100 * 3}%` : "0%" }}
                   ></div>
                   <span className="spec-score">
-                    {bestCooperative ? `${bestCooperative.avg_score}/25` : "—"}
+                    {bestCooperative ? `${(bestCooperative.efficiency * 100).toFixed(0)}%` : "—"}
                   </span>
                 </div>
                 <div className="spec-row">
@@ -236,10 +293,10 @@ export default function Home({ onNavigate }: Props) {
                   <span className="spec-model">{bestAdversarial?.model || "—"}</span>
                   <div
                     className="spec-bar adversarial"
-                    style={{ width: bestAdversarial ? `${bestAdversarial.win_rate * 100}%` : "0%" }}
+                    style={{ width: bestAdversarial ? `${bestAdversarial.intercept_accuracy * 100 * 3}%` : "0%" }}
                   ></div>
                   <span className="spec-score">
-                    {bestAdversarial ? `${(bestAdversarial.win_rate * 100).toFixed(0)}%` : "—"}
+                    {bestAdversarial ? `${(bestAdversarial.intercept_accuracy * 100).toFixed(0)}%` : "—"}
                   </span>
                 </div>
                 <div className="spec-row">
@@ -256,53 +313,28 @@ export default function Home({ onNavigate }: Props) {
               </div>
             </div>
 
-            {/* Top Performers - Codenames */}
-            <div className="insight-card insight-top">
-              <div className="insight-label">Codenames Leaders</div>
-              <h3>Top Collaborative Performers</h3>
-              <div className="top-list">
-                {topCodenames.length > 0 ? (
-                  topCodenames.map((r, i) => (
-                    <div key={r.model} className="top-item">
-                      <span className="top-rank">#{i + 1}</span>
-                      <span className="top-model">{r.model}</span>
-                      <div className="top-bar-container">
-                        <div
-                          className="top-bar collaborative"
-                          style={{ width: `${r.win_rate * 100}%` }}
-                        ></div>
-                      </div>
-                      <span className="top-score">{(r.win_rate * 100).toFixed(0)}%</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="top-empty">No data yet</div>
-                )}
-              </div>
-            </div>
-
-            {/* Top Performers - Decrypto */}
-            <div className="insight-card insight-top">
-              <div className="insight-label">Decrypto Leaders</div>
-              <h3>Top Adversarial Performers</h3>
-              <div className="top-list">
-                {topDecrypto.length > 0 ? (
-                  topDecrypto.map((r, i) => (
-                    <div key={r.model} className="top-item">
-                      <span className="top-rank">#{i + 1}</span>
-                      <span className="top-model">{r.model}</span>
-                      <div className="top-bar-container">
-                        <div
-                          className="top-bar adversarial"
-                          style={{ width: `${r.win_rate * 100}%` }}
-                        ></div>
-                      </div>
-                      <span className="top-score">{(r.win_rate * 100).toFixed(0)}%</span>
-                    </div>
-                  ))
-                ) : (
-                  <div className="top-empty">No data yet</div>
-                )}
+            {/* Methodology Note */}
+            <div className="insight-card insight-methodology">
+              <div className="insight-label">Methodology</div>
+              <h3>Minimal Scaffolding</h3>
+              <p>
+                All games use a minimal harness: LLMs receive rules, goal, scratchpad,
+                and redacted game state. No strategy hints or specialized prompting.
+                Results reflect latent ability under naturalistic play.
+              </p>
+              <div className="methodology-stats">
+                <div className="method-stat">
+                  <span className="method-value">{leaderboard.total_episodes.codenames}</span>
+                  <span className="method-label">Codenames</span>
+                </div>
+                <div className="method-stat">
+                  <span className="method-value">{leaderboard.total_episodes.decrypto}</span>
+                  <span className="method-label">Decrypto</span>
+                </div>
+                <div className="method-stat">
+                  <span className="method-value">{leaderboard.total_episodes.hanabi}</span>
+                  <span className="method-label">Hanabi</span>
+                </div>
               </div>
             </div>
           </div>
@@ -356,7 +388,19 @@ export default function Home({ onNavigate }: Props) {
 }
 
 // Leaderboard Table Component
-function LeaderboardTable({ rankings }: { rankings: OverallRanking[] }) {
+function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRanking[]; useEfficiency: boolean }) {
+  // Sort rankings based on selected metric
+  const sortedRankings = [...rankings].sort((a, b) => {
+    const aScore = useEfficiency ? a.overall_score : a.raw_overall_score;
+    const bScore = useEfficiency ? b.overall_score : b.raw_overall_score;
+    return bScore - aScore;
+  });
+
+  // Re-assign ranks based on current sort
+  sortedRankings.forEach((r, i) => {
+    r.rank = i + 1;
+  });
+
   return (
     <div className="leaderboard-table-wrapper">
       <table className="leaderboard-table">
@@ -364,24 +408,30 @@ function LeaderboardTable({ rankings }: { rankings: OverallRanking[] }) {
           <tr>
             <th className="col-rank">#</th>
             <th className="col-model">Model</th>
-            <th className="col-score" title="Average performance across all game types (0-100)">
+            <th className="col-score" title={useEfficiency
+              ? "Efficiency-based composite: Hanabi efficiency + Decrypto win rate + Codenames win rate"
+              : "Raw score composite: Hanabi raw score + Decrypto win rate + Codenames win rate"
+            }>
               Overall
             </th>
             <th
               className="col-dimension"
-              title="Hanabi: Cooperative ToM — Can the model reason about what partners know and don't know? Score is avg points out of 25."
+              title={useEfficiency
+                ? "Hanabi Efficiency: Score per turn — measures convention establishment speed and true cooperative ToM"
+                : "Hanabi Raw Score: Average points out of 25 — can be misleading if model plays many turns"
+              }
             >
               Cooperative
             </th>
             <th
               className="col-dimension"
-              title="Decrypto: Adversarial ToM — Can the model craft clues teammates understand but opponents can't intercept? Score is win rate %."
+              title="Decrypto: Win rate. Hover cells for decode/intercept breakdown."
             >
               Adversarial
             </th>
             <th
               className="col-dimension"
-              title="Codenames: Collaborative Communication — Can the model find word associations that resonate with partners? Score is win rate %."
+              title="Codenames: Win rate — semantic coordination capability"
             >
               Collaborative
             </th>
@@ -391,40 +441,54 @@ function LeaderboardTable({ rankings }: { rankings: OverallRanking[] }) {
           </tr>
         </thead>
         <tbody>
-          {rankings.map((r) => (
-            <tr key={r.model} title={`${r.model}: Overall ${r.overall_score.toFixed(1)}% across ${r.games_played} games`}>
-              <td className={`rank rank-${r.rank}`}>{r.rank}</td>
-              <td className="model-name">{r.model}</td>
-              <td className="overall-score">
-                <span className="score-value">{r.overall_score.toFixed(1)}</span>
-                <div className="score-bar">
-                  <div
-                    className="score-bar-fill"
-                    style={{ width: `${r.overall_score}%` }}
-                  />
-                </div>
-              </td>
-              <td
-                className="dimension-score cooperative"
-                title={r.hanabi_score !== null ? `Hanabi avg score: ${(r.hanabi_score * 0.25).toFixed(1)}/25` : "No Hanabi games played"}
-              >
-                {r.hanabi_score !== null ? `${r.hanabi_score.toFixed(0)}%` : "—"}
-              </td>
-              <td
-                className="dimension-score adversarial"
-                title={r.decrypto_score !== null ? `Decrypto win rate: ${r.decrypto_score.toFixed(0)}%` : "No Decrypto games played"}
-              >
-                {r.decrypto_score !== null ? `${r.decrypto_score.toFixed(0)}%` : "—"}
-              </td>
-              <td
-                className="dimension-score collaborative"
-                title={r.codenames_score !== null ? `Codenames win rate: ${r.codenames_score.toFixed(0)}%` : "No Codenames games played"}
-              >
-                {r.codenames_score !== null ? `${r.codenames_score.toFixed(0)}%` : "—"}
-              </td>
-              <td className="games-count">{r.games_played}</td>
-            </tr>
-          ))}
+          {sortedRankings.map((r) => {
+            const overallScore = useEfficiency ? r.overall_score : r.raw_overall_score;
+            const hanabiScore = useEfficiency ? r.hanabi_score : r.raw_hanabi_score;
+
+            return (
+              <tr key={r.model} title={`${r.model}: Overall ${overallScore.toFixed(1)}% across ${r.games_played} games`}>
+                <td className={`rank rank-${r.rank}`}>{r.rank}</td>
+                <td className="model-name">{r.model}</td>
+                <td className="overall-score">
+                  <span className="score-value">{overallScore.toFixed(1)}</span>
+                  <div className="score-bar">
+                    <div
+                      className="score-bar-fill"
+                      style={{ width: `${overallScore}%` }}
+                    />
+                  </div>
+                </td>
+                <td
+                  className="dimension-score cooperative"
+                  title={r.hanabi_efficiency !== null
+                    ? `Efficiency: ${(r.hanabi_efficiency * 100).toFixed(1)}% | Raw: ${r.raw_hanabi_score?.toFixed(0) ?? "—"}%`
+                    : "No Hanabi games played"
+                  }
+                >
+                  {hanabiScore !== null ? `${hanabiScore.toFixed(0)}%` : "—"}
+                  {useEfficiency && r.hanabi_efficiency !== null && (
+                    <span className="efficiency-indicator" title="Efficiency metric">⚡</span>
+                  )}
+                </td>
+                <td
+                  className="dimension-score adversarial"
+                  title={r.decrypto_decode !== null
+                    ? `Decode: ${r.decrypto_decode.toFixed(0)}% | Intercept: ${r.decrypto_intercept?.toFixed(0) ?? "—"}%`
+                    : "No Decrypto games played"
+                  }
+                >
+                  {r.decrypto_score !== null ? `${r.decrypto_score.toFixed(0)}%` : "—"}
+                </td>
+                <td
+                  className="dimension-score collaborative"
+                  title={r.codenames_score !== null ? `Codenames win rate: ${r.codenames_score.toFixed(0)}%` : "No Codenames games played"}
+                >
+                  {r.codenames_score !== null ? `${r.codenames_score.toFixed(0)}%` : "—"}
+                </td>
+                <td className="games-count">{r.games_played}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -439,6 +503,7 @@ function CapabilityColumn<T extends { model: string; games: number }>({
   description,
   rankings,
   formatValue,
+  secondaryValue,
   color,
   onClick,
 }: {
@@ -449,6 +514,7 @@ function CapabilityColumn<T extends { model: string; games: number }>({
   rankings: T[];
   metric: string;
   formatValue: (r: T) => string;
+  secondaryValue?: (r: T) => string;
   color: "cooperative" | "adversarial" | "collaborative";
   onClick: () => void;
 }) {
@@ -468,7 +534,12 @@ function CapabilityColumn<T extends { model: string; games: number }>({
             <div key={r.model} className="capability-rank-item">
               <span className="rank-num">#{i + 1}</span>
               <span className="model">{r.model}</span>
-              <span className="value">{formatValue(r)}</span>
+              <div className="value-group">
+                <span className="value">{formatValue(r)}</span>
+                {secondaryValue && (
+                  <span className="secondary-value">{secondaryValue(r)}</span>
+                )}
+              </div>
             </div>
           ))
         ) : (

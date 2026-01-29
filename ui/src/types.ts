@@ -112,6 +112,8 @@ export interface DecryptoRanking {
   games: number;
   wins: number;
   win_rate: number;
+  decode_accuracy: number;  // Teammate understanding
+  intercept_accuracy: number;  // Opponent modeling (pure ToM)
 }
 
 export interface HanabiRanking {
@@ -119,16 +121,27 @@ export interface HanabiRanking {
   games: number;
   avg_score: number;
   score_pct: number;
+  // Efficiency metrics (key research insight)
+  efficiency: number;  // score/turn - measures true cooperative ToM
+  avg_turns: number;
+  turn_limit_pct: number;  // % games hitting turn limit
 }
 
 export interface OverallRanking {
   rank: number;
   model: string;
   games_played: number;
-  overall_score: number;
+  overall_score: number;  // Efficiency-based composite
   codenames_score: number | null;
   decrypto_score: number | null;
-  hanabi_score: number | null;
+  hanabi_score: number | null;  // Efficiency-based
+  // Raw score composite (for comparison toggle)
+  raw_overall_score: number;
+  raw_hanabi_score: number | null;
+  // Detailed metrics
+  hanabi_efficiency: number | null;
+  decrypto_decode: number | null;
+  decrypto_intercept: number | null;
 }
 
 export interface LeaderboardData {

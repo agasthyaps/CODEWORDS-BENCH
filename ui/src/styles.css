@@ -1469,6 +1469,45 @@ button.small {
   border-bottom: 1px solid var(--border);
 }
 
+.leaderboard-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Ranking Toggle */
+.ranking-toggle {
+  display: flex;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  padding: 2px;
+  border: 1px solid var(--border);
+}
+
+.ranking-toggle .toggle-btn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-radius: 4px;
+}
+
+.ranking-toggle .toggle-btn:hover {
+  color: var(--text);
+}
+
+.ranking-toggle .toggle-btn.active {
+  background: #f5a623;
+  color: #0f1419;
+}
+
 .leaderboard-title {
   display: flex;
   align-items: baseline;
@@ -1819,11 +1858,31 @@ button.small {
   white-space: nowrap;
 }
 
+.capability-rank-item .value-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
 .capability-rank-item .value {
   font-family: 'Space Grotesk', sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
+}
+
+.capability-rank-item .secondary-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Efficiency indicator in table */
+.efficiency-indicator {
+  font-size: 10px;
+  margin-left: 4px;
+  opacity: 0.7;
 }
 
 .capability-empty {
@@ -2217,6 +2276,93 @@ button.small {
   font-size: 13px;
   padding: 16px 0;
   text-align: center;
+}
+
+/* Decode-Intercept Gap Visualization */
+.decode-intercept-gap {
+  margin-top: 16px;
+}
+
+.gap-bar {
+  height: 28px;
+  background: var(--bg-elevated);
+  border-radius: 4px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.gap-segment {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  min-width: 80px;
+  transition: width 0.5s ease;
+}
+
+.gap-segment.decode {
+  background: #22c55e;
+}
+
+.gap-segment.intercept {
+  background: #f5a623;
+}
+
+.gap-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #0f1419;
+}
+
+.gap-value {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f1419;
+}
+
+.gap-note {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #f5a623;
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* Methodology Card */
+.insight-methodology {
+  background: var(--bg-surface);
+}
+
+.methodology-stats {
+  display: flex;
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.method-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.method-value {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.method-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
 }
 
 /* Insights Responsive */
