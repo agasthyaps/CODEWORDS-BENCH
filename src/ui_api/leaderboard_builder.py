@@ -36,8 +36,6 @@ class ModelStats(BaseModel):
     decrypto_decode_successes: int = 0
     decrypto_intercept_attempts: int = 0
     decrypto_intercept_successes: int = 0
-    decrypto_opp_intercept_attempts: int = 0
-    decrypto_opp_intercept_successes: int = 0
     decrypto_decode_brier_sum: float = 0.0
     decrypto_decode_brier_count: int = 0
     decrypto_intercept_brier_sum: float = 0.0
@@ -73,7 +71,6 @@ class DecryptoRanking(BaseModel):
     win_rate: float
     decode_accuracy: float | None = None  # Teammate understanding
     intercept_accuracy: float | None = None  # Opponent modeling (pure ToM)
-    avoid_intercept_rate: float | None = None  # Defense: avoid being intercepted
     adversarial_score: float | None = None  # Composite adversarial score
     decode_brier: float | None = None
     intercept_brier: float | None = None
@@ -112,7 +109,6 @@ class OverallRanking(BaseModel):
     hanabi_efficiency: float | None = None
     decrypto_decode: float | None = None
     decrypto_intercept: float | None = None
-    decrypto_avoid_intercept: float | None = None
     decrypto_adversarial: float | None = None
     decrypto_win_rate: float | None = None
     codenames_cluer_surprise: float | None = None
@@ -192,20 +188,11 @@ def _extract_codenames_cluers(episode: dict) -> tuple[str | None, str | None]:
     return red_cluer, blue_cluer
 
 
-def _extract_decrypto_models(episode: dict) -> list[tuple[str, bool, int, int, int, int, int, int]]:
+def _extract_decrypto_models(episode: dict) -> list[tuple[str, bool, int, int, int, int]]:
     """
     Extract models from a Decrypto episode.
 
-    Returns list of (
-        model,
-        won,
-        decode_attempts,
-        decode_successes,
-        intercept_attempts,
-        intercept_successes,
-        opp_intercept_attempts,
-        opp_intercept_successes,
-    ) tuples.
+    Returns list of (model, won, decode_attempts, decode_successes, intercept_attempts, intercept_successes) tuples.
     """
     metadata = episode.get("metadata", {})
     winner = (episode.get("winner") or "").lower()
@@ -329,8 +316,6 @@ def _extract_decrypto_models(episode: dict) -> list[tuple[str, bool, int, int, i
             red_decode_successes,
             red_intercept_attempts,
             red_intercept_successes,
-            blue_intercept_attempts,
-            blue_intercept_successes,
         ))
 
     # Blue team
@@ -345,8 +330,6 @@ def _extract_decrypto_models(episode: dict) -> list[tuple[str, bool, int, int, i
             blue_decode_successes,
             blue_intercept_attempts,
             blue_intercept_successes,
-            red_intercept_attempts,
-            red_intercept_successes,
         ))
 
     return results
@@ -581,7 +564,7 @@ def compute_model_stats(episodes: dict[str, list[dict]]) -> dict[str, ModelStats
 
     # Process Decrypto
     for ep in episodes.get("decrypto", []):
-        for model, won, decode_att, decode_succ, intercept_att, intercept_succ, opp_int_att, opp_int_succ in _extract_decrypto_models(ep):
+        for model, won, decode_att, decode_succ, intercept_att, intercept_succ in _extract_decrypto_models(ep):
             if model not in stats:
                 stats[model] = ModelStats(model=model)
             stats[model].decrypto_games += 1
@@ -591,8 +574,6 @@ def compute_model_stats(episodes: dict[str, list[dict]]) -> dict[str, ModelStats
             stats[model].decrypto_decode_successes += decode_succ
             stats[model].decrypto_intercept_attempts += intercept_att
             stats[model].decrypto_intercept_successes += intercept_succ
-            stats[model].decrypto_opp_intercept_attempts += opp_int_att
-            stats[model].decrypto_opp_intercept_successes += opp_int_succ
 
         # Calibration metrics (Brier + bias) from episode scores
         metadata = ep.get("metadata", {}) or {}
@@ -709,10 +690,6 @@ def compute_decrypto_rankings(stats: dict[str, ModelStats]) -> list[DecryptoRank
             if s.decrypto_intercept_attempts > 0:
                 intercept_acc = s.decrypto_intercept_successes / s.decrypto_intercept_attempts
 
-            avoid_intercept = None
-            if s.decrypto_opp_intercept_attempts > 0:
-                avoid_intercept = 1 - (s.decrypto_opp_intercept_successes / s.decrypto_opp_intercept_attempts)
-
             adversarial_score = None
             if intercept_acc is not None and decode_acc is not None:
                 adversarial_score = intercept_acc * decode_acc
@@ -739,7 +716,6 @@ def compute_decrypto_rankings(stats: dict[str, ModelStats]) -> list[DecryptoRank
                 win_rate=round(win_rate, 3),
                 decode_accuracy=round(decode_acc, 3) if decode_acc is not None else None,
                 intercept_accuracy=round(intercept_acc, 3) if intercept_acc is not None else None,
-                avoid_intercept_rate=round(avoid_intercept, 3) if avoid_intercept is not None else None,
                 adversarial_score=round(adversarial_score, 3) if adversarial_score is not None else None,
                 decode_brier=round(decode_brier, 4) if decode_brier is not None else None,
                 intercept_brier=round(intercept_brier, 4) if intercept_brier is not None else None,
@@ -747,7 +723,7 @@ def compute_decrypto_rankings(stats: dict[str, ModelStats]) -> list[DecryptoRank
                 intercept_bias=round(intercept_bias, 4) if intercept_bias is not None else None,
             ))
 
-    # Sort by intercept accuracy (adversarial score), then games
+    # Sort by adversarial score, then games
     rankings.sort(
         key=lambda x: (
             -(x.adversarial_score if x.adversarial_score is not None else -1),
@@ -853,7 +829,6 @@ def compute_overall_rankings(stats: dict[str, ModelStats]) -> list[OverallRankin
         # Decrypto detailed metrics
         decode_acc = None
         intercept_acc = None
-        avoid_intercept = None
         adversarial_score = None
         decode_brier = None
         intercept_brier = None
@@ -863,10 +838,6 @@ def compute_overall_rankings(stats: dict[str, ModelStats]) -> list[OverallRankin
             decode_acc = (s.decrypto_decode_successes / s.decrypto_decode_attempts) * 100
         if s.decrypto_intercept_attempts > 0:
             intercept_acc = (s.decrypto_intercept_successes / s.decrypto_intercept_attempts) * 100
-        if s.decrypto_opp_intercept_attempts > 0:
-            avoid_intercept = 100 - (
-                (s.decrypto_opp_intercept_successes / s.decrypto_opp_intercept_attempts) * 100
-            )
         adversarial_score = None
         if intercept_acc is not None and decode_acc is not None:
             adversarial_score = (intercept_acc / 100) * (decode_acc / 100) * 100
@@ -909,7 +880,6 @@ def compute_overall_rankings(stats: dict[str, ModelStats]) -> list[OverallRankin
             hanabi_efficiency=round(hanabi_efficiency_val, 3) if hanabi_efficiency_val is not None else None,
             decrypto_decode=round(decode_acc, 1) if decode_acc is not None else None,
             decrypto_intercept=round(intercept_acc, 1) if intercept_acc is not None else None,
-            decrypto_avoid_intercept=round(avoid_intercept, 1) if avoid_intercept is not None else None,
             decrypto_adversarial=round(adversarial_score, 1) if adversarial_score is not None else None,
             decrypto_win_rate=round(decrypto_win_rate, 1) if decrypto_win_rate is not None else None,
             codenames_cluer_surprise=round(codenames_cluer_surprise, 4) if codenames_cluer_surprise is not None else None,

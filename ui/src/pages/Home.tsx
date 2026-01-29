@@ -80,7 +80,6 @@ export default function Home({ onNavigate }: Props) {
 
   const bestAdversarialDecode = bestAdversarial?.decode_accuracy ?? null;
   const bestAdversarialIntercept = bestAdversarial?.intercept_accuracy ?? null;
-  const bestAdversarialAvoid = bestAdversarial?.avoid_intercept_rate ?? null;
   const bestAdversarialComposite = bestAdversarial?.adversarial_score ?? null;
 
   const decodeCodenamesCorrelation = useMemo(() => {
@@ -292,12 +291,6 @@ export default function Home({ onNavigate }: Props) {
                     <div className="gap-segment intercept" style={{ width: `${(bestAdversarialIntercept ?? 0) * 100}%` }}>
                       <span className="gap-label">Intercept</span>
                       <span className="gap-value">{formatPct01(bestAdversarialIntercept)}</span>
-                    </div>
-                  </div>
-                  <div className="gap-bar">
-                    <div className="gap-segment avoid" style={{ width: `${(bestAdversarialAvoid ?? 0) * 100}%` }}>
-                      <span className="gap-label">Avoid (ctx)</span>
-                      <span className="gap-value">{formatPct01(bestAdversarialAvoid)}</span>
                     </div>
                   </div>
                   {bestAdversarialDecode !== null && bestAdversarialIntercept !== null && (
@@ -557,7 +550,7 @@ function LeaderboardTable({ rankings, useEfficiency }: { rankings: OverallRankin
                   <span
                     className="tooltip-cell"
                   data-tooltip={r.decrypto_score !== null
-                    ? `Adversarial: ${r.decrypto_score.toFixed(0)}% | Intercept: ${r.decrypto_intercept?.toFixed(0) ?? "—"}% | Decode: ${r.decrypto_decode?.toFixed(0) ?? "—"}% | Miscomm: ${r.decrypto_decode !== null ? (100 - r.decrypto_decode).toFixed(0) : "—"}% | Avoid (context): ${r.decrypto_avoid_intercept?.toFixed(0) ?? "—"}% | Win: ${r.decrypto_win_rate?.toFixed(0) ?? "—"}%`
+                    ? `Adversarial: ${r.decrypto_score.toFixed(0)}% | Intercept: ${r.decrypto_intercept?.toFixed(0) ?? "—"}% | Decode: ${r.decrypto_decode?.toFixed(0) ?? "—"}% | Miscomm: ${r.decrypto_decode !== null ? (100 - r.decrypto_decode).toFixed(0) : "—"}% | Win: ${r.decrypto_win_rate?.toFixed(0) ?? "—"}%`
                     : "No Decrypto games played"
                   }
                 >

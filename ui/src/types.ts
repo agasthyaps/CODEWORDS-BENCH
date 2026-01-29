@@ -116,7 +116,6 @@ export interface DecryptoRanking {
   win_rate: number;
   decode_accuracy: number | null;  // Teammate understanding
   intercept_accuracy: number | null;  // Opponent modeling (pure ToM)
-  avoid_intercept_rate?: number | null;  // Defense: avoid being intercepted
   adversarial_score?: number | null;  // Composite adversarial score
   decode_brier?: number | null;
   intercept_brier?: number | null;
@@ -150,7 +149,6 @@ export interface OverallRanking {
   hanabi_efficiency: number | null;
   decrypto_decode: number | null;
   decrypto_intercept: number | null;
-  decrypto_avoid_intercept?: number | null;
   decrypto_adversarial?: number | null;
   decrypto_win_rate?: number | null;
   codenames_cluer_surprise?: number | null;
