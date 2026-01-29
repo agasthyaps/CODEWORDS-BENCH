@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { fetchStats, openEventStream, startDecrypto } from "../api";
+import { fetchStats, openEventStream, startDecrypto, estimateGameCost, CostEstimate } from "../api";
 import DecryptoBoard from "../components/DecryptoBoard";
 import ChatPanel from "../components/ChatPanel";
 import ScratchpadPanel from "../components/ScratchpadPanel";
@@ -64,11 +64,53 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
   const [winner, setWinner] = useState<string | null>(null);
   const [winReason, setWinReason] = useState<string | null>(null);
   const [scratchpadEntries, setScratchpadEntries] = useState<ScratchpadEntry[]>([]);
+  const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
+  const [costLoading, setCostLoading] = useState(false);
 
   useEffect(() => {
     setRed(baseTeam);
     setBlue(baseTeam);
   }, [baseTeam]);
+
+  useEffect(() => {
+    if (!red.cluer) {
+      setCostEstimate(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const estimateCost = async () => {
+      setCostLoading(true);
+      try {
+        const estimate = await estimateGameCost(red.cluer, "decrypto");
+        if (!cancelled) {
+          setCostEstimate(estimate);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.warn("Cost estimation failed:", e);
+          setCostEstimate({
+            estimated_cost_usd: 0,
+            estimated_cost_display: "N/A",
+            breakdown: {},
+            confidence: "low",
+            notes: ["Cost estimation unavailable"],
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          setCostLoading(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(estimateCost, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [red.cluer]);
 
   function buildSelection(): TeamSelection {
     return { red, blue };
@@ -319,6 +361,14 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
   
   const isTieOrSurvived = winReason?.startsWith("tie_") || winReason === "survived" || winReason === "max_rounds";
 
+  const costEstimateDisplay = costEstimate ?? {
+    estimated_cost_usd: 0,
+    estimated_cost_display: "N/A",
+    breakdown: {},
+    confidence: "low" as const,
+    notes: ["Cost estimation unavailable"],
+  };
+
   return (
     <div className="page">
       <h2>Decrypto</h2>
@@ -401,9 +451,24 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
             </div>
           </div>
           <div className="settings-footer">
-            <div className={`status ${status}`}>
-              <span className="status-dot" />
-              {status.charAt(0).toUpperCase() + status.slice(1)}
+            <div className="settings-status-group">
+              <div className={`status ${status}`}>
+                <span className="status-dot" />
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </div>
+              {red.cluer && (
+                <div className={`cost-estimate confidence-${costEstimateDisplay.confidence ?? 'low'}`}>
+                  <span className="cost-value">
+                    {costLoading ? "..." : costEstimateDisplay.estimated_cost_display}
+                  </span>
+                  <span className="cost-label">est. cost</span>
+                  {costEstimateDisplay.confidence !== "high" && (
+                    <span className="cost-confidence" title={costEstimateDisplay.notes?.join("; ")}>
+                      ({costEstimateDisplay.confidence})
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <button onClick={handleStart} disabled={!models.length}>
               Start Game

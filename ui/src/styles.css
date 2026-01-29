@@ -382,6 +382,12 @@ p {
   background: var(--bg-elevated);
 }
 
+.settings-status-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .settings-footer .status {
   margin: 0;
 }

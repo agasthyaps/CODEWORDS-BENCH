@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { fetchStats, openEventStream, startHanabi } from "../api";
+import { fetchStats, openEventStream, startHanabi, estimateGameCost, CostEstimate } from "../api";
 import HanabiBoard from "../components/HanabiBoard";
 import ChatPanel from "../components/ChatPanel";
 import ScratchpadPanel from "../components/ScratchpadPanel";
@@ -56,10 +56,54 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [replayId, setReplayId] = useState<string | null>(null);
+  const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
+  const [costLoading, setCostLoading] = useState(false);
 
   useEffect(() => {
     setPlayerModels([defaultModel, defaultModel, defaultModel]);
   }, [defaultModel]);
+
+  const primaryModel = playerModels[0];
+
+  useEffect(() => {
+    if (!primaryModel) {
+      setCostEstimate(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const estimateCost = async () => {
+      setCostLoading(true);
+      try {
+        const estimate = await estimateGameCost(primaryModel, "hanabi");
+        if (!cancelled) {
+          setCostEstimate(estimate);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.warn("Cost estimation failed:", e);
+          setCostEstimate({
+            estimated_cost_usd: 0,
+            estimated_cost_display: "N/A",
+            breakdown: {},
+            confidence: "low",
+            notes: ["Cost estimation unavailable"],
+          });
+        }
+      } finally {
+        if (!cancelled) {
+          setCostLoading(false);
+        }
+      }
+    };
+
+    const timer = setTimeout(estimateCost, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [primaryModel]);
 
   const isRunning = status === "running" || status === "starting";
 
@@ -240,6 +284,14 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
     });
   }, [playerModels, models]);
 
+  const costEstimateDisplay = costEstimate ?? {
+    estimated_cost_usd: 0,
+    estimated_cost_display: "N/A",
+    breakdown: {},
+    confidence: "low" as const,
+    notes: ["Cost estimation unavailable"],
+  };
+
   return (
     <div className="page">
       <h2>Hanabi</h2>
@@ -290,9 +342,24 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
             </div>
           </div>
           <div className="settings-footer">
-            <div className={`status ${status}`}>
-              <span className="status-dot" />
-              {status.charAt(0).toUpperCase() + status.slice(1)}
+            <div className="settings-status-group">
+              <div className={`status ${status}`}>
+                <span className="status-dot" />
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </div>
+              {primaryModel && (
+                <div className={`cost-estimate confidence-${costEstimateDisplay.confidence ?? 'low'}`}>
+                  <span className="cost-value">
+                    {costLoading ? "..." : costEstimateDisplay.estimated_cost_display}
+                  </span>
+                  <span className="cost-label">est. cost</span>
+                  {costEstimateDisplay.confidence !== "high" && (
+                    <span className="cost-confidence" title={costEstimateDisplay.notes?.join("; ")}>
+                      ({costEstimateDisplay.confidence})
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
             <button onClick={handleStart} disabled={!models.length}>
               Start Game
