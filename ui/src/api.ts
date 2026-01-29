@@ -247,3 +247,77 @@ export async function restartGame(gameId: string) {
   }
   return res.json();
 }
+
+// Cost estimation
+
+export type CostEstimate = {
+  estimated_cost_usd: number;
+  estimated_cost_display: string;
+  breakdown: Record<string, number>;
+  confidence: "low" | "medium" | "high";
+  notes: string[];
+};
+
+export async function estimateGameCost(modelId: string, gameType: string): Promise<CostEstimate> {
+  const params = new URLSearchParams({ model_id: modelId, game_type: gameType });
+  const res = await fetch(`${API_BASE}/cost/estimate/game?${params}`);
+  if (!res.ok) {
+    console.warn("Cost estimation failed:", res.status);
+    return {
+      estimated_cost_usd: 0,
+      estimated_cost_display: "N/A",
+      breakdown: {},
+      confidence: "low",
+      notes: ["Cost estimation unavailable"],
+    };
+  }
+  return res.json();
+}
+
+export async function estimateBatchCost(
+  games: { model_id: string; game_type: string; count: number }[]
+): Promise<CostEstimate> {
+  const res = await fetch(`${API_BASE}/cost/estimate/batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ games }),
+  });
+  if (!res.ok) {
+    console.warn("Batch cost estimation failed:", res.status);
+    return {
+      estimated_cost_usd: 0,
+      estimated_cost_display: "N/A",
+      breakdown: {},
+      confidence: "low",
+      notes: ["Cost estimation unavailable"],
+    };
+  }
+  return res.json();
+}
+
+export async function estimateBenchmarkCost(
+  models: string[],
+  gameTypes: string[],
+  gamesPerModelPerType: number
+): Promise<CostEstimate> {
+  const res = await fetch(`${API_BASE}/cost/estimate/benchmark`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      models,
+      game_types: gameTypes,
+      games_per_model_per_type: gamesPerModelPerType,
+    }),
+  });
+  if (!res.ok) {
+    console.warn("Benchmark cost estimation failed:", res.status);
+    return {
+      estimated_cost_usd: 0,
+      estimated_cost_display: "N/A",
+      breakdown: {},
+      confidence: "low",
+      notes: ["Cost estimation unavailable"],
+    };
+  }
+  return res.json();
+}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { openEventStream, startBatch } from "../api";
+import { openEventStream, startBatch, estimateBatchCost, CostEstimate } from "../api";
 import ModelPicker from "../components/ModelPicker";
 import { ModelInfo, TeamRoleConfig, TeamSelection } from "../types";
 
@@ -76,11 +76,53 @@ export default function BatchRunner({ models, defaultModel }: Props) {
   const [results, setResults] = useState<GameResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Cost estimation
+  const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
+  const [costLoading, setCostLoading] = useState(false);
+
   useEffect(() => {
     setRed(baseTeam);
     setBlue(baseTeam);
     setHanabiPlayers([defaultModel, defaultModel, defaultModel]);
   }, [baseTeam, defaultModel]);
+
+  // Estimate cost when config changes
+  useEffect(() => {
+    if (totalGames === 0) {
+      setCostEstimate(null);
+      return;
+    }
+
+    const estimateCost = async () => {
+      setCostLoading(true);
+      try {
+        const games: { model_id: string; game_type: string; count: number }[] = [];
+
+        if (gameType === "hanabi") {
+          // For Hanabi, use the first player model as representative
+          games.push({ model_id: hanabiPlayers[0], game_type: "hanabi", count: seedsCount });
+        } else if (gameType === "both") {
+          // Use red cluer for both game types
+          games.push({ model_id: red.cluer, game_type: "codenames", count: seedsCount });
+          games.push({ model_id: red.cluer, game_type: "decrypto", count: seedsCount });
+        } else {
+          games.push({ model_id: red.cluer, game_type: gameType, count: seedsCount });
+        }
+
+        const estimate = await estimateBatchCost(games);
+        setCostEstimate(estimate);
+      } catch (e) {
+        console.warn("Cost estimation failed:", e);
+        setCostEstimate(null);
+      } finally {
+        setCostLoading(false);
+      }
+    };
+
+    // Debounce the estimation
+    const timer = setTimeout(estimateCost, 300);
+    return () => clearTimeout(timer);
+  }, [gameType, red.cluer, hanabiPlayers, seedsCount, totalGames]);
 
   // Parse seed list from input
   const parsedSeedList = useMemo(() => {
@@ -363,16 +405,31 @@ export default function BatchRunner({ models, defaultModel }: Props) {
           
           {/* Action */}
           <div className="batch-action">
-            <button 
-              onClick={handleStart} 
+            <button
+              onClick={handleStart}
               disabled={status === "running" || totalGames === 0}
             >
               {status === "running" ? "Running..." : `Start ${totalGames} Games`}
             </button>
-            
+
+            {/* Cost Estimate */}
+            {costEstimate && status !== "running" && (
+              <div className={`cost-estimate confidence-${costEstimate.confidence}`}>
+                <span className="cost-value">
+                  {costLoading ? "..." : costEstimate.estimated_cost_display}
+                </span>
+                <span className="cost-label">est. cost</span>
+                {costEstimate.confidence !== "high" && (
+                  <span className="cost-confidence" title={costEstimate.notes.join("; ")}>
+                    ({costEstimate.confidence})
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className={`status ${status}`}>
               <span className="status-dot" />
-              {status === "running" 
+              {status === "running"
                 ? `${progress.completed}/${progress.total} (${progressPercent}%)`
                 : status.charAt(0).toUpperCase() + status.slice(1)
               }

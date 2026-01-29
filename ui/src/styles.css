@@ -3291,6 +3291,48 @@ button.small {
   margin: 0;
 }
 
+/* Cost Estimate Display */
+.cost-estimate {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.cost-estimate .cost-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cost-estimate .cost-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.cost-estimate .cost-confidence {
+  font-size: 10px;
+  color: var(--text-muted);
+  cursor: help;
+}
+
+.cost-estimate.confidence-high {
+  border-left: 3px solid #22c55e;
+}
+
+.cost-estimate.confidence-medium {
+  border-left: 3px solid #f5a623;
+}
+
+.cost-estimate.confidence-low {
+  border-left: 3px solid var(--text-muted);
+}
+
 .advanced-toggle {
   display: flex;
   align-items: center;
@@ -4105,6 +4147,11 @@ button.small {
 
 .benchmark-action .action-buttons button {
   flex: 1;
+}
+
+.benchmark-action .cost-estimate {
+  margin-top: 12px;
+  justify-content: center;
 }
 
 .resume-btn {

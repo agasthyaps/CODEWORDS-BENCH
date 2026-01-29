@@ -13,8 +13,10 @@ import {
   forceStopBenchmark,
   downloadBenchmarkResults,
   openEventStream,
+  estimateBenchmarkCost,
   RunningGame,
   GamePeek,
+  CostEstimate,
 } from "../api";
 import { ModelInfo } from "../types";
 
@@ -95,6 +97,10 @@ export default function BenchmarkMonitor({ models }: Props) {
   const [runningGames, setRunningGames] = useState<RunningGame[]>([]);
   const [selectedGamePeek, setSelectedGamePeek] = useState<GamePeek | null>(null);
   const [peekLoading, setPeekLoading] = useState(false);
+
+  // Cost estimation
+  const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
+  const [costLoading, setCostLoading] = useState(false);
 
   // Load findings when an experiment is expanded
   useEffect(() => {
@@ -215,6 +221,38 @@ export default function BenchmarkMonitor({ models }: Props) {
     }
     return total;
   }, [selectedModels, seedCount, runCodenames, runDecrypto, runHanabi]);
+
+  // Estimate cost when config changes
+  useEffect(() => {
+    if (selectedModels.length === 0 || totalGames === 0) {
+      setCostEstimate(null);
+      return;
+    }
+
+    const gameTypes = [
+      ...(runCodenames ? ["codenames"] : []),
+      ...(runDecrypto ? ["decrypto"] : []),
+      ...(runHanabi ? ["hanabi"] : []),
+    ];
+
+    const estimateCost = async () => {
+      setCostLoading(true);
+      try {
+        // Use a simplified estimation: per-model, per-game-type, scaled by seed count
+        const estimate = await estimateBenchmarkCost(selectedModels, gameTypes, seedCount);
+        setCostEstimate(estimate);
+      } catch (e) {
+        console.warn("Cost estimation failed:", e);
+        setCostEstimate(null);
+      } finally {
+        setCostLoading(false);
+      }
+    };
+
+    // Debounce the estimation
+    const timer = setTimeout(estimateCost, 300);
+    return () => clearTimeout(timer);
+  }, [selectedModels, seedCount, runCodenames, runDecrypto, runHanabi, totalGames]);
 
   const handleStart = async () => {
     if (selectedModels.length < 2) {
@@ -510,9 +548,25 @@ export default function BenchmarkMonitor({ models }: Props) {
                 </button>
               </div>
             ) : (
-              <button onClick={handleStart} disabled={!canStart}>
-                Start Benchmark ({totalGames} games)
-              </button>
+              <>
+                <button onClick={handleStart} disabled={!canStart}>
+                  Start Benchmark ({totalGames} games)
+                </button>
+                {/* Cost Estimate */}
+                {costEstimate && (
+                  <div className={`cost-estimate confidence-${costEstimate.confidence}`}>
+                    <span className="cost-value">
+                      {costLoading ? "..." : costEstimate.estimated_cost_display}
+                    </span>
+                    <span className="cost-label">est. cost</span>
+                    {costEstimate.confidence !== "high" && (
+                      <span className="cost-confidence" title={costEstimate.notes.join("; ")}>
+                        ({costEstimate.confidence})
+                      </span>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
 

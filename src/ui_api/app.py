@@ -1749,6 +1749,113 @@ def list_experiments() -> list[dict[str, Any]]:
 
 
 # =============================================================================
+# Cost Estimation Endpoints
+# =============================================================================
+
+@app.get("/cost/estimate/game")
+async def estimate_game_cost_endpoint(
+    model_id: str,
+    game_type: str,
+) -> dict[str, Any]:
+    """
+    Estimate cost for a single game.
+
+    Args:
+        model_id: Model ID (e.g., "anthropic/claude-opus-4")
+        game_type: Game type (codenames, decrypto, hanabi)
+    """
+    from src.ui_api.cost_estimator import estimate_game_cost, CostEstimateResponse
+
+    estimate = await estimate_game_cost(model_id, game_type)
+    return CostEstimateResponse.from_estimate(estimate).model_dump()
+
+
+@app.post("/cost/estimate/batch")
+async def estimate_batch_cost_endpoint(
+    request: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Estimate cost for a batch of games.
+
+    Request body:
+        {
+            "games": [
+                {"model_id": "anthropic/claude-opus-4", "game_type": "codenames", "count": 5},
+                ...
+            ]
+        }
+    """
+    from src.ui_api.cost_estimator import estimate_batch_cost, CostEstimateResponse
+
+    games = request.get("games", [])
+    estimate = await estimate_batch_cost(games)
+    return CostEstimateResponse.from_estimate(estimate).model_dump()
+
+
+@app.post("/cost/estimate/benchmark")
+async def estimate_benchmark_cost_endpoint(
+    request: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Estimate cost for a full benchmark run.
+
+    Request body:
+        {
+            "models": ["anthropic/claude-opus-4", "openai/gpt-4o"],
+            "game_types": ["codenames", "decrypto", "hanabi"],
+            "games_per_model_per_type": 10
+        }
+    """
+    from src.ui_api.cost_estimator import estimate_benchmark_cost, CostEstimateResponse
+
+    models = request.get("models", [])
+    game_types = request.get("game_types", [])
+    games_per = request.get("games_per_model_per_type", 10)
+
+    estimate = await estimate_benchmark_cost(models, game_types, games_per)
+    return CostEstimateResponse.from_estimate(estimate).model_dump()
+
+
+@app.get("/cost/pricing")
+async def get_model_pricing() -> dict[str, Any]:
+    """Get cached pricing for all models."""
+    from src.ui_api.cost_estimator import PricingCache
+
+    cache = PricingCache()
+    pricing = await cache.get_all_pricing()
+
+    return {
+        model_id: {
+            "prompt_per_million": round(p.prompt * 1_000_000, 2),
+            "completion_per_million": round(p.completion * 1_000_000, 2),
+            "request": p.request,
+        }
+        for model_id, p in pricing.items()
+    }
+
+
+@app.get("/cost/usage-stats")
+async def get_usage_stats() -> dict[str, Any]:
+    """Get historical usage statistics per model/game type."""
+    from src.ui_api.cost_estimator import aggregate_usage_stats
+
+    stats = aggregate_usage_stats()
+
+    result = {}
+    for model_id, game_stats in stats.items():
+        result[model_id] = {}
+        for game_type, s in game_stats.items():
+            result[model_id][game_type] = {
+                "game_count": s.game_count,
+                "avg_requests_per_game": round(s.avg_requests_per_game, 1),
+                "avg_prompt_tokens_per_game": round(s.avg_prompt_tokens_per_game, 0),
+                "avg_completion_tokens_per_game": round(s.avg_completion_tokens_per_game, 0),
+            }
+
+    return result
+
+
+# =============================================================================
 # Static File Serving (Production)
 # =============================================================================
 
