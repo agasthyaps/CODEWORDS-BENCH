@@ -249,7 +249,7 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
         <div className="settings-panel">
           <div className="settings-content">
             <div className="settings-section">
-              <h4>Game Settings</h4>
+              <h4 data-label="CONFIG">Game Settings</h4>
               <div className="form-row-compact">
                 <label>Seed</label>
                 <input
@@ -269,7 +269,7 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
               </div>
             </div>
             <div className="settings-section">
-              <h4>Players (3 required)</h4>
+              <h4 data-label="AGENTS">Players (3 required)</h4>
               {[0, 1, 2].map(i => (
                 <div className="form-row-compact" key={i}>
                   <label>Player {i + 1}</label>

@@ -188,7 +188,7 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
         <div className="settings-panel">
           <div className="settings-content">
             <div className="settings-section">
-              <h4>Game Settings</h4>
+              <h4 data-label="CONFIG">Game Settings</h4>
               <div className="form-row-compact">
                 <label>Mode</label>
                 <select value={mode} onChange={(e) => setMode(e.target.value)}>
@@ -216,7 +216,7 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
               </div>
             </div>
             <div className="settings-section">
-              <h4>Red Team</h4>
+              <h4 data-label="TEAM A">Red Team</h4>
               <div className="form-row-compact">
                 <label>Cluer</label>
                 <select value={red.cluer} onChange={(e) => setRed({ ...red, cluer: e.target.value })}>
@@ -237,7 +237,7 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
               </div>
             </div>
             <div className="settings-section">
-              <h4>Blue Team</h4>
+              <h4 data-label="TEAM B">Blue Team</h4>
               <div className="form-row-compact">
                 <label>Cluer</label>
                 <select value={blue.cluer} onChange={(e) => setBlue({ ...blue, cluer: e.target.value })}>
