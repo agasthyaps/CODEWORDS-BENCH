@@ -10,7 +10,7 @@
     { "id": "anthropic/claude-haiku-4.5", "short_name": "claude-haiku-4.5" },
     { "id": "z-ai/glm-4.7", "short_name": "glm-4.7" },
     { "id": "openai/gpt-oss-120b", "short_name": "gpt-oss-120b" },
-    { "id": "qwen/qwen3-235b-a22b-2507", "short_name": "qwen3-235b" }
+    { "id": "qwen/qwen3-235b-a22b-2507", "short_name": "qwen3-235b" },
     { "id": "minimax/minimax-m2", "short_name": "minimax-m2" }
   ],
   "default_matchups": "round_robin",
