@@ -168,47 +168,96 @@ def _extract_decrypto_models(episode: dict) -> list[tuple[str, bool, int, int, i
     blue_intercept_successes = 0
 
     for round_data in rounds:
+        if not isinstance(round_data, dict):
+            continue
+
         # Each round has decode and intercept results for both teams
         # Format varies - try multiple approaches
         actions = round_data.get("actions", {})
 
-        # Check for decode results
-        red_decode = actions.get("red_decode") or round_data.get("red_decode_correct")
-        blue_decode = actions.get("blue_decode") or round_data.get("blue_decode_correct")
+        # Handle case where actions is a list (iterate to find relevant items)
+        if isinstance(actions, list):
+            for action in actions:
+                if not isinstance(action, dict):
+                    continue
+                action_type = action.get("type", "") or action.get("action_type", "")
+                team = (action.get("team") or "").lower()
+                correct = action.get("correct") or action.get("success")
 
-        if red_decode is not None:
-            red_decode_attempts += 1
-            if red_decode is True or red_decode == "correct":
-                red_decode_successes += 1
+                if "decode" in action_type.lower():
+                    if team == "red":
+                        red_decode_attempts += 1
+                        if correct:
+                            red_decode_successes += 1
+                    elif team == "blue":
+                        blue_decode_attempts += 1
+                        if correct:
+                            blue_decode_successes += 1
+                elif "intercept" in action_type.lower():
+                    if team == "red":
+                        red_intercept_attempts += 1
+                        if correct:
+                            red_intercept_successes += 1
+                    elif team == "blue":
+                        blue_intercept_attempts += 1
+                        if correct:
+                            blue_intercept_successes += 1
+        elif isinstance(actions, dict):
+            # Check for decode results
+            red_decode = actions.get("red_decode") or round_data.get("red_decode_correct")
+            blue_decode = actions.get("blue_decode") or round_data.get("blue_decode_correct")
 
-        if blue_decode is not None:
-            blue_decode_attempts += 1
-            if blue_decode is True or blue_decode == "correct":
-                blue_decode_successes += 1
+            if red_decode is not None:
+                red_decode_attempts += 1
+                if red_decode is True or red_decode == "correct":
+                    red_decode_successes += 1
 
-        # Check for intercept results
-        red_intercept = actions.get("red_intercept") or round_data.get("red_intercept_correct")
-        blue_intercept = actions.get("blue_intercept") or round_data.get("blue_intercept_correct")
+            if blue_decode is not None:
+                blue_decode_attempts += 1
+                if blue_decode is True or blue_decode == "correct":
+                    blue_decode_successes += 1
 
-        if red_intercept is not None:
-            red_intercept_attempts += 1
-            if red_intercept is True or red_intercept == "correct":
-                red_intercept_successes += 1
+            # Check for intercept results
+            red_intercept = actions.get("red_intercept") or round_data.get("red_intercept_correct")
+            blue_intercept = actions.get("blue_intercept") or round_data.get("blue_intercept_correct")
 
-        if blue_intercept is not None:
-            blue_intercept_attempts += 1
-            if blue_intercept is True or blue_intercept == "correct":
-                blue_intercept_successes += 1
+            if red_intercept is not None:
+                red_intercept_attempts += 1
+                if red_intercept is True or red_intercept == "correct":
+                    red_intercept_successes += 1
 
-    # If no rounds parsed, estimate from game outcome
-    # Standard Decrypto has ~8 rounds, so estimate
-    if red_decode_attempts == 0 and len(rounds) == 0:
-        num_rounds = 8  # Default estimate
-        red_decode_attempts = num_rounds
-        blue_decode_attempts = num_rounds
-        red_intercept_attempts = num_rounds
-        blue_intercept_attempts = num_rounds
-        # Can't know success rate without data
+            if blue_intercept is not None:
+                blue_intercept_attempts += 1
+                if blue_intercept is True or blue_intercept == "correct":
+                    blue_intercept_successes += 1
+
+        # Also check round-level decode/intercept results (alternate format)
+        for team, prefix in [("red", "red_"), ("blue", "blue_")]:
+            decode_key = f"{prefix}decode_correct"
+            intercept_key = f"{prefix}intercept_correct"
+
+            if decode_key in round_data and round_data[decode_key] is not None:
+                if team == "red" and red_decode_attempts == 0:
+                    red_decode_attempts += 1
+                    if round_data[decode_key]:
+                        red_decode_successes += 1
+                elif team == "blue" and blue_decode_attempts == 0:
+                    blue_decode_attempts += 1
+                    if round_data[decode_key]:
+                        blue_decode_successes += 1
+
+            if intercept_key in round_data and round_data[intercept_key] is not None:
+                if team == "red" and red_intercept_attempts == 0:
+                    red_intercept_attempts += 1
+                    if round_data[intercept_key]:
+                        red_intercept_successes += 1
+                elif team == "blue" and blue_intercept_attempts == 0:
+                    blue_intercept_attempts += 1
+                    if round_data[intercept_key]:
+                        blue_intercept_successes += 1
+
+    # If no decode/intercept data parsed, we can't compute accuracy
+    # Just leave them at 0 (will show as 0% accuracy, which is honest)
 
     # Red team
     red_team = metadata.get("red_team", {})
