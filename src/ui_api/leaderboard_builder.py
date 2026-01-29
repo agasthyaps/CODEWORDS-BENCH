@@ -358,30 +358,34 @@ def scan_all_episodes() -> dict[str, list[dict]]:
     """
     Scan all episode files from benchmark_results/ (consolidated storage).
 
-    Scans multiple patterns:
+    Scans multiple patterns to handle various directory structures:
     - benchmark_results/sessions/{game_type}/*.json (UI sessions)
-    - benchmark_results/{game_type}/episodes/*.json (direct game type dirs)
-    - benchmark_results/{run_name}/episodes/*.json (flat run structure)
-    - benchmark_results/{run_name}/{game_type}/episodes/*.json (production structure)
+    - benchmark_results/{game_type}/episodes/*.json
+    - benchmark_results/{game_type}/*.json
+    - benchmark_results/{run_name}/episodes/*.json
+    - benchmark_results/{run_name}/*.json
+    - benchmark_results/{run_name}/{game_type}/episodes/*.json
+    - benchmark_results/{run_name}/{game_type}/*.json
+
+    Episodes are deduplicated by file path (each file counts once).
+    Non-episode JSON files are filtered by _detect_game_type.
 
     Returns dict mapping game_type -> list of episode dicts.
     """
-    seen_ids: set[str] = set()  # Dedupe by episode_id
+    seen_paths: set[str] = set()  # Dedupe by file path
     episodes: dict[str, list[dict]] = {
         "codenames": [],
         "decrypto": [],
         "hanabi": [],
     }
 
-    def add_episode(data: dict, filename: str) -> None:
-        """Add episode if not already seen."""
-        ep_id = data.get("episode_id", "")
-        if ep_id and ep_id in seen_ids:
+    def add_episode(data: dict, filepath: str) -> None:
+        """Add episode if not already seen (by file path)."""
+        if filepath in seen_paths:
             return
-        if ep_id:
-            seen_ids.add(ep_id)
+        seen_paths.add(filepath)
 
-        game_type = _detect_game_type(data, filename)
+        game_type = _detect_game_type(data, Path(filepath).name)
         if game_type:
             episodes[game_type].append(data)
 
@@ -397,16 +401,25 @@ def scan_all_episodes() -> dict[str, list[dict]]:
             for path in game_dir.glob("*.json"):
                 data = _load_episode_file(path)
                 if data:
-                    add_episode(data, path.name)
+                    add_episode(data, str(path))
 
-    # 2. Scan {game_type}/episodes/ directly under benchmark_results (production structure)
+    # 2. Scan {game_type}/episodes/ and {game_type}/ directly under benchmark_results
     for game_type in ("codenames", "decrypto", "hanabi"):
+        # Pattern A: {game_type}/episodes/*.json
         game_eps_dir = bench_dir / game_type / "episodes"
         if game_eps_dir.exists():
             for path in game_eps_dir.glob("*.json"):
                 data = _load_episode_file(path)
                 if data:
-                    add_episode(data, path.name)
+                    add_episode(data, str(path))
+
+        # Pattern B: {game_type}/*.json (no episodes subdir)
+        game_dir = bench_dir / game_type
+        if game_dir.exists() and game_dir.is_dir():
+            for path in game_dir.glob("*.json"):
+                data = _load_episode_file(path)
+                if data:
+                    add_episode(data, str(path))
 
     # 3. Scan run directories (benchmark_results/{run_name}/{game_type}/episodes/)
     for exp_dir in bench_dir.iterdir():
@@ -419,16 +432,31 @@ def scan_all_episodes() -> dict[str, list[dict]]:
             for path in episodes_dir.glob("*.json"):
                 data = _load_episode_file(path)
                 if data:
-                    add_episode(data, path.name)
+                    add_episode(data, str(path))
 
-        # Also check */{game_type}/episodes/ (nested cloud benchmark structure)
+        # Pattern: */*.json (JSON files directly in run directory)
+        for path in exp_dir.glob("*.json"):
+            data = _load_episode_file(path)
+            if data:
+                add_episode(data, str(path))
+
+        # Also check */{game_type}/episodes/ and */{game_type}/ (both patterns)
         for game_type in ("codenames", "decrypto", "hanabi"):
+            # Pattern A: */{game_type}/episodes/*.json
             game_eps_dir = exp_dir / game_type / "episodes"
             if game_eps_dir.exists():
                 for path in game_eps_dir.glob("*.json"):
                     data = _load_episode_file(path)
                     if data:
-                        add_episode(data, path.name)
+                        add_episode(data, str(path))
+
+            # Pattern B: */{game_type}/*.json (no episodes subdir)
+            game_dir = exp_dir / game_type
+            if game_dir.exists() and game_dir.is_dir():
+                for path in game_dir.glob("*.json"):
+                    data = _load_episode_file(path)
+                    if data:
+                        add_episode(data, str(path))
 
     return episodes
 
