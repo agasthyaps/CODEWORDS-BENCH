@@ -364,16 +364,35 @@ function LeaderboardTable({ rankings }: { rankings: OverallRanking[] }) {
           <tr>
             <th className="col-rank">#</th>
             <th className="col-model">Model</th>
-            <th className="col-score">Overall</th>
-            <th className="col-dimension">Cooperative</th>
-            <th className="col-dimension">Adversarial</th>
-            <th className="col-dimension">Collaborative</th>
-            <th className="col-games">Games</th>
+            <th className="col-score" title="Average performance across all game types (0-100)">
+              Overall
+            </th>
+            <th
+              className="col-dimension"
+              title="Hanabi: Cooperative ToM — Can the model reason about what partners know and don't know? Score is avg points out of 25."
+            >
+              Cooperative
+            </th>
+            <th
+              className="col-dimension"
+              title="Decrypto: Adversarial ToM — Can the model craft clues teammates understand but opponents can't intercept? Score is win rate %."
+            >
+              Adversarial
+            </th>
+            <th
+              className="col-dimension"
+              title="Codenames: Collaborative Communication — Can the model find word associations that resonate with partners? Score is win rate %."
+            >
+              Collaborative
+            </th>
+            <th className="col-games" title="Total games played across all game types">
+              Games
+            </th>
           </tr>
         </thead>
         <tbody>
           {rankings.map((r) => (
-            <tr key={r.model}>
+            <tr key={r.model} title={`${r.model}: Overall ${r.overall_score.toFixed(1)}% across ${r.games_played} games`}>
               <td className={`rank rank-${r.rank}`}>{r.rank}</td>
               <td className="model-name">{r.model}</td>
               <td className="overall-score">
@@ -385,13 +404,22 @@ function LeaderboardTable({ rankings }: { rankings: OverallRanking[] }) {
                   />
                 </div>
               </td>
-              <td className="dimension-score cooperative">
+              <td
+                className="dimension-score cooperative"
+                title={r.hanabi_score !== null ? `Hanabi avg score: ${(r.hanabi_score * 0.25).toFixed(1)}/25` : "No Hanabi games played"}
+              >
                 {r.hanabi_score !== null ? `${r.hanabi_score.toFixed(0)}%` : "—"}
               </td>
-              <td className="dimension-score adversarial">
+              <td
+                className="dimension-score adversarial"
+                title={r.decrypto_score !== null ? `Decrypto win rate: ${r.decrypto_score.toFixed(0)}%` : "No Decrypto games played"}
+              >
                 {r.decrypto_score !== null ? `${r.decrypto_score.toFixed(0)}%` : "—"}
               </td>
-              <td className="dimension-score collaborative">
+              <td
+                className="dimension-score collaborative"
+                title={r.codenames_score !== null ? `Codenames win rate: ${r.codenames_score.toFixed(0)}%` : "No Codenames games played"}
+              >
                 {r.codenames_score !== null ? `${r.codenames_score.toFixed(0)}%` : "—"}
               </td>
               <td className="games-count">{r.games_played}</td>
