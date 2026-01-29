@@ -661,16 +661,17 @@ def compute_overall_rankings(stats: dict[str, ModelStats]) -> list[OverallRankin
             games_played=total_games,
             # Efficiency-based (default)
             overall_score=round(overall_eff, 1),
-            codenames_score=round(codenames_score, 1) if codenames_score else None,
-            decrypto_score=round(decrypto_score, 1) if decrypto_score else None,
-            hanabi_score=round(hanabi_efficiency_score, 1) if hanabi_efficiency_score else None,
+            # Use `is not None` instead of truthiness check - 0.0 is a valid score!
+            codenames_score=round(codenames_score, 1) if codenames_score is not None else None,
+            decrypto_score=round(decrypto_score, 1) if decrypto_score is not None else None,
+            hanabi_score=round(hanabi_efficiency_score, 1) if hanabi_efficiency_score is not None else None,
             # Raw-based (for comparison toggle)
             raw_overall_score=round(overall_raw, 1),
-            raw_hanabi_score=round(raw_hanabi_score, 1) if raw_hanabi_score else None,
+            raw_hanabi_score=round(raw_hanabi_score, 1) if raw_hanabi_score is not None else None,
             # Detailed metrics
-            hanabi_efficiency=round(hanabi_efficiency_val, 3) if hanabi_efficiency_val else None,
-            decrypto_decode=round(decode_acc, 1) if decode_acc else None,
-            decrypto_intercept=round(intercept_acc, 1) if intercept_acc else None,
+            hanabi_efficiency=round(hanabi_efficiency_val, 3) if hanabi_efficiency_val is not None else None,
+            decrypto_decode=round(decode_acc, 1) if decode_acc is not None else None,
+            decrypto_intercept=round(intercept_acc, 1) if intercept_acc is not None else None,
         ))
 
     # Sort by EFFICIENCY-BASED overall score descending (research-aligned default)

@@ -414,14 +414,14 @@ export default function BatchRunner({ models, defaultModel }: Props) {
 
             {/* Cost Estimate */}
             {costEstimate && status !== "running" && (
-              <div className={`cost-estimate confidence-${costEstimate.confidence}`}>
+              <div className={`cost-estimate confidence-${costEstimate?.confidence ?? 'low'}`}>
                 <span className="cost-value">
-                  {costLoading ? "..." : costEstimate.estimated_cost_display}
+                  {costLoading ? "..." : costEstimate?.estimated_cost_display}
                 </span>
                 <span className="cost-label">est. cost</span>
-                {costEstimate.confidence !== "high" && (
-                  <span className="cost-confidence" title={costEstimate.notes.join("; ")}>
-                    ({costEstimate.confidence})
+                {costEstimate?.confidence !== "high" && (
+                  <span className="cost-confidence" title={costEstimate?.notes?.join("; ")}>
+                    ({costEstimate?.confidence})
                   </span>
                 )}
               </div>
