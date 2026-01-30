@@ -321,7 +321,7 @@ export default function Home({ onNavigate }: Props) {
                   <span className="spec-model">{bestCooperative?.model || "—"}</span>
                   <div
                     className="spec-bar"
-                    style={{ width: bestCooperative ? `${bestCooperative.efficiency * 100 * 3}%` : "0%" }}
+                    style={{ width: bestCooperative ? `${bestCooperative.efficiency * 100}%` : "0%" }}
                   ></div>
                   <span className="spec-score">
                     {bestCooperative ? `${(bestCooperative.efficiency * 100).toFixed(0)}%` : "—"}
@@ -332,7 +332,7 @@ export default function Home({ onNavigate }: Props) {
                   <span className="spec-model">{bestAdversarial?.model || "—"}</span>
                   <div
                     className="spec-bar adversarial"
-                    style={{ width: bestAdversarialComposite !== null ? `${bestAdversarialComposite * 100 * 3}%` : "0%" }}
+                    style={{ width: bestAdversarialComposite !== null ? `${bestAdversarialComposite * 100}%` : "0%" }}
                   ></div>
                   <span className="spec-score">
                     {bestAdversarialComposite !== null ? `${(bestAdversarialComposite * 100).toFixed(0)}%` : "—"}
