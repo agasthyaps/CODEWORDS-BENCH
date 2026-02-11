@@ -86,14 +86,13 @@ def compute_adaptation_rate(episode: DecryptoEpisodeRecord) -> dict[str, Any]:
             # Get the guess and actual code
             guess = intercept_action.consensus.guess if intercept_action.consensus else None
             
-            # Get opponent's actual code for this round
+            # Get opponent's actual code for this round from end-of-round reveal.
+            # Round actions only contain decode/intercept logs, not clue actions.
             opponent = "blue" if team == "red" else "red"
-            clue_action = acts.get((opponent, "clue"))
-            if clue_action is None or guess is None:
+            actual_code = r.reveal_true_codes.get(opponent)
+            if actual_code is None or guess is None:
                 continue
-            
-            actual_code = clue_action.code  # The code being encoded
-            
+
             # Ensure both are tuples of 3 ints
             if isinstance(guess, (list, tuple)) and len(guess) == 3:
                 guess_tuple = tuple(int(g) for g in guess)

@@ -18,6 +18,50 @@ class ConfidenceInterval(BaseModel):
     upper: float
 
 
+class MetricEvidence(BaseModel):
+    """Mandatory evidence metadata for a reported metric."""
+
+    n: int = 0
+    ci_method: str = "none"
+    exclusions: list[str] = Field(default_factory=list)
+    parse_failure_rate: float | None = None
+
+
+class ReportedMetric(BaseModel):
+    """Metric value bundled with mandatory evidence metadata."""
+
+    value: float | None = None
+    evidence: MetricEvidence = Field(default_factory=MetricEvidence)
+
+
+class ToMBlock(BaseModel):
+    """Theory-of-Mind reporting block."""
+
+    cluer_calibration_brier: ReportedMetric = Field(default_factory=ReportedMetric)
+    cluer_bias: ReportedMetric = Field(default_factory=ReportedMetric)
+    alignment_f1: ReportedMetric = Field(default_factory=ReportedMetric)
+    intercept_gap: ReportedMetric = Field(default_factory=ReportedMetric)
+    hanabi_efficiency: ReportedMetric = Field(default_factory=ReportedMetric)
+
+
+class RobustnessEntry(BaseModel):
+    """Robustness metric for perturbation-based evaluations."""
+
+    perturbation_type: str
+    base_score: ReportedMetric = Field(default_factory=ReportedMetric)
+    perturbed_score: ReportedMetric = Field(default_factory=ReportedMetric)
+    delta: ReportedMetric = Field(default_factory=ReportedMetric)
+
+
+class EntryEvidence(BaseModel):
+    """Evidence metadata for legacy leaderboard scalar fields."""
+
+    win_rate: MetricEvidence = Field(default_factory=MetricEvidence)
+    coordination_score: MetricEvidence = Field(default_factory=MetricEvidence)
+    clue_efficiency: MetricEvidence = Field(default_factory=MetricEvidence)
+    guess_accuracy: MetricEvidence = Field(default_factory=MetricEvidence)
+
+
 class LeaderboardEntry(BaseModel):
     """Entry in the leaderboard."""
     model: str
@@ -36,6 +80,9 @@ class LeaderboardEntry(BaseModel):
     blue_wins: int = 0
     side_advantage_delta: float | None = None  # P(win|RED) - P(win|BLUE)
     side_adjusted_win_rate: float | None = None  # avg(P(win|RED), P(win|BLUE))
+    tom: ToMBlock = Field(default_factory=ToMBlock)
+    robustness: list[RobustnessEntry] = Field(default_factory=list)
+    evidence: EntryEvidence = Field(default_factory=EntryEvidence)
 
 
 class HeadToHeadEntry(BaseModel):
@@ -65,6 +112,8 @@ class Leaderboard(BaseModel):
     overall_draw_rate: float | None = None
     # Synergy / composition comparisons (pair-level)
     synergy: list["SynergyEntry"] = Field(default_factory=list)
+    tom: ToMBlock = Field(default_factory=ToMBlock)
+    robustness: list[RobustnessEntry] = Field(default_factory=list)
 
 
 class SynergyEntry(BaseModel):
@@ -113,6 +162,155 @@ def wilson_score_interval(successes: int, total: int, confidence: float = 0.95) 
     return ConfidenceInterval(lower=lower, upper=upper)
 
 
+def _safe_mean(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def _derive_f1_from_jaccard(jaccard: float | None) -> float | None:
+    """
+    Convert Jaccard overlap to a conservative F1 proxy.
+
+    F1 and Jaccard are monotonically related for set overlap:
+    F1 = 2J / (1 + J)
+    """
+    if jaccard is None:
+        return None
+    if jaccard < 0.0:
+        return 0.0
+    if jaccard > 1.0:
+        return 1.0
+    return (2.0 * jaccard) / (1.0 + jaccard) if jaccard < 1.0 else 1.0
+
+
+def _reported_metric(
+    *,
+    value: float | None,
+    n: int,
+    ci_method: str,
+    exclusions: list[str] | None = None,
+    parse_failure_rate: float | None = None,
+) -> ReportedMetric:
+    return ReportedMetric(
+        value=value,
+        evidence=MetricEvidence(
+            n=n,
+            ci_method=ci_method,
+            exclusions=exclusions or [],
+            parse_failure_rate=parse_failure_rate,
+        ),
+    )
+
+
+def _unavailable_metric(reason: str) -> ReportedMetric:
+    return _reported_metric(
+        value=None,
+        n=0,
+        ci_method="none",
+        exclusions=[reason],
+        parse_failure_rate=None,
+    )
+
+
+def _entry_tom_block(stats: dict) -> ToMBlock:
+    cluer_surprises = stats.get("cluer_surprises", [])
+    cluer_biases = stats.get("cluer_biases", [])
+    alignment_jaccards = stats.get("alignment_jaccards", [])
+    alignment_f1_values = []
+    for jaccard in alignment_jaccards:
+        f1_proxy = _derive_f1_from_jaccard(jaccard)
+        if f1_proxy is not None:
+            alignment_f1_values.append(f1_proxy)
+    cluer_games = stats.get("cluer_games", 0)
+
+    base_exclusions: list[str] = []
+    if cluer_games == 0:
+        base_exclusions.append("model_not_evaluated_as_cluer")
+
+    cluer_brier_exclusions = list(base_exclusions)
+    if cluer_games > 0 and not cluer_surprises:
+        cluer_brier_exclusions.append("cluer_predictions_missing")
+
+    cluer_bias_exclusions = list(base_exclusions)
+    if cluer_games > 0 and not cluer_biases:
+        cluer_bias_exclusions.append("cluer_predictions_missing")
+
+    alignment_exclusions = list(base_exclusions)
+    if cluer_games > 0 and not alignment_f1_values:
+        alignment_exclusions.append("target_alignment_trace_missing")
+    if alignment_f1_values:
+        alignment_exclusions.append("derived_from_jaccard_proxy")
+
+    return ToMBlock(
+        cluer_calibration_brier=_reported_metric(
+            value=_safe_mean(cluer_surprises),
+            n=len(cluer_surprises),
+            ci_method="mean_no_ci",
+            exclusions=cluer_brier_exclusions,
+            parse_failure_rate=None,
+        ),
+        cluer_bias=_reported_metric(
+            value=_safe_mean(cluer_biases),
+            n=len(cluer_biases),
+            ci_method="mean_no_ci",
+            exclusions=cluer_bias_exclusions,
+            parse_failure_rate=None,
+        ),
+        alignment_f1=_reported_metric(
+            value=_safe_mean(alignment_f1_values),
+            n=len(alignment_f1_values),
+            ci_method="mean_no_ci",
+            exclusions=alignment_exclusions,
+            parse_failure_rate=None,
+        ),
+        intercept_gap=_unavailable_metric("requires_decrypto_perturbation_pipeline"),
+        hanabi_efficiency=_unavailable_metric("requires_hanabi_summary_pipeline"),
+    )
+
+
+def _global_tom_block(valid_results: list[BenchmarkResult]) -> ToMBlock:
+    surprises: list[float] = []
+    biases: list[float] = []
+    alignment_f1_values: list[float] = []
+
+    for result in valid_results:
+        for team_metrics in (result.metrics.red_metrics, result.metrics.blue_metrics):
+            if team_metrics.avg_cluer_surprise is not None:
+                surprises.append(float(team_metrics.avg_cluer_surprise))
+            if team_metrics.avg_cluer_bias is not None:
+                biases.append(float(team_metrics.avg_cluer_bias))
+            f1_proxy = _derive_f1_from_jaccard(team_metrics.avg_clue_interpretability)
+            if f1_proxy is not None:
+                alignment_f1_values.append(f1_proxy)
+
+    return ToMBlock(
+        cluer_calibration_brier=_reported_metric(
+            value=_safe_mean(surprises),
+            n=len(surprises),
+            ci_method="mean_no_ci",
+            exclusions=[] if surprises else ["cluer_predictions_missing"],
+            parse_failure_rate=None,
+        ),
+        cluer_bias=_reported_metric(
+            value=_safe_mean(biases),
+            n=len(biases),
+            ci_method="mean_no_ci",
+            exclusions=[] if biases else ["cluer_predictions_missing"],
+            parse_failure_rate=None,
+        ),
+        alignment_f1=_reported_metric(
+            value=_safe_mean(alignment_f1_values),
+            n=len(alignment_f1_values),
+            ci_method="mean_no_ci",
+            exclusions=["derived_from_jaccard_proxy"] if alignment_f1_values else ["target_alignment_trace_missing"],
+            parse_failure_rate=None,
+        ),
+        intercept_gap=_unavailable_metric("requires_decrypto_perturbation_pipeline"),
+        hanabi_efficiency=_unavailable_metric("requires_hanabi_summary_pipeline"),
+    )
+
+
 def standard_error(values: list[float]) -> float:
     """Calculate standard error of the mean."""
     if len(values) < 2:
@@ -139,6 +337,10 @@ def _extract_model_stats(
     coordination_scores = []
     clue_efficiencies = []
     guess_accuracies = []
+    cluer_games = 0
+    cluer_surprises = []
+    cluer_biases = []
+    alignment_jaccards = []
 
     for result in results:
         if result.error or result.metrics is None:
@@ -173,6 +375,14 @@ def _extract_model_stats(
             coordination_scores.append(result.metrics.red_coordination_score)
             clue_efficiencies.append(result.metrics.red_metrics.clue_efficiency)
             guess_accuracies.append(result.metrics.red_metrics.guess_accuracy)
+            if result.red_models.get("cluer") == model_id:
+                cluer_games += 1
+                if result.metrics.red_metrics.avg_cluer_surprise is not None:
+                    cluer_surprises.append(float(result.metrics.red_metrics.avg_cluer_surprise))
+                if result.metrics.red_metrics.avg_cluer_bias is not None:
+                    cluer_biases.append(float(result.metrics.red_metrics.avg_cluer_bias))
+                if result.metrics.red_metrics.avg_clue_interpretability is not None:
+                    alignment_jaccards.append(float(result.metrics.red_metrics.avg_clue_interpretability))
 
         if blue_match:
             games += 1
@@ -183,6 +393,14 @@ def _extract_model_stats(
             coordination_scores.append(result.metrics.blue_coordination_score)
             clue_efficiencies.append(result.metrics.blue_metrics.clue_efficiency)
             guess_accuracies.append(result.metrics.blue_metrics.guess_accuracy)
+            if result.blue_models.get("cluer") == model_id:
+                cluer_games += 1
+                if result.metrics.blue_metrics.avg_cluer_surprise is not None:
+                    cluer_surprises.append(float(result.metrics.blue_metrics.avg_cluer_surprise))
+                if result.metrics.blue_metrics.avg_cluer_bias is not None:
+                    cluer_biases.append(float(result.metrics.blue_metrics.avg_cluer_bias))
+                if result.metrics.blue_metrics.avg_clue_interpretability is not None:
+                    alignment_jaccards.append(float(result.metrics.blue_metrics.avg_clue_interpretability))
 
     return {
         "games": games,
@@ -194,6 +412,10 @@ def _extract_model_stats(
         "coordination_scores": coordination_scores,
         "clue_efficiencies": clue_efficiencies,
         "guess_accuracies": guess_accuracies,
+        "cluer_games": cluer_games,
+        "cluer_surprises": cluer_surprises,
+        "cluer_biases": cluer_biases,
+        "alignment_jaccards": alignment_jaccards,
     }
 
 
@@ -215,6 +437,13 @@ def _create_leaderboard_entry(
             win_rate=0.0,
             win_rate_ci=ConfidenceInterval(lower=0.0, upper=1.0),
             avg_coordination_score=0.0,
+            tom=_entry_tom_block(stats),
+            evidence=EntryEvidence(
+                win_rate=MetricEvidence(n=0, ci_method="wilson_95"),
+                coordination_score=MetricEvidence(n=0, ci_method="mean_no_ci"),
+                clue_efficiency=MetricEvidence(n=0, ci_method="mean_no_ci"),
+                guess_accuracy=MetricEvidence(n=0, ci_method="mean_no_ci"),
+            ),
         )
 
     win_rate = wins / games
@@ -257,6 +486,34 @@ def _create_leaderboard_entry(
         entry.avg_guess_accuracy = (
             sum(stats["guess_accuracies"]) / len(stats["guess_accuracies"])
         )
+
+    entry.tom = _entry_tom_block(stats)
+    entry.evidence = EntryEvidence(
+        win_rate=MetricEvidence(
+            n=games,
+            ci_method="wilson_95",
+            exclusions=[],
+            parse_failure_rate=None,
+        ),
+        coordination_score=MetricEvidence(
+            n=len(stats["coordination_scores"]),
+            ci_method="mean_no_ci",
+            exclusions=[],
+            parse_failure_rate=None,
+        ),
+        clue_efficiency=MetricEvidence(
+            n=len(stats["clue_efficiencies"]),
+            ci_method="mean_no_ci",
+            exclusions=[],
+            parse_failure_rate=None,
+        ),
+        guess_accuracy=MetricEvidence(
+            n=len(stats["guess_accuracies"]),
+            ci_method="mean_no_ci",
+            exclusions=[],
+            parse_failure_rate=None,
+        ),
+    )
 
     return entry
 
@@ -464,6 +721,8 @@ def build_leaderboard(results: list[BenchmarkResult]) -> Leaderboard:
         overall_blue_win_rate=overall_blue_win_rate,
         overall_draw_rate=overall_draw_rate,
         synergy=synergy_entries,
+        tom=_global_tom_block(valid_results),
+        robustness=[],
     )
 
 
@@ -529,6 +788,13 @@ def export_leaderboard_markdown(leaderboard: Leaderboard) -> str:
     """Export leaderboard to Markdown format."""
     lines = ["# Benchmark Leaderboard", ""]
 
+    def _fmt_metric(m: ReportedMetric) -> tuple[str, str, str, str]:
+        val = f"{m.value:.4f}" if m.value is not None else "N/A"
+        n = str(m.evidence.n)
+        ci = m.evidence.ci_method
+        exclusions = ", ".join(m.evidence.exclusions) if m.evidence.exclusions else "-"
+        return val, n, ci, exclusions
+
     if leaderboard.overall_red_win_rate is not None:
         lines.append("## Side Advantage (Global)")
         lines.append("")
@@ -555,6 +821,22 @@ def export_leaderboard_markdown(leaderboard: Leaderboard) -> str:
             f"{entry.avg_coordination_score:.3f} |"
         )
 
+    lines.append("")
+
+    lines.append("## ToM Summary")
+    lines.append("")
+    lines.append("| Metric | Value | n | CI Method | Exclusions |")
+    lines.append("|--------|-------|---|-----------|------------|")
+    tom_rows = [
+        ("cluer_calibration_brier", leaderboard.tom.cluer_calibration_brier),
+        ("cluer_bias", leaderboard.tom.cluer_bias),
+        ("alignment_f1", leaderboard.tom.alignment_f1),
+        ("intercept_gap", leaderboard.tom.intercept_gap),
+        ("hanabi_efficiency", leaderboard.tom.hanabi_efficiency),
+    ]
+    for metric_name, metric in tom_rows:
+        value, n, ci_method, exclusions = _fmt_metric(metric)
+        lines.append(f"| {metric_name} | {value} | {n} | {ci_method} | {exclusions} |")
     lines.append("")
 
     # By Cluer

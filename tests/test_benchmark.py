@@ -313,6 +313,10 @@ class TestLeaderboard:
             avg_discussion_rounds=1.5,
             consensus_rate=0.67,
             avg_discussion_length=150,
+            avg_cluer_surprise=0.20,
+            avg_cluer_bias=0.05,
+            avg_clue_interpretability=0.50,
+            top1_match_rate=0.60,
         )
         blue_metrics = TeamMetrics(
             team=Team.BLUE,
@@ -330,6 +334,10 @@ class TestLeaderboard:
             avg_discussion_rounds=1.0,
             consensus_rate=1.0,
             avg_discussion_length=100,
+            avg_cluer_surprise=0.12,
+            avg_cluer_bias=-0.02,
+            avg_clue_interpretability=0.40,
+            top1_match_rate=0.50,
         )
         metrics = EpisodeMetrics(
             episode_id="test",
@@ -435,6 +443,33 @@ class TestLeaderboard:
         assert h2h is not None
         assert h2h.games == 3
         assert h2h.model_a_wins + h2h.model_b_wins == 3
+
+    def test_includes_tom_and_evidence_blocks(self):
+        """Leaderboard should include ToM, robustness, and evidence schema fields."""
+        results = [
+            self._create_mock_result("model_a", "model_b", Team.RED),
+            self._create_mock_result("model_a", "model_b", Team.BLUE),
+        ]
+
+        leaderboard = build_leaderboard(results)
+        first = leaderboard.overall[0]
+
+        # Entry-level schema
+        assert first.tom.cluer_calibration_brier.value is not None
+        assert first.tom.cluer_calibration_brier.evidence.n > 0
+        assert "requires_decrypto_perturbation_pipeline" in first.tom.intercept_gap.evidence.exclusions
+        assert first.evidence.win_rate.n == first.games
+        assert isinstance(first.robustness, list)
+
+        # Leaderboard-level schema
+        assert leaderboard.tom.cluer_bias.evidence.n > 0
+        assert isinstance(leaderboard.robustness, list)
+
+        dumped = leaderboard.model_dump(mode="json")
+        assert "tom" in dumped
+        assert "robustness" in dumped
+        assert "tom" in dumped["overall"][0]
+        assert "evidence" in dumped["overall"][0]
 
 
 # ============================================================================

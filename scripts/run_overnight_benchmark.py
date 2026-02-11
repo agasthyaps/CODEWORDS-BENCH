@@ -283,7 +283,7 @@ async def run_hanabi_benchmark(
 
 def export_hanabi_summary(results: list[dict[str, Any]], output_dir: Path) -> None:
     """Export Hanabi benchmark summary to markdown."""
-    
+
     # Group by model
     by_model: dict[str, list[dict]] = {}
     for r in results:
@@ -293,26 +293,132 @@ def export_hanabi_summary(results: list[dict[str, Any]], output_dir: Path) -> No
         if model not in by_model:
             by_model[model] = []
         by_model[model].append(r)
-    
+
     lines = ["# Hanabi Benchmark Results", ""]
-    
-    # Summary table
-    lines.append("## Model Summary")
-    lines.append("")
-    lines.append("| Model | Games | Avg Score | Max Score | Avg Score % | Perfect (25) |")
-    lines.append("|-------|-------|-----------|-----------|-------------|--------------|")
-    
-    for model, games in sorted(by_model.items()):
+
+    model_rows: list[dict[str, Any]] = []
+    all_efficiencies: list[float] = []
+
+    for model, games in by_model.items():
         n = len(games)
-        scores = [g["score"] for g in games]
+        if n == 0:
+            continue
+        scores = [int(g.get("score", 0)) for g in games]
+        turns = [
+            int((g.get("metrics") or {}).get("total_turns", 0) or 0)
+            for g in games
+        ]
+        efficiencies = [
+            (score / max(turn_count, 1))
+            for score, turn_count in zip(scores, turns)
+        ]
+        all_efficiencies.extend(efficiencies)
+
         avg_score = sum(scores) / n
         max_score = max(scores)
         avg_pct = avg_score / 25 * 100
         perfect = sum(1 for s in scores if s == 25)
-        lines.append(f"| {model} | {n} | {avg_score:.1f} | {max_score} | {avg_pct:.1f}% | {perfect} |")
-    
+        avg_turns = sum(turns) / n if turns else 0.0
+        avg_efficiency = sum(efficiencies) / n if efficiencies else 0.0
+        turn_limit_hits = sum(
+            1
+            for g, t in zip(games, turns)
+            if t >= 200 or g.get("game_over_reason") == "turn_limit"
+        )
+        turn_limit_pct = (turn_limit_hits / n) * 100 if n > 0 else 0.0
+
+        model_rows.append(
+            {
+                "model": model,
+                "games": n,
+                "avg_efficiency": avg_efficiency,
+                "avg_turns": avg_turns,
+                "avg_score": avg_score,
+                "max_score": max_score,
+                "avg_pct": avg_pct,
+                "perfect": perfect,
+                "turn_limit_pct": turn_limit_pct,
+            }
+        )
+
+    model_rows.sort(
+        key=lambda row: (row["avg_efficiency"], row["avg_score"], row["avg_pct"]),
+        reverse=True,
+    )
+
+    # Efficiency-first summary table
+    lines.append("## Model Summary")
     lines.append("")
-    
+    lines.append("| Rank | Model | Games | Avg Efficiency | Avg Turns | Avg Score | Avg Score % | Turn-Limit % | Perfect (25) |")
+    lines.append("|------|-------|-------|----------------|-----------|-----------|-------------|--------------|--------------|")
+
+    for rank, row in enumerate(model_rows, start=1):
+        lines.append(
+            f"| {rank} | {row['model']} | {row['games']} | "
+            f"{row['avg_efficiency']:.4f} | {row['avg_turns']:.1f} | "
+            f"{row['avg_score']:.1f} | {row['avg_pct']:.1f}% | "
+            f"{row['turn_limit_pct']:.1f}% | {row['perfect']} |"
+        )
+
+    lines.append("")
+
+    overall_efficiency = (
+        sum(all_efficiencies) / len(all_efficiencies)
+        if all_efficiencies
+        else None
+    )
+    tom_block = {
+        "cluer_calibration_brier": {
+            "value": None,
+            "n": 0,
+            "ci_method": "none",
+            "exclusions": ["requires_codenames_cluer_predictions"],
+            "parse_failure_rate": None,
+        },
+        "cluer_bias": {
+            "value": None,
+            "n": 0,
+            "ci_method": "none",
+            "exclusions": ["requires_codenames_cluer_predictions"],
+            "parse_failure_rate": None,
+        },
+        "alignment_f1": {
+            "value": None,
+            "n": 0,
+            "ci_method": "none",
+            "exclusions": ["requires_codenames_alignment_traces"],
+            "parse_failure_rate": None,
+        },
+        "intercept_gap": {
+            "value": None,
+            "n": 0,
+            "ci_method": "none",
+            "exclusions": ["requires_decrypto_intercept_metrics"],
+            "parse_failure_rate": None,
+        },
+        "hanabi_efficiency": {
+            "value": round(overall_efficiency, 6) if overall_efficiency is not None else None,
+            "n": len(all_efficiencies),
+            "ci_method": "mean_no_ci",
+            "exclusions": [],
+            "parse_failure_rate": None,
+        },
+    }
+
+    lines.append("## ToM Block")
+    lines.append("")
+    lines.append("```json")
+    lines.append(json.dumps(tom_block, indent=2))
+    lines.append("```")
+    lines.append("")
+
+    lines.append("## Robustness Block")
+    lines.append("")
+    lines.append("```json")
+    lines.append("[]")
+    lines.append("```")
+    lines.append("")
+
     # Save
     with open(output_dir / "hanabi_summary.md", "w") as f:
         f.write("\n".join(lines))

@@ -21,6 +21,11 @@ from .runner import (
 )
 from .leaderboard import (
     ConfidenceInterval,
+    MetricEvidence,
+    ReportedMetric,
+    ToMBlock,
+    RobustnessEntry,
+    EntryEvidence,
     LeaderboardEntry,
     HeadToHeadEntry,
     Leaderboard,
@@ -49,6 +54,11 @@ __all__ = [
     "run_benchmark",
     # Leaderboard
     "ConfidenceInterval",
+    "MetricEvidence",
+    "ReportedMetric",
+    "ToMBlock",
+    "RobustnessEntry",
+    "EntryEvidence",
     "LeaderboardEntry",
     "HeadToHeadEntry",
     "Leaderboard",
