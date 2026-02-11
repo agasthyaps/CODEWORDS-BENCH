@@ -1017,6 +1017,7 @@ async def get_models() -> list[dict[str, Any]]:
         model_json = model.model_dump(mode="json")
         model_id = model_json.get("model_id")
         if isinstance(model_id, str) and model_id and model_id not in seen:
+            model_json["is_curated"] = True
             seen.add(model_id)
             merged.append(model_json)
 
@@ -1026,6 +1027,7 @@ async def get_models() -> list[dict[str, Any]]:
             model_id = model.get("model_id")
             if isinstance(model_id, str) and model_id and model_id not in seen:
                 seen.add(model_id)
+                model["is_curated"] = False
                 merged.append(model)
     except Exception as exc:
         logger.warning(f"Failed to load OpenRouter model catalog, using curated fallback: {exc}")

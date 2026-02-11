@@ -71,6 +71,7 @@ export default function BenchmarkMonitor({ models }: Props) {
   // Config state
   const [experimentName, setExperimentName] = useState("");
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [modelSearch, setModelSearch] = useState("");
   const [seedCount, setSeedCount] = useState(30);
   const [runCodenames, setRunCodenames] = useState(true);
   const [runDecrypto, setRunDecrypto] = useState(true);
@@ -197,6 +198,31 @@ export default function BenchmarkMonitor({ models }: Props) {
         : [...prev, modelId]
     );
   };
+
+  const modelById = useMemo(
+    () => new Map(models.map((model) => [model.model_id, model])),
+    [models]
+  );
+
+  const featuredModels = useMemo(() => {
+    const curated = models.filter((model) => model.is_curated);
+    return curated.length > 0 ? curated : models.slice(0, 12);
+  }, [models]);
+
+  const searchResults = useMemo(() => {
+    const q = modelSearch.trim().toLowerCase();
+    if (!q) {
+      return [];
+    }
+
+    return models
+      .filter((model) => !selectedModels.includes(model.model_id))
+      .filter((model) => {
+        const haystack = `${model.name} ${model.model_id}`.toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, 24);
+  }, [models, modelSearch, selectedModels]);
 
   // Calculate total games
   const totalGames = useMemo(() => {
@@ -474,21 +500,78 @@ export default function BenchmarkMonitor({ models }: Props) {
 
           <div className="form-section">
             <label>Models ({selectedModels.length} selected)</label>
+            <div className="model-selected-list">
+              {selectedModels.length === 0 && (
+                <span className="model-empty">No models selected</span>
+              )}
+              {selectedModels.map((modelId) => {
+                const model = modelById.get(modelId);
+                return (
+                  <button
+                    key={modelId}
+                    type="button"
+                    className="model-chip selected removable"
+                    onClick={() => toggleModel(modelId)}
+                    disabled={isRunning}
+                    title="Remove model"
+                  >
+                    {model?.name || modelId}
+                    <span className="remove-mark">×</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <label className="sub-label">Featured (Model Farm)</label>
             <div className="model-grid">
-              {models.map((m) => (
-                <label
+              {featuredModels.map((m) => (
+                <button
+                  type="button"
                   key={m.model_id}
                   className={`model-chip ${selectedModels.includes(m.model_id) ? "selected" : ""}`}
+                  onClick={() => toggleModel(m.model_id)}
+                  disabled={isRunning}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedModels.includes(m.model_id)}
-                    onChange={() => toggleModel(m.model_id)}
-                    disabled={isRunning}
-                  />
                   {m.name || m.model_id.split("/").pop()}
-                </label>
+                </button>
               ))}
+            </div>
+
+            <label className="sub-label">Search All OpenRouter Models</label>
+            <div className="model-search-wrap">
+              <input
+                type="text"
+                value={modelSearch}
+                onChange={(e) => setModelSearch(e.target.value)}
+                placeholder="Type model name or id..."
+                disabled={isRunning}
+              />
+            </div>
+            {modelSearch.trim() && (
+              <div className="model-search-results">
+                {searchResults.length === 0 ? (
+                  <div className="model-search-empty">No matching models</div>
+                ) : (
+                  searchResults.map((m) => (
+                    <button
+                      type="button"
+                      key={m.model_id}
+                      className="model-search-result"
+                      onClick={() => {
+                        toggleModel(m.model_id);
+                        setModelSearch("");
+                      }}
+                      disabled={isRunning}
+                    >
+                      <span>{m.name || m.model_id.split("/").pop()}</span>
+                      <code>{m.model_id}</code>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            <div className="model-search-hint">
+              Use featured chips for fast picks; search to add any OpenRouter model.
             </div>
           </div>
 

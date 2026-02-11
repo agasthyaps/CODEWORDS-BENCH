@@ -5,6 +5,7 @@ export interface ModelInfo {
   name: string;
   provider: string;
   base_url?: string | null;
+  is_curated?: boolean;
 }
 
 export interface TeamRoleConfig {
