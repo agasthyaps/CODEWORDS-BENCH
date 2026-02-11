@@ -472,8 +472,8 @@ export default function BatchRunner({ models, defaultModel }: Props) {
                     disabled={status === "running"}
                   >
                     {models.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.short_name || m.id}
+                      <option key={m.model_id} value={m.model_id}>
+                        {m.name || m.model_id}
                       </option>
                     ))}
                   </select>

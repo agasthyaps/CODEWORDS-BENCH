@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 
 from src.agents import AgentConfig, CluerAgent, GuesserAgent, create_provider
 from src.agents.guesser import parse_discussion_response, _top_lists_match
+from src.benchmark.config import ModelConfig
 from src.benchmark.model_farm import load_model_farm
 from src.core.state import AgentStateManager
 from src.decrypto.agents.llm_agents import DecryptoCluerLLM, DecryptoGuesserLLM, run_bounded_action
@@ -71,6 +72,7 @@ from .models import (
     TeamSelection,
 )
 from .stats_analyzer import analyze_and_save
+from .openrouter_catalog import get_openrouter_model_infos, resolve_model_config
 from .storage import (
     ensure_storage,
     list_replays,
@@ -188,22 +190,36 @@ def _resolve_team_selection(selection: TeamSelection, *, allow_single: bool) -> 
     return {"red": _team(selection.red), "blue": _team(selection.blue)}
 
 
-def _load_model_map() -> dict[str, Any]:
+def _load_model_map() -> dict[str, ModelConfig]:
     models, _ = load_model_farm("config/models.json")
     return {m.model_id: m for m in models}
 
 
+def _required_model_id(model_id: str | None, *, role: str) -> str:
+    if not model_id:
+        raise ValueError(f"Missing model_id for {role}")
+    return model_id
+
+
+def _resolve_model(model_map: dict[str, ModelConfig], model_id: str | None, *, role: str) -> ModelConfig:
+    return resolve_model_config(model_map, _required_model_id(model_id, role=role))
+
+
 def _build_codenames_team(
-    model_map: dict[str, Any],
+    model_map: dict[str, ModelConfig],
     team: Team,
     config: dict[str, str | None],
     *,
     temperature: float = 0.7,
 ) -> TeamAgents:
     team_key = team.value.lower()
-    cluer_model = model_map[config["cluer"]]
-    g1_model = model_map[config["guesser_1"]]
-    g2_model = model_map[config["guesser_2"]] if config.get("guesser_2") else None
+    cluer_model = _resolve_model(model_map, config.get("cluer"), role=f"{team_key} cluer")
+    g1_model = _resolve_model(model_map, config.get("guesser_1"), role=f"{team_key} guesser_1")
+    g2_model = (
+        _resolve_model(model_map, config.get("guesser_2"), role=f"{team_key} guesser_2")
+        if config.get("guesser_2")
+        else None
+    )
 
     cluer_provider = create_provider(
         cluer_model.provider,
@@ -257,15 +273,19 @@ def _build_codenames_team(
 
 
 def _build_decrypto_team(
-    model_map: dict[str, Any],
+    model_map: dict[str, ModelConfig],
     team_key: TeamKey,
     config: dict[str, str | None],
     *,
     temperature: float = 0.7,
 ) -> dict[str, Any]:
-    cluer_model = model_map[config["cluer"]]
-    g1_model = model_map[config["guesser_1"]]
-    g2_model = model_map[config["guesser_2"] or config["guesser_1"]]
+    cluer_model = _resolve_model(model_map, config.get("cluer"), role=f"{team_key} cluer")
+    g1_model = _resolve_model(model_map, config.get("guesser_1"), role=f"{team_key} guesser_1")
+    g2_model = _resolve_model(
+        model_map,
+        config.get("guesser_2") or config.get("guesser_1"),
+        role=f"{team_key} guesser_2",
+    )
 
     cluer_provider = create_provider(
         cluer_model.provider,
@@ -305,14 +325,17 @@ def _build_decrypto_team(
 
 
 def _decrypto_team_metadata(
-    model_map: dict[str, Any],
+    model_map: dict[str, ModelConfig],
     team_key: TeamKey,
     config: dict[str, str | None],
 ) -> dict[str, Any]:
-    cluer_model = model_map[config["cluer"]].model_id
-    g1_model = model_map[config["guesser_1"]].model_id
-    g2_key = config["guesser_2"] or config["guesser_1"]
-    g2_model = model_map[g2_key].model_id
+    cluer_model = _resolve_model(model_map, config.get("cluer"), role=f"{team_key} cluer").model_id
+    g1_model = _resolve_model(model_map, config.get("guesser_1"), role=f"{team_key} guesser_1").model_id
+    g2_model = _resolve_model(
+        model_map,
+        config.get("guesser_2") or config.get("guesser_1"),
+        role=f"{team_key} guesser_2",
+    ).model_id
     return {
         "type": "llm",
         "cluer_model": cluer_model,
@@ -985,9 +1008,29 @@ async def _run_batch_job(job: Job, req: BatchStartRequest) -> None:
 
 
 @app.get("/models")
-def get_models() -> list[dict[str, Any]]:
+async def get_models() -> list[dict[str, Any]]:
     models, _ = load_model_farm("config/models.json")
-    return [m.model_dump(mode="json") for m in models]
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for model in models:
+        model_json = model.model_dump(mode="json")
+        model_id = model_json.get("model_id")
+        if isinstance(model_id, str) and model_id and model_id not in seen:
+            seen.add(model_id)
+            merged.append(model_json)
+
+    try:
+        openrouter_models = await get_openrouter_model_infos(text_output_only=True)
+        for model in openrouter_models:
+            model_id = model.get("model_id")
+            if isinstance(model_id, str) and model_id and model_id not in seen:
+                seen.add(model_id)
+                merged.append(model)
+    except Exception as exc:
+        logger.warning(f"Failed to load OpenRouter model catalog, using curated fallback: {exc}")
+
+    return merged
 
 
 @app.get("/health")
@@ -1047,7 +1090,7 @@ async def _run_hanabi_job(job: Job, req: HanabiStartRequest) -> None:
         players: list[HanabiPlayerLLM] = []
         player_metadata: dict[str, str] = {}
         for i, model_id in enumerate(req.player_models):
-            model = model_map[model_id]
+            model = resolve_model_config(model_map, model_id)
             provider = create_provider(
                 model.provider,
                 model.model_id,

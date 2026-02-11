@@ -7,17 +7,17 @@ historical usage data from episodes.
 from __future__ import annotations
 
 import json
-import os
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import httpx
-
 from pydantic import BaseModel
 
+from src.benchmark.model_farm import load_model_farm
+
+from .openrouter_catalog import OpenRouterCatalogCache
 
 # ============================================
 # Pricing Models
@@ -39,16 +39,22 @@ class ModelPricing:
     @classmethod
     def from_openrouter(cls, model_id: str, pricing: dict) -> "ModelPricing":
         """Create from OpenRouter pricing object."""
+        def _safe_float(value: Any) -> float:
+            try:
+                return float(value or 0.0)
+            except (TypeError, ValueError):
+                return 0.0
+
         return cls(
             model_id=model_id,
-            prompt=float(pricing.get("prompt", 0) or 0),
-            completion=float(pricing.get("completion", 0) or 0),
-            request=float(pricing.get("request", 0) or 0),
-            image=float(pricing.get("image", 0) or 0),
-            web_search=float(pricing.get("web_search", 0) or 0),
-            internal_reasoning=float(pricing.get("internal_reasoning", 0) or 0),
-            input_cache_read=float(pricing.get("input_cache_read", 0) or 0),
-            input_cache_write=float(pricing.get("input_cache_write", 0) or 0),
+            prompt=_safe_float(pricing.get("prompt", 0)),
+            completion=_safe_float(pricing.get("completion", 0)),
+            request=_safe_float(pricing.get("request", 0)),
+            image=_safe_float(pricing.get("image", 0)),
+            web_search=_safe_float(pricing.get("web_search", 0)),
+            internal_reasoning=_safe_float(pricing.get("internal_reasoning", 0)),
+            input_cache_read=_safe_float(pricing.get("input_cache_read", 0)),
+            input_cache_write=_safe_float(pricing.get("input_cache_write", 0)),
         )
 
 
@@ -129,34 +135,39 @@ class PricingCache:
     async def _fetch_pricing(self):
         """Fetch pricing from OpenRouter API."""
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get("https://openrouter.ai/api/v1/models")
-                if response.status_code == 200:
-                    data = response.json()
-                    models = data.get("data", [])
+            catalog = OpenRouterCatalogCache()
+            models = await catalog.get_models(text_output_only=False)
 
-                    for model in models:
-                        model_id = model.get("id", "")
-                        pricing = model.get("pricing", {})
-                        if model_id and pricing:
-                            self._pricing[model_id] = ModelPricing.from_openrouter(
-                                model_id, pricing
-                            )
+            pricing_map: dict[str, ModelPricing] = {}
+            for model in models:
+                model_id = model.get("id")
+                pricing = model.get("pricing")
+                if not isinstance(model_id, str) or not model_id:
+                    continue
+                if not isinstance(pricing, dict):
+                    continue
 
-                    self._last_fetch = time.time()
-                    print(f"[CostEstimator] Fetched pricing for {len(self._pricing)} models")
+                pricing_map[model_id] = ModelPricing.from_openrouter(model_id, pricing)
+
+            self._pricing = pricing_map
+            self._last_fetch = time.time()
+            print(f"[CostEstimator] Fetched pricing for {len(self._pricing)} models")
         except Exception as e:
             print(f"[CostEstimator] Failed to fetch pricing: {e}")
             # Use fallback pricing if fetch fails
             self._load_fallback_pricing()
+            self._last_fetch = time.time()
 
     def _load_fallback_pricing(self):
         """Load fallback pricing from local config."""
         # Fallback prices per million tokens (convert to per-token)
         fallback = {
             "anthropic/claude-opus-4": {"prompt": 15.0, "completion": 75.0},
+            "anthropic/claude-opus-4.5": {"prompt": 15.0, "completion": 75.0},
             "anthropic/claude-sonnet-4": {"prompt": 3.0, "completion": 15.0},
+            "anthropic/claude-sonnet-4.5": {"prompt": 3.0, "completion": 15.0},
             "anthropic/claude-haiku-4": {"prompt": 0.25, "completion": 1.25},
+            "anthropic/claude-haiku-4.5": {"prompt": 1.0, "completion": 5.0},
             "openai/gpt-4o": {"prompt": 2.5, "completion": 10.0},
             "openai/gpt-4o-mini": {"prompt": 0.15, "completion": 0.6},
             "openai/o1": {"prompt": 15.0, "completion": 60.0},
@@ -164,10 +175,28 @@ class PricingCache:
             "openai/gpt-5.2": {"prompt": 2.0, "completion": 8.0},
             "google/gemini-2.5-pro": {"prompt": 1.25, "completion": 10.0},
             "google/gemini-2.5-flash": {"prompt": 0.15, "completion": 0.6},
+            "google/gemini-3-flash-preview": {"prompt": 0.15, "completion": 0.6},
             "deepseek/deepseek-r1": {"prompt": 0.55, "completion": 2.19},
             "meta-llama/llama-3.3-70b-instruct": {"prompt": 0.3, "completion": 0.4},
+            "meta-llama/llama-3.1-405b-instruct": {"prompt": 3.0, "completion": 3.0},
+            "moonshotai/kimi-k2.5": {"prompt": 1.2, "completion": 3.6},
+            "z-ai/glm-4.7": {"prompt": 0.8, "completion": 2.4},
+            "openai/gpt-oss-120b": {"prompt": 0.3, "completion": 0.9},
+            "qwen/qwen3-235b-a22b-2507": {"prompt": 0.35, "completion": 1.0},
+            "minimax/minimax-m2": {"prompt": 0.9, "completion": 2.7},
         }
 
+        try:
+            models, _ = load_model_farm("config/models.json")
+            for model in models:
+                fallback.setdefault(
+                    model.model_id,
+                    {"prompt": 2.0, "completion": 8.0},
+                )
+        except Exception:
+            pass
+
+        self._pricing = {}
         for model_id, prices in fallback.items():
             self._pricing[model_id] = ModelPricing(
                 model_id=model_id,
@@ -244,56 +273,174 @@ def _process_episode_usage(
     stats: dict[str, dict[str, UsageStats]]
 ):
     """Process a single episode and update stats."""
-    # Try to get model from metadata
     metadata = episode.get("metadata", {}) or {}
-    model = metadata.get("model")
+    agent_model_map = _extract_agent_model_map(metadata)
+    models_seen: set[str] = set()
 
-    # For team games, try to get from team config
-    if not model:
-        for team in ["red_team", "blue_team"]:
-            team_data = metadata.get(team, {})
-            model = team_data.get("cluer_model") or team_data.get("cluer")
-            if model:
-                break
+    _collect_codenames_usage(episode, game_type, stats, agent_model_map, models_seen)
+    _collect_hanabi_usage(episode, game_type, stats, agent_model_map, models_seen)
+    _collect_legacy_round_usage(episode, game_type, stats, agent_model_map, models_seen)
 
-    if not model:
+    # Count each model at most once per episode.
+    for model_id in models_seen:
+        s = _ensure_usage_stats(stats, model_id, game_type)
+        s.game_count += 1
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _ensure_usage_stats(
+    stats: dict[str, dict[str, UsageStats]],
+    model_id: str,
+    game_type: str,
+) -> UsageStats:
+    if stats[model_id][game_type].model_id == "":
+        stats[model_id][game_type].model_id = model_id
+        stats[model_id][game_type].game_type = game_type
+    return stats[model_id][game_type]
+
+
+def _extract_agent_model_map(metadata: dict[str, Any]) -> dict[str, str]:
+    out: dict[str, str] = {}
+
+    direct = metadata.get("agent_models")
+    if isinstance(direct, dict):
+        for agent_id, model_id in direct.items():
+            if isinstance(agent_id, str) and isinstance(model_id, str) and model_id:
+                out[agent_id] = model_id
+
+    for team_key in ("red_team", "blue_team"):
+        team_data = metadata.get(team_key)
+        if not isinstance(team_data, dict):
+            continue
+        team_agent_models = team_data.get("agent_models")
+        if isinstance(team_agent_models, dict):
+            for agent_id, model_id in team_agent_models.items():
+                if isinstance(agent_id, str) and isinstance(model_id, str) and model_id:
+                    out[agent_id] = model_id
+
+    return out
+
+
+def _record_trace_usage(
+    trace: Any,
+    game_type: str,
+    stats: dict[str, dict[str, UsageStats]],
+    agent_model_map: dict[str, str],
+    models_seen: set[str],
+) -> None:
+    if not isinstance(trace, dict):
         return
 
-    # Initialize stats if needed
-    if stats[model][game_type].model_id == "":
-        stats[model][game_type].model_id = model
-        stats[model][game_type].game_type = game_type
+    model_id = trace.get("model")
+    if not isinstance(model_id, str) or not model_id:
+        agent_id = trace.get("agent_id")
+        if isinstance(agent_id, str):
+            model_id = agent_model_map.get(agent_id, "")
 
-    s = stats[model][game_type]
-    s.game_count += 1
+    if not isinstance(model_id, str) or not model_id:
+        return
 
-    # Aggregate from turn_traces if available
+    s = _ensure_usage_stats(stats, model_id, game_type)
+    s.total_requests += 1
+    s.total_prompt_tokens += _safe_int(trace.get("input_tokens"))
+    s.total_completion_tokens += _safe_int(trace.get("output_tokens"))
+    models_seen.add(model_id)
+
+
+def _collect_codenames_usage(
+    episode: dict,
+    game_type: str,
+    stats: dict[str, dict[str, UsageStats]],
+    agent_model_map: dict[str, str],
+    models_seen: set[str],
+) -> None:
     turn_traces = episode.get("turn_traces", [])
+    if not isinstance(turn_traces, list):
+        return
+
     for turn in turn_traces:
-        agent_traces = turn.get("agent_traces", [])
-        for trace in agent_traces:
-            s.total_requests += 1
-            s.total_prompt_tokens += trace.get("input_tokens", 0)
-            s.total_completion_tokens += trace.get("output_tokens", 0)
+        if not isinstance(turn, dict):
+            continue
 
-    # Also check turns for Hanabi
+        # Legacy trace layout.
+        for trace in turn.get("agent_traces", []) or []:
+            _record_trace_usage(trace, game_type, stats, agent_model_map, models_seen)
+
+        # Current trace layout in codenames episodes.
+        _record_trace_usage(turn.get("clue_trace"), game_type, stats, agent_model_map, models_seen)
+        _record_trace_usage(turn.get("guess_trace"), game_type, stats, agent_model_map, models_seen)
+
+        for trace in turn.get("discussion_traces", []) or []:
+            _record_trace_usage(trace, game_type, stats, agent_model_map, models_seen)
+
+
+def _collect_hanabi_usage(
+    episode: dict,
+    game_type: str,
+    stats: dict[str, dict[str, UsageStats]],
+    agent_model_map: dict[str, str],
+    models_seen: set[str],
+) -> None:
     turns = episode.get("turns", [])
-    for turn in turns:
-        if "input_tokens" in turn or "output_tokens" in turn:
-            s.total_requests += 1
-            s.total_prompt_tokens += turn.get("input_tokens", 0)
-            s.total_completion_tokens += turn.get("output_tokens", 0)
+    if not isinstance(turns, list):
+        return
 
-    # Check rounds for Decrypto
+    metadata = episode.get("metadata", {}) or {}
+    player_models = metadata.get("player_models", {})
+    default_model = metadata.get("model")
+
+    for turn in turns:
+        if not isinstance(turn, dict):
+            continue
+        if "input_tokens" not in turn and "output_tokens" not in turn:
+            continue
+
+        model_id = turn.get("model")
+        if not isinstance(model_id, str) or not model_id:
+            player_id = turn.get("player_id")
+            if isinstance(player_models, dict) and isinstance(player_id, str):
+                mapped = player_models.get(player_id)
+                if isinstance(mapped, str):
+                    model_id = mapped
+        if (not isinstance(model_id, str) or not model_id) and isinstance(default_model, str):
+            model_id = default_model
+
+        _record_trace_usage(
+            {
+                "model": model_id,
+                "input_tokens": turn.get("input_tokens", 0),
+                "output_tokens": turn.get("output_tokens", 0),
+                "agent_id": turn.get("player_id"),
+            },
+            game_type,
+            stats,
+            agent_model_map,
+            models_seen,
+        )
+
+
+def _collect_legacy_round_usage(
+    episode: dict,
+    game_type: str,
+    stats: dict[str, dict[str, UsageStats]],
+    agent_model_map: dict[str, str],
+    models_seen: set[str],
+) -> None:
     rounds = episode.get("rounds", [])
+    if not isinstance(rounds, list):
+        return
+
     for round_data in rounds:
-        if isinstance(round_data, dict):
-            for key in ["clue_trace", "decode_trace", "intercept_trace"]:
-                trace = round_data.get(key, {})
-                if trace and isinstance(trace, dict):
-                    s.total_requests += 1
-                    s.total_prompt_tokens += trace.get("input_tokens", 0)
-                    s.total_completion_tokens += trace.get("output_tokens", 0)
+        if not isinstance(round_data, dict):
+            continue
+        for key in ("clue_trace", "decode_trace", "intercept_trace"):
+            _record_trace_usage(round_data.get(key), game_type, stats, agent_model_map, models_seen)
 
 
 # ============================================
@@ -340,9 +487,18 @@ async def estimate_game_cost(
         usage_stats = aggregate_usage_stats()
 
     model_stats = usage_stats.get(model_id, {}).get(game_type)
+    has_model_usage = bool(
+        model_stats
+        and model_stats.game_count > 0
+        and (
+            model_stats.total_requests > 0
+            or model_stats.total_prompt_tokens > 0
+            or model_stats.total_completion_tokens > 0
+        )
+    )
 
     # Fallback to global averages for game type
-    if not model_stats or model_stats.game_count == 0:
+    if not has_model_usage:
         model_stats = _get_fallback_stats(game_type, usage_stats)
         confidence = "low"
         notes = [f"Using fallback estimates for {model_id} (no historical data)"]

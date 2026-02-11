@@ -28,6 +28,7 @@ from src.hanabi.agents.llm_agent import HanabiPlayerLLM
 from src.hanabi.models import HanabiConfig
 from src.hanabi.orchestrator import run_episode as run_hanabi_episode
 from src.hanabi.metrics import compute_episode_metrics as compute_hanabi_metrics
+from src.ui_api.openrouter_catalog import resolve_model_config
 
 from .analysis import analyze_batch, InterimFinding
 from .config import CloudBenchmarkConfig
@@ -57,14 +58,18 @@ class CloudBenchmarkRunner:
         self._event_queue: asyncio.Queue[BenchmarkEvent] = asyncio.Queue()
         self._start_time: float | None = None
 
-        # Load models
-        self._models, _ = load_model_farm("config/models.json")
-        self._model_by_id = {m.model_id: m for m in self._models}
+        # Load curated models and resolve requested IDs (including unknown OpenRouter IDs).
+        curated_models, _ = load_model_farm("config/models.json")
+        curated_by_id = {model.model_id: model for model in curated_models}
 
-        # Filter to requested models (use self.config which may be restored from snapshot)
-        self._selected_models = [
-            m for m in self._models if m.model_id in self.config.model_ids
-        ]
+        self._selected_models: list[ModelConfig] = []
+        seen_model_ids: set[str] = set()
+        for model_id in self.config.model_ids:
+            if model_id in seen_model_ids:
+                continue
+            seen_model_ids.add(model_id)
+            self._selected_models.append(resolve_model_config(curated_by_id, model_id))
+
         if len(self._selected_models) < 2 and (self.config.run_codenames or self.config.run_decrypto):
             raise ValueError("Need at least 2 models for competitive games")
 
