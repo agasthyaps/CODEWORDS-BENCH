@@ -39,3 +39,4 @@ ui_sessions/decrypto/
 ui_sessions/stats/
 ui/.npm-cache/
 /ui_sessions
+/final_results
