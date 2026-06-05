@@ -1,4 +1,7 @@
 export type GameType = "codenames" | "decrypto" | "hanabi";
+export type BenchmarkConditionName = "human_table_scratchpad" | "raw_chat" | "structured_output";
+export type MatrixMode = "round_robin" | "sparse_family";
+export type SeedPolicy = "custom" | "pilot" | "main";
 
 export interface ModelInfo {
   model_id: string;
@@ -6,6 +9,7 @@ export interface ModelInfo {
   provider: string;
   base_url?: string | null;
   is_curated?: boolean;
+  family?: string | null;
 }
 
 export interface TeamRoleConfig {
@@ -48,6 +52,62 @@ export interface ScratchpadEntry {
   addition: string;
   turn: number;
   timestamp: number;
+}
+
+export interface BenchmarkCondition {
+  name: BenchmarkConditionName;
+  scratchpad_policy: "private" | "none";
+  repair_policy: "neutral_format_and_legality" | "none" | "structured_output";
+  invalid_action_policy: "human_table" | "record_only" | "schema_enforced";
+  structured_output_policy: "disabled" | "provider_schema";
+  description?: string;
+}
+
+export interface RunManifest {
+  condition: BenchmarkCondition;
+  game_type: string;
+  game_rules_version: string;
+  code_version?: string | null;
+  dirty_worktree?: boolean | null;
+  prompt_hashes: Record<string, string>;
+  model_metadata: Record<string, unknown>;
+  provider_parameters: Record<string, unknown>;
+  seed_schedule: number[];
+  created_at: string;
+}
+
+export interface HarnessEvent {
+  event_type: string;
+  game_type: string;
+  episode_id?: string | null;
+  turn_number?: number | null;
+  round_number?: number | null;
+  team?: string | null;
+  agent_id?: string | null;
+  role?: string | null;
+  payload: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface BenchmarkPenalty {
+  penalty_type: string;
+  game_type: string;
+  points: number;
+  description: string;
+  episode_id?: string | null;
+  turn_number?: number | null;
+  round_number?: number | null;
+  team?: string | null;
+  agent_id?: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface ReplayProtocolFields {
+  run_manifest?: RunManifest | null;
+  harness_events?: HarnessEvent[];
+  benchmark_penalties?: BenchmarkPenalty[];
+  agent_scratchpads?: Record<string, string>;
+  metadata?: Record<string, unknown>;
 }
 
 // Hanabi types

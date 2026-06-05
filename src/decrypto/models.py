@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.core.benchmarking import BenchmarkPenalty, HarnessEvent, RunManifest
+
 
 def _random_seed() -> int:
     """Generate a random seed for reproducibility."""
@@ -138,6 +140,7 @@ class RoundLog(BaseModel):
 
     # All four actions (2 decode + 2 intercept)
     actions: tuple[ActionLog, ActionLog, ActionLog, ActionLog]
+    round_state: dict[TeamKey, dict[str, Any]] = Field(default_factory=dict)
 
     # Private: cluer data (never used to build future views)
     private: dict[TeamKey, dict[str, Any]] = Field(default_factory=dict)
@@ -204,6 +207,9 @@ class DecryptoEpisodeRecord(BaseModel):
     scores: dict[str, Any] = Field(default_factory=dict)
     agent_scratchpads: dict[str, str] = Field(default_factory=dict)  # Final scratchpad contents
     metadata: dict[str, Any] = Field(default_factory=dict)
+    run_manifest: RunManifest | None = None
+    harness_events: list[HarnessEvent] = Field(default_factory=list)
+    benchmark_penalties: list[BenchmarkPenalty] = Field(default_factory=list)
 
     def to_filename(self) -> str:
         ts = self.timestamp.strftime("%Y%m%d_%H%M%S")

@@ -382,6 +382,7 @@ def compute_episode_metrics(episode: "ExtendedEpisodeRecord") -> EpisodeMetrics:
 
     red_coordination = compute_coordination_score(red_metrics)
     blue_coordination = compute_coordination_score(blue_metrics)
+    penalties = getattr(episode, "benchmark_penalties", []) or []
 
     return EpisodeMetrics(
         episode_id=episode.episode_id,
@@ -391,6 +392,13 @@ def compute_episode_metrics(episode: "ExtendedEpisodeRecord") -> EpisodeMetrics:
         blue_metrics=blue_metrics,
         red_coordination_score=red_coordination,
         blue_coordination_score=blue_coordination,
+        benchmark_penalty_count=len(penalties),
+        benchmark_penalty_points=sum(p.points for p in penalties),
+        parse_failures=sum(1 for p in penalties if p.penalty_type == "parse_failure"),
+        repair_prompts=sum(1 for p in penalties if p.penalty_type == "repair_prompt"),
+        fallback_actions=sum(1 for p in penalties if p.penalty_type == "fallback_action"),
+        invalid_actions=sum(1 for p in penalties if p.penalty_type == "invalid_action"),
+        moderator_corrections=sum(1 for p in penalties if p.penalty_type == "moderator_correction"),
     )
 
 
@@ -466,6 +474,13 @@ def compute_aggregate_metrics(
     avg_guess_acc_blue = sum(m.blue_metrics.guess_accuracy for m in episode_metrics) / n
     avg_cons_red = sum(m.red_metrics.consensus_rate for m in episode_metrics) / n
     avg_cons_blue = sum(m.blue_metrics.consensus_rate for m in episode_metrics) / n
+    avg_penalty_count = sum(m.benchmark_penalty_count for m in episode_metrics) / n
+    avg_penalty_points = sum(m.benchmark_penalty_points for m in episode_metrics) / n
+    avg_parse_failures = sum(m.parse_failures for m in episode_metrics) / n
+    avg_repair_prompts = sum(m.repair_prompts for m in episode_metrics) / n
+    avg_fallback_actions = sum(m.fallback_actions for m in episode_metrics) / n
+    avg_invalid_actions = sum(m.invalid_actions for m in episode_metrics) / n
+    avg_moderator_corrections = sum(m.moderator_corrections for m in episode_metrics) / n
 
     return AggregateMetrics(
         config=config,
@@ -484,4 +499,11 @@ def compute_aggregate_metrics(
         avg_guess_accuracy_blue=avg_guess_acc_blue,
         avg_consensus_rate_red=avg_cons_red,
         avg_consensus_rate_blue=avg_cons_blue,
+        avg_benchmark_penalty_count=avg_penalty_count,
+        avg_benchmark_penalty_points=avg_penalty_points,
+        avg_parse_failures=avg_parse_failures,
+        avg_repair_prompts=avg_repair_prompts,
+        avg_fallback_actions=avg_fallback_actions,
+        avg_invalid_actions=avg_invalid_actions,
+        avg_moderator_corrections=avg_moderator_corrections,
     )

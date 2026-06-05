@@ -7,10 +7,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.agents.llm import create_provider
 from src.benchmark.config import MatchupConfig
+from src.core.benchmarking import (
+    BenchmarkCondition,
+    BenchmarkPenalty,
+    HarnessEvent,
+    RunManifest,
+    build_run_manifest,
+    default_benchmark_condition,
+)
+from src.core.state import AgentStateManager
 
 from .agents.llm_agents import DecryptoCluerLLM, DecryptoGuesserLLM, run_bounded_action
 from .benchmark_config import DecryptoExperimentConfig, generate_decrypto_matchups
@@ -31,6 +40,10 @@ class DecryptoBenchmarkResult(BaseModel):
     duration_seconds: float
     scores: dict[str, Any]
     error: str | None = None
+    condition_name: str = "human_table_scratchpad"
+    run_manifest: RunManifest | None = None
+    benchmark_penalties: list[BenchmarkPenalty] = Field(default_factory=list)
+    penalty_summary: dict[str, int | float] = Field(default_factory=dict)
 
 
 class DecryptoBenchmarkProgress(BaseModel):
@@ -113,6 +126,76 @@ def _team_metadata(team_key: TeamKey, assignment: Any) -> dict[str, Any]:
     }
 
 
+def _penalty_summary(penalties: list[BenchmarkPenalty]) -> dict[str, int | float]:
+    summary: dict[str, int | float] = {
+        "total": len(penalties),
+        "points": sum(p.points for p in penalties),
+    }
+    for penalty in penalties:
+        summary[penalty.penalty_type] = int(summary.get(penalty.penalty_type, 0)) + 1
+    return summary
+
+
+def _action_penalties(action: Any, *, episode_id: str, round_number: int) -> list[BenchmarkPenalty]:
+    penalties: list[BenchmarkPenalty] = []
+    for independent in action.independent:
+        if not independent.parse_ok:
+            penalties.append(
+                BenchmarkPenalty(
+                    penalty_type="parse_failure",
+                    game_type="decrypto",
+                    episode_id=episode_id,
+                    round_number=round_number,
+                    team=action.team,
+                    agent_id=independent.agent_id,
+                    description="Independent Decrypto guess failed parsing.",
+                    metadata={"kind": action.kind, "parse_error": independent.parse_error},
+                )
+            )
+        if independent.parse_retry_used:
+            penalties.append(
+                BenchmarkPenalty(
+                    penalty_type="repair_prompt",
+                    game_type="decrypto",
+                    episode_id=episode_id,
+                    round_number=round_number,
+                    team=action.team,
+                    agent_id=independent.agent_id,
+                    description="Independent Decrypto guess used a repair prompt.",
+                    metadata={"kind": action.kind, "parse_error": independent.parse_error},
+                )
+            )
+
+    consensus = action.consensus
+    if not consensus.parse_ok:
+        penalties.append(
+            BenchmarkPenalty(
+                penalty_type="fallback_action",
+                game_type="decrypto",
+                episode_id=episode_id,
+                round_number=round_number,
+                team=action.team,
+                agent_id=consensus.captain_id,
+                description="Consensus Decrypto fallback guess was used.",
+                metadata={"kind": action.kind, "parse_error": consensus.parse_error},
+            )
+        )
+    if consensus.parse_retry_used:
+        penalties.append(
+            BenchmarkPenalty(
+                penalty_type="repair_prompt",
+                game_type="decrypto",
+                episode_id=episode_id,
+                round_number=round_number,
+                team=action.team,
+                agent_id=consensus.captain_id,
+                description="Consensus Decrypto guess used a repair prompt.",
+                metadata={"kind": action.kind, "parse_error": consensus.parse_error},
+            )
+        )
+    return penalties
+
+
 async def run_single_game(
     matchup: MatchupConfig,
     *,
@@ -121,31 +204,60 @@ async def run_single_game(
     temperature: float,
     episodes_dir: Path,
     emit_fn: Any | None = None,
+    condition: BenchmarkCondition | None = None,
 ) -> tuple[DecryptoEpisodeRecord, DecryptoBenchmarkResult]:
     decrypto_config = DecryptoConfig(max_rounds=8, seed=seed)
     game_id, actual_seed, keys, code_sequences = create_game(decrypto_config)
+    condition = condition or default_benchmark_condition()
+    episode_id = f"{seed:04d}-{game_index:02d}-{game_id}"
 
     red_team = _build_team("red", matchup.red_team, temperature)
     blue_team = _build_team("blue", matchup.blue_team, temperature)
+    agent_states = AgentStateManager() if condition.scratchpad_enabled else None
+    harness_events: list[HarnessEvent] = []
+    benchmark_penalties: list[BenchmarkPenalty] = []
 
     async def run_cluer_fn(round_inputs, team: TeamKey):
         agent = red_team.cluer if team == "red" else blue_team.cluer
-        # agent.generate returns (ClueSet, trace_data, scratchpad_addition)
-        # but orchestrator expects (ClueSet, trace_data)
-        clue_set, trace_data, _scratchpad = await agent.generate(round_inputs, team)
+        agent_id = f"{team}_cluer"
+        scratchpad = agent_states.get_scratchpad(agent_id) if agent_states else ""
+        clue_set, trace_data, scratchpad_add = await agent.generate(
+            round_inputs, team, scratchpad
+        )
+        if agent_states is not None and scratchpad_add:
+            agent_states.get_or_create(agent_id).append_to_scratchpad(
+                round_inputs.round_number, scratchpad_add
+            )
         return clue_set, trace_data
 
     async def run_action_fn(round_inputs, team: TeamKey, opponent_team: TeamKey, kind: str):
         acting = red_team if team == "red" else blue_team
-        # run_bounded_action returns (ActionLog, scratchpad_additions_dict)
-        # but orchestrator expects just ActionLog
-        action_log, _scratchpad_adds = await run_bounded_action(
+        g1_id = f"{team}_guesser_1"
+        g2_id = f"{team}_guesser_2"
+        g1_scratchpad = agent_states.get_scratchpad(g1_id) if agent_states else ""
+        g2_scratchpad = agent_states.get_scratchpad(g2_id) if agent_states else ""
+        action_log, scratchpad_adds = await run_bounded_action(
             round_inputs,
             team,
             opponent_team,
             kind,
             acting.g1,
             acting.g2,
+            g1_scratchpad,
+            g2_scratchpad,
+        )
+        if agent_states is not None:
+            for agent_id, addition in scratchpad_adds.items():
+                if addition:
+                    agent_states.get_or_create(agent_id).append_to_scratchpad(
+                        round_inputs.round_number, addition
+                    )
+        benchmark_penalties.extend(
+            _action_penalties(
+                action_log,
+                episode_id=episode_id,
+                round_number=round_inputs.round_number,
+            )
         )
         return action_log
 
@@ -153,7 +265,19 @@ async def run_single_game(
     metadata = {
         "red_team": _team_metadata("red", matchup.red_team),
         "blue_team": _team_metadata("blue", matchup.blue_team),
+        "condition": condition.model_dump(mode="json"),
     }
+    manifest = build_run_manifest(
+        game_type="decrypto",
+        condition=condition,
+        models={
+            "red_team": matchup.red_team.model_dump(mode="json"),
+            "blue_team": matchup.blue_team.model_dump(mode="json"),
+        },
+        provider_parameters={"temperature": temperature},
+        seed_schedule=[seed],
+        game_rules_version="decrypto_v1",
+    )
     episode = await run_episode(
         config=decrypto_config,
         game_id=game_id,
@@ -161,11 +285,21 @@ async def run_single_game(
         code_sequences=code_sequences,
         run_cluer_fn=run_cluer_fn,
         run_action_fn=run_action_fn,
-        episode_id=f"{seed:04d}-{game_index:02d}-{game_id}",
+        episode_id=episode_id,
         timestamp=datetime.utcnow(),
         metadata=metadata,
         emit_fn=emit_fn,
+        run_manifest=manifest,
+        harness_events=harness_events,
+        benchmark_penalties=benchmark_penalties,
     )
+    if agent_states is not None:
+        agent_scratchpads = {
+            agent_id: agent_state.scratchpad
+            for agent_id, agent_state in agent_states.get_all_states().items()
+            if agent_state.scratchpad
+        }
+        episode = episode.model_copy(update={"agent_scratchpads": agent_scratchpads})
     duration = time.time() - start
 
     episode.save(str(episodes_dir))
@@ -189,6 +323,10 @@ async def run_single_game(
         },
         duration_seconds=duration,
         scores=episode.scores,
+        condition_name=condition.name.value,
+        run_manifest=episode.run_manifest,
+        benchmark_penalties=episode.benchmark_penalties,
+        penalty_summary=_penalty_summary(episode.benchmark_penalties),
     )
 
     return episode, result
@@ -213,6 +351,7 @@ class DecryptoBenchmarkRunner:
                     "name": self.config.name,
                     "models": [m.model_dump(mode="json") for m in self.config.models],
                     "seeds": self.config.seeds,
+                    "condition": self.config.condition.model_dump(mode="json"),
                     "games_per_config": self.config.games_per_config,
                     "temperature": self.config.temperature,
                 },
@@ -267,6 +406,7 @@ class DecryptoBenchmarkRunner:
                             game_index=game_idx,
                             temperature=self.config.temperature,
                             episodes_dir=self.episodes_dir,
+                            condition=self.config.condition,
                         )
                     except Exception as e:
                         result = DecryptoBenchmarkResult(
@@ -289,6 +429,7 @@ class DecryptoBenchmarkRunner:
                             duration_seconds=0.0,
                             scores={},
                             error=str(e),
+                            condition_name=self.config.condition.name.value,
                         )
 
                     results.append(result)

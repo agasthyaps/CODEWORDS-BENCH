@@ -16,6 +16,11 @@ from src.engine import Team, GameConfig, GameMode
 from src.agents import AgentConfig, CluerAgent, GuesserAgent, create_provider
 from src.runner import TeamAgents, run_episode, ExtendedEpisodeRecord
 from src.metrics import compute_episode_metrics, EpisodeMetrics
+from src.core.benchmarking import (
+    BenchmarkPenalty,
+    RunManifest,
+    build_run_manifest,
+)
 
 from .config import (
     ExperimentConfig, MatchupConfig, TeamAssignment, ModelConfig,
@@ -39,6 +44,10 @@ class BenchmarkResult(BaseModel):
     blue_models: dict[str, str]
     duration_seconds: float
     error: str | None = None
+    condition_name: str = "human_table_scratchpad"
+    run_manifest: RunManifest | None = None
+    benchmark_penalties: list[BenchmarkPenalty] = Field(default_factory=list)
+    penalty_summary: dict[str, int | float] = Field(default_factory=dict)
 
 
 class BenchmarkProgress(BaseModel):
@@ -172,6 +181,16 @@ def _build_team_agents(
     return TeamAgents(cluer=cluer, guesser_1=guesser1, guesser_2=guesser2)
 
 
+def _penalty_summary(penalties: list[BenchmarkPenalty]) -> dict[str, int | float]:
+    summary: dict[str, int | float] = {
+        "total": len(penalties),
+        "points": sum(p.points for p in penalties),
+    }
+    for penalty in penalties:
+        summary[penalty.penalty_type] = int(summary.get(penalty.penalty_type, 0)) + 1
+    return summary
+
+
 async def run_single_game(
     matchup: MatchupConfig,
     mode: GameMode,
@@ -181,18 +200,38 @@ async def run_single_game(
 ) -> tuple[ExtendedEpisodeRecord, EpisodeMetrics]:
     """Run a single benchmark game."""
     game_config = GameConfig.for_mode(mode, seed=seed)
+    condition = config.condition
+    effective_max_retries = config.max_retries if condition.repair_enabled else 0
 
     red_team = _build_team_agents(
         matchup.red_team,
         Team.RED,
         config.temperature,
-        config.max_retries,
+        effective_max_retries,
     )
     blue_team = _build_team_agents(
         matchup.blue_team,
         Team.BLUE,
         config.temperature,
-        config.max_retries,
+        effective_max_retries,
+    )
+    manifest = build_run_manifest(
+        game_type="codenames",
+        condition=condition,
+        models={
+            "red_team": matchup.red_team.model_dump(mode="json"),
+            "blue_team": matchup.blue_team.model_dump(mode="json"),
+        },
+        provider_parameters={
+            "temperature": config.temperature,
+            "max_retries": effective_max_retries,
+            "configured_max_retries": config.max_retries,
+            "max_discussion_rounds": config.max_discussion_rounds,
+            "max_turns": config.max_turns,
+            "clue_generation_mode": config.clue_generation_mode,
+        },
+        seed_schedule=[seed],
+        game_rules_version=mode.value,
     )
 
     episode = await run_episode(
@@ -202,6 +241,8 @@ async def run_single_game(
         max_turns=config.max_turns,
         max_discussion_rounds=config.max_discussion_rounds,
         emit_fn=emit_fn,
+        condition=condition,
+        run_manifest=manifest,
     )
 
     metrics = compute_episode_metrics(episode)
@@ -326,6 +367,10 @@ class BenchmarkRunner:
                         "guesser_2": matchup.blue_team.guesser_2.model_id,
                     },
                     duration_seconds=duration,
+                    condition_name=self.config.condition.name.value,
+                    run_manifest=episode.run_manifest,
+                    benchmark_penalties=episode.benchmark_penalties,
+                    penalty_summary=_penalty_summary(episode.benchmark_penalties),
                 )
 
                 return result
@@ -366,6 +411,7 @@ class BenchmarkRunner:
             },
             duration_seconds=0.0,
             error=f"Failed after {consecutive_failures} attempts",
+            condition_name=self.config.condition.name.value,
         )
 
     async def run(self, callback: callable = None) -> list[BenchmarkResult]:

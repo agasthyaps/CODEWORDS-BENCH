@@ -1,4 +1,4 @@
-import { GameType, ReplaySummary, TeamSelection } from "./types";
+import { BenchmarkConditionName, GameType, MatrixMode, ReplaySummary, SeedPolicy, TeamSelection } from "./types";
 
 // In production (same origin), use relative URLs. In dev, use localhost.
 const API_BASE =
@@ -15,6 +15,7 @@ export async function startCodenames(payload: {
   team_selection: TeamSelection;
   mode: string;
   seed?: number;
+  condition_name?: BenchmarkConditionName;
   max_discussion_rounds: number;
   max_turns: number;
   event_delay_ms: number;
@@ -31,6 +32,7 @@ export async function startCodenames(payload: {
 export async function startDecrypto(payload: {
   team_selection: TeamSelection;
   seed?: number;
+  condition_name?: BenchmarkConditionName;
   max_rounds: number;
   max_discussion_turns_per_guesser: number;
   event_delay_ms: number;
@@ -47,6 +49,7 @@ export async function startDecrypto(payload: {
 export async function startHanabi(payload: {
   player_models: string[];
   seed?: number;
+  condition_name?: BenchmarkConditionName;
   event_delay_ms: number;
 }) {
   const res = await fetch(`${API_BASE}/hanabi/start`, {
@@ -120,6 +123,9 @@ export async function startBenchmark(payload: {
   model_ids: string[];
   seed_count?: number;
   seed_list?: number[];
+  seed_policy?: SeedPolicy;
+  condition_name?: BenchmarkConditionName;
+  matrix_mode?: MatrixMode;
   run_codenames?: boolean;
   run_decrypto?: boolean;
   run_hanabi?: boolean;

@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { openEventStream, startBatch, estimateBatchCost, CostEstimate } from "../api";
 import ModelPicker from "../components/ModelPicker";
-import { ModelInfo, TeamRoleConfig, TeamSelection } from "../types";
+import { BenchmarkConditionName, ModelInfo, SeedPolicy, TeamRoleConfig, TeamSelection } from "../types";
 
 type Props = {
   models: ModelInfo[];
   defaultModel: string;
 };
 
-type SeedMode = "random" | "fixed" | "list";
+type SeedMode = "random" | "fixed" | "list" | "pilot" | "main";
 type BatchGameType = "codenames" | "decrypto" | "hanabi" | "both";
 
 type GameResult = {
@@ -50,6 +50,7 @@ export default function BatchRunner({ models, defaultModel }: Props) {
   
   // Core config
   const [gameType, setGameType] = useState<BatchGameType>("codenames");
+  const [conditionName, setConditionName] = useState<BenchmarkConditionName>("human_table_scratchpad");
   const [red, setRed] = useState<TeamRoleConfig>(baseTeam);
   const [blue, setBlue] = useState<TeamRoleConfig>(baseTeam);
   
@@ -99,7 +100,14 @@ export default function BatchRunner({ models, defaultModel }: Props) {
   }, [seedListInput]);
 
   // Calculate total games based on seed mode and game type
-  const seedsCount = seedMode === "list" ? parsedSeedList.length : count;
+  const seedPolicy: SeedPolicy = seedMode === "pilot" ? "pilot" : seedMode === "main" ? "main" : "custom";
+  const seedsCount = seedMode === "list"
+    ? parsedSeedList.length
+    : seedMode === "pilot"
+      ? 5
+      : seedMode === "main"
+        ? 30
+        : count;
   const totalGames = gameType === "both" ? seedsCount * 2 : seedsCount;
 
   // Estimate cost when config changes
@@ -166,7 +174,9 @@ export default function BatchRunner({ models, defaultModel }: Props) {
     
     const payload: any = {
       game_type: gameType,
-      seed_mode: seedMode,
+      condition_name: conditionName,
+      seed_policy: seedPolicy,
+      seed_mode: seedMode === "pilot" || seedMode === "main" ? "list" : seedMode,
       count: seedMode !== "list" ? count : undefined,
       fixed_seed: seedMode === "fixed" ? fixedSeed : undefined,
       seed_list: seedMode === "list" ? parsedSeedList : undefined,
@@ -276,6 +286,21 @@ export default function BatchRunner({ models, defaultModel }: Props) {
               <option value="random">Random (unique per game)</option>
               <option value="fixed">Fixed (same board each game)</option>
               <option value="list">Specific seeds</option>
+              <option value="pilot">Pilot preset (0-4)</option>
+              <option value="main">Main preset (0-29)</option>
+            </select>
+          </div>
+
+          <div className="form-row">
+            <label>Condition</label>
+            <select
+              value={conditionName}
+              onChange={(e) => setConditionName(e.target.value as BenchmarkConditionName)}
+              disabled={status === "running"}
+            >
+              <option value="human_table_scratchpad">Human table + scratchpad</option>
+              <option value="raw_chat">Raw chat</option>
+              <option value="structured_output">Structured output comparator</option>
             </select>
           </div>
           
@@ -330,6 +355,12 @@ export default function BatchRunner({ models, defaultModel }: Props) {
                 disabled={status === "running"}
               />
               <span className="hint">{parsedSeedList.length} seeds</span>
+            </div>
+          )}
+
+          {(seedMode === "pilot" || seedMode === "main") && (
+            <div className="protocol-note">
+              {seedMode === "pilot" ? "Pilot seed policy: 5 seeds." : "Main seed policy: 30 seeds."}
             </div>
           )}
           

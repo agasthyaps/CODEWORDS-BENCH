@@ -104,10 +104,8 @@ async def run_discussion_phase(
         new_state = transition_to_guessing(state)
         return new_state, []
 
-    # Note: run_discussion doesn't use scratchpads for simplicity
-    # Individual discuss() calls could be updated to use them if needed
     messages, traces, new_state = await run_discussion(
-        guessers, state, max_rounds
+        guessers, state, max_rounds, agent_states
     )
 
     # Transition to guessing phase

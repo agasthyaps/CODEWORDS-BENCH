@@ -5,7 +5,7 @@ import { fetchStats, openEventStream, startDecrypto, estimateGameCost, CostEstim
 import DecryptoBoard from "../components/DecryptoBoard";
 import ChatPanel from "../components/ChatPanel";
 import ScratchpadPanel from "../components/ScratchpadPanel";
-import { ModelInfo, TeamRoleConfig, TeamSelection, ScratchpadEntry } from "../types";
+import { BenchmarkConditionName, ModelInfo, TeamRoleConfig, TeamSelection, ScratchpadEntry } from "../types";
 
 type Props = {
   models: ModelInfo[];
@@ -40,6 +40,7 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
   );
   const [red, setRed] = useState<TeamRoleConfig>(baseTeam);
   const [blue, setBlue] = useState<TeamRoleConfig>(baseTeam);
+  const [conditionName, setConditionName] = useState<BenchmarkConditionName>("human_table_scratchpad");
   const [seed, setSeed] = useState<number | undefined>(undefined);
   const [eventDelay, setEventDelay] = useState(0);
   const [maxDiscussionTurns, setMaxDiscussionTurns] = useState(2);
@@ -137,6 +138,7 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
     const { job_id } = await startDecrypto({
       team_selection: buildSelection(),
       seed,
+      condition_name: conditionName,
       max_rounds: 8,
       max_discussion_turns_per_guesser: maxDiscussionTurns,
       event_delay_ms: eventDelay,
@@ -379,6 +381,14 @@ export default function DecryptoViewer({ models, defaultModel }: Props) {
           <div className="settings-content">
             <div className="settings-section">
               <h4 data-label="CONFIG">Game Settings</h4>
+              <div className="form-row-compact">
+                <label>Condition</label>
+                <select value={conditionName} onChange={(e) => setConditionName(e.target.value as BenchmarkConditionName)}>
+                  <option value="human_table_scratchpad">Human table</option>
+                  <option value="raw_chat">Raw chat</option>
+                  <option value="structured_output">Structured</option>
+                </select>
+              </div>
               <div className="form-row-compact">
                 <label>Seed</label>
                 <input

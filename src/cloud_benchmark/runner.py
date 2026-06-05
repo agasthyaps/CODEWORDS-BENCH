@@ -17,6 +17,7 @@ from src.benchmark.config import (
     TeamComposition,
     generate_matchups,
     count_total_games,
+    sparse_family_matchup_subset,
 )
 from src.benchmark.model_farm import load_model_farm
 from src.benchmark.runner import BenchmarkRunner, BenchmarkResult
@@ -94,6 +95,7 @@ class CloudBenchmarkRunner:
     def _init_game_totals(self) -> None:
         """Calculate and set total games for each type."""
         seeds = self.config.get_seeds()
+        matchup_subset = self._sparse_family_subset()
 
         if self.config.run_codenames:
             cn_config = ExperimentConfig(
@@ -102,16 +104,32 @@ class CloudBenchmarkRunner:
                 game_modes=[self.config.codenames_mode],
                 seeds=seeds,
                 games_per_config=1,
+                condition=self.config.condition,
+                matchup_strategy="subset" if matchup_subset else "round_robin",
+                matchup_subset=matchup_subset or None,
             )
             self.state.codenames.total_games = count_total_games(cn_config)
 
         if self.config.run_decrypto:
-            matchups = generate_decrypto_matchups(self._selected_models)
+            matchups = self._decrypto_matchups()
             self.state.decrypto.total_games = len(matchups) * len(seeds)
 
         if self.config.run_hanabi:
             # One game per model per seed
             self.state.hanabi.total_games = len(self._selected_models) * len(seeds)
+
+    def _sparse_family_subset(self) -> list[tuple[str, str]]:
+        if self.config.matrix_mode != "sparse_family":
+            return []
+        return sparse_family_matchup_subset(self._selected_models)
+
+    def _decrypto_matchups(self):
+        matchups = generate_decrypto_matchups(self._selected_models)
+        subset = self._sparse_family_subset()
+        if not subset:
+            return matchups
+        allowed = {"|".join(sorted(pair)) for pair in subset}
+        return [m for m in matchups if m.pair_key in allowed]
 
     @property
     def event_queue(self) -> asyncio.Queue[BenchmarkEvent]:
@@ -398,6 +416,9 @@ class CloudBenchmarkRunner:
             max_turns=self.config.codenames_max_turns,
             max_retries=self.config.max_retries,
             output_dir=str(self._output_dir),
+            condition=self.config.condition,
+            matchup_strategy="subset" if self._sparse_family_subset() else "round_robin",
+            matchup_subset=self._sparse_family_subset() or None,
         )
 
         matchups = generate_matchups(cn_config)
@@ -545,6 +566,13 @@ class CloudBenchmarkRunner:
                 "guesser_2": matchup.blue_team.guesser_2.model_id,
             },
             duration_seconds=0,  # Set by caller
+            condition_name=config.condition.name.value,
+            run_manifest=episode.run_manifest,
+            benchmark_penalties=episode.benchmark_penalties,
+            penalty_summary={
+                "total": len(episode.benchmark_penalties),
+                "points": sum(p.points for p in episode.benchmark_penalties),
+            },
         )
 
     def _get_codenames_matchup_id(self, matchup) -> str:
@@ -557,7 +585,7 @@ class CloudBenchmarkRunner:
         sem = asyncio.Semaphore(self.config.decrypto_concurrency)
         seeds = self.config.get_seeds()
 
-        matchups = generate_decrypto_matchups(self._selected_models)
+        matchups = self._decrypto_matchups()
 
         async def run_game(matchup, seed, game_idx):
             if self._pause_requested:
@@ -683,6 +711,7 @@ class CloudBenchmarkRunner:
             temperature=self.config.temperature,
             episodes_dir=episodes_dir,
             emit_fn=emit_live_state,
+            condition=self.config.condition,
         )
 
         return result
@@ -825,6 +854,7 @@ class CloudBenchmarkRunner:
             emit_fn=emit_live_state,
             episode_id=f"hanabi_{model.name}_{seed:04d}",
             metadata={"model": model.model_id, "seed": seed},
+            condition=self.config.condition,
         )
 
         # Save episode
@@ -843,6 +873,10 @@ class CloudBenchmarkRunner:
             "score": episode.final_score,
             "game_over_reason": episode.game_over_reason,
             "metrics": metrics,
+            "condition_name": self.config.condition.name.value,
+            "benchmark_penalties": [
+                p.model_dump(mode="json") for p in episode.benchmark_penalties
+            ],
         }
 
     async def _run_analysis_worker(self) -> None:

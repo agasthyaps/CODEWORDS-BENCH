@@ -8,6 +8,12 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from src.engine import Team, GameMode
+from src.core.benchmarking import (
+    BenchmarkCondition,
+    default_benchmark_condition,
+    PILOT_HOMOGENEOUS_SEEDS,
+    MAIN_HOMOGENEOUS_SEEDS,
+)
 
 # Clue generation mode for benchmark experiments
 ClueGenerationMode = Literal["standard", "deliberate"]
@@ -29,6 +35,7 @@ class ModelConfig(BaseModel):
     model_id: str  # Actual model ID for API calls
     provider: str = "openrouter"  # openrouter, openai, anthropic
     base_url: str | None = None  # Provider base URL override (primarily OpenRouter)
+    family: str | None = None  # openai, anthropic, google, open_weight, etc.
 
 
 class TeamAssignment(BaseModel):
@@ -53,6 +60,7 @@ class ExperimentConfig(BaseModel):
     """Configuration for a benchmark experiment."""
     name: str
     description: str = ""
+    condition: BenchmarkCondition = Field(default_factory=default_benchmark_condition)
 
     # Models to test
     models: list[ModelConfig]
@@ -71,6 +79,7 @@ class ExperimentConfig(BaseModel):
 
     # Seeds for reproducibility
     seeds: list[int] = Field(default_factory=lambda: list(range(100)))
+    seed_policy: Literal["custom", "pilot", "main"] = "custom"
 
     # Run settings
     games_per_config: int = 1  # Games per (matchup, mode, seed) combination
@@ -87,6 +96,40 @@ class ExperimentConfig(BaseModel):
 
     # Output
     output_dir: str = "benchmark_results"
+
+    @classmethod
+    def pilot(
+        cls,
+        *,
+        name: str,
+        models: list[ModelConfig],
+        **kwargs,
+    ) -> "ExperimentConfig":
+        """Create a pilot config using the versioned homogeneous seed policy."""
+        return cls(
+            name=name,
+            models=models,
+            seeds=list(PILOT_HOMOGENEOUS_SEEDS),
+            seed_policy="pilot",
+            **kwargs,
+        )
+
+    @classmethod
+    def main(
+        cls,
+        *,
+        name: str,
+        models: list[ModelConfig],
+        **kwargs,
+    ) -> "ExperimentConfig":
+        """Create a main-run config using the versioned homogeneous seed policy."""
+        return cls(
+            name=name,
+            models=models,
+            seeds=list(MAIN_HOMOGENEOUS_SEEDS),
+            seed_policy="main",
+            **kwargs,
+        )
 
 
 def generate_matchups(config: ExperimentConfig) -> list[MatchupConfig]:
@@ -197,6 +240,51 @@ def generate_matchups(config: ExperimentConfig) -> list[MatchupConfig]:
         )
 
     return matchups
+
+
+def select_family_representatives(models: list[ModelConfig]) -> dict[str, ModelConfig]:
+    """
+    Select one representative per model family, preserving config order.
+
+    This supports the sparse mixed-family cross-play design without requiring
+    a combinatorial all-model matrix.
+    """
+    reps: dict[str, ModelConfig] = {}
+    for model in models:
+        family = model.family or model.model_id.split("/", 1)[0]
+        reps.setdefault(family, model)
+    return reps
+
+
+def sparse_family_matchup_subset(models: list[ModelConfig]) -> list[tuple[str, str]]:
+    """
+    Return the default sparse cross-family model-id pairs.
+
+    Closed-family core pairs: OpenAI-Anthropic, OpenAI-Google, Anthropic-Google.
+    If an open-weight representative exists, pair it with OpenAI and Anthropic.
+    Missing families are skipped.
+    """
+    reps = select_family_representatives(models)
+    desired_family_pairs = [
+        ("openai", "anthropic"),
+        ("openai", "google"),
+        ("anthropic", "google"),
+        ("open_weight", "openai"),
+        ("open_weight", "anthropic"),
+    ]
+    subset: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for a_family, b_family in desired_family_pairs:
+        a = reps.get(a_family)
+        b = reps.get(b_family)
+        if a is None or b is None or a.model_id == b.model_id:
+            continue
+        pair = tuple(sorted((a.model_id, b.model_id)))
+        if pair in seen:
+            continue
+        seen.add(pair)
+        subset.append((a.model_id, b.model_id))
+    return subset
 
 
 def count_total_games(config: ExperimentConfig) -> int:

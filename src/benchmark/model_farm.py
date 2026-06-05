@@ -22,6 +22,7 @@ class ModelFarmItem(BaseModel):
     id: str
     short_name: str | None = None
     provider: str = "openrouter"
+    family: str | None = None
 
 
 class ModelFarmFile(BaseModel):
@@ -34,6 +35,20 @@ class ModelFarmFile(BaseModel):
     # List of explicit model-id pairs when default_matchups == "subset"
     matchups: list[tuple[str, str]] | None = None
     openrouter_base_url: str | None = None
+
+
+def infer_model_family(model_id: str, provider: str) -> str:
+    """Infer a coarse family label for sparse cross-family analysis."""
+    owner = model_id.split("/", 1)[0].lower() if "/" in model_id else provider.lower()
+    if owner in {"openai"}:
+        return "openai"
+    if owner in {"anthropic"}:
+        return "anthropic"
+    if owner in {"google", "google-ai-studio"}:
+        return "google"
+    if owner in {"meta-llama", "qwen", "mistralai", "z-ai"}:
+        return "open_weight"
+    return owner
 
 
 def load_model_farm(path: str | Path) -> tuple[list[ModelConfig], ModelFarmFile]:
@@ -58,8 +73,8 @@ def load_model_farm(path: str | Path) -> tuple[list[ModelConfig], ModelFarmFile]
                 model_id=item.id,
                 provider=item.provider,
                 base_url=parsed.openrouter_base_url if item.provider == "openrouter" else None,
+                family=item.family or infer_model_family(item.id, item.provider),
             )
         )
 
     return models, parsed
-

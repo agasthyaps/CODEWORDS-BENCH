@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.benchmark.config import ModelConfig, MatchupConfig, TeamAssignment, TeamComposition
+from src.core.benchmarking import BenchmarkCondition, default_benchmark_condition
 
 
 @dataclass(frozen=True)
@@ -10,6 +11,7 @@ class DecryptoExperimentConfig:
     name: str
     models: list[ModelConfig]
     seeds: list[int]
+    condition: BenchmarkCondition = field(default_factory=default_benchmark_condition)
     games_per_config: int = 1
     temperature: float = 0.7
     output_dir: str = "benchmark_results"
@@ -77,4 +79,3 @@ def generate_decrypto_matchups(models: list[ModelConfig]) -> list[MatchupConfig]
             )
 
     return matchups
-

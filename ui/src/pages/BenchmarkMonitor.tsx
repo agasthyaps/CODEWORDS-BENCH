@@ -12,13 +12,12 @@ import {
   cancelBenchmark,
   forceStopBenchmark,
   downloadBenchmarkResults,
-  openEventStream,
   estimateBenchmarkCost,
   RunningGame,
   GamePeek,
   CostEstimate,
 } from "../api";
-import { ModelInfo } from "../types";
+import { BenchmarkConditionName, MatrixMode, ModelInfo, SeedPolicy } from "../types";
 
 type Props = {
   models: ModelInfo[];
@@ -67,12 +66,59 @@ type Experiment = {
   findings_count: number;
 };
 
+type SparseMatrixPair = {
+  familyA: string;
+  familyB: string;
+  modelA: string;
+  modelB: string;
+};
+
+const SPARSE_FAMILY_PAIRS: [string, string][] = [
+  ["openai", "anthropic"],
+  ["openai", "google"],
+  ["anthropic", "google"],
+  ["open_weight", "openai"],
+  ["open_weight", "anthropic"],
+];
+
+function inferFamily(model?: ModelInfo, fallbackId = "") {
+  if (model?.family) {
+    return model.family;
+  }
+
+  const source = `${model?.provider || ""} ${model?.model_id || fallbackId}`.toLowerCase();
+  if (source.includes("anthropic") || source.includes("claude")) return "anthropic";
+  if (source.includes("google") || source.includes("gemini")) return "google";
+  if (source.includes("openai") || source.includes("gpt-") || source.includes("o3") || source.includes("o4")) return "openai";
+  if (
+    source.includes("meta-llama") ||
+    source.includes("llama") ||
+    source.includes("mistral") ||
+    source.includes("qwen") ||
+    source.includes("deepseek") ||
+    source.includes("z-ai")
+  ) {
+    return "open_weight";
+  }
+  return "unknown";
+}
+
+function familyLabel(family: string) {
+  return family
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export default function BenchmarkMonitor({ models }: Props) {
   // Config state
   const [experimentName, setExperimentName] = useState("");
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const [modelSearch, setModelSearch] = useState("");
   const [seedCount, setSeedCount] = useState(30);
+  const [seedPolicy, setSeedPolicy] = useState<SeedPolicy>("main");
+  const [conditionName, setConditionName] = useState<BenchmarkConditionName>("human_table_scratchpad");
+  const [matrixMode, setMatrixMode] = useState<MatrixMode>("round_robin");
   const [runCodenames, setRunCodenames] = useState(true);
   const [runDecrypto, setRunDecrypto] = useState(true);
   const [runHanabi, setRunHanabi] = useState(true);
@@ -204,6 +250,8 @@ export default function BenchmarkMonitor({ models }: Props) {
     [models]
   );
 
+  const effectiveSeedCount = seedPolicy === "pilot" ? 5 : seedPolicy === "main" ? 30 : seedCount;
+
   const featuredModels = useMemo(() => {
     const curated = models.filter((model) => model.is_curated);
     return curated.length > 0 ? curated : models.slice(0, 12);
@@ -224,29 +272,59 @@ export default function BenchmarkMonitor({ models }: Props) {
       .slice(0, 24);
   }, [models, modelSearch, selectedModels]);
 
+  const familyRepresentatives = useMemo(() => {
+    const reps = new Map<string, string>();
+    selectedModels.forEach((modelId) => {
+      const family = inferFamily(modelById.get(modelId), modelId);
+      if (!reps.has(family)) {
+        reps.set(family, modelId);
+      }
+    });
+    return reps;
+  }, [modelById, selectedModels]);
+
+  const sparseMatrixPairs = useMemo<SparseMatrixPair[]>(() => {
+    return SPARSE_FAMILY_PAIRS.flatMap(([familyA, familyB]) => {
+      const modelA = familyRepresentatives.get(familyA);
+      const modelB = familyRepresentatives.get(familyB);
+      if (!modelA || !modelB) {
+        return [];
+      }
+      return [{ familyA, familyB, modelA, modelB }];
+    });
+  }, [familyRepresentatives]);
+
   // Calculate total games
   const totalGames = useMemo(() => {
     if (selectedModels.length < 2) return 0;
 
-    // Matchups: for n models, round-robin pairs = n*(n-1)/2
-    // Each pair generates 4 configs for Codenames/Decrypto
-    const numPairs = (selectedModels.length * (selectedModels.length - 1)) / 2;
+    const numPairs = matrixMode === "sparse_family"
+      ? sparseMatrixPairs.length
+      : (selectedModels.length * (selectedModels.length - 1)) / 2;
 
     let total = 0;
     if (runCodenames) {
       // 8 matchups per pair (4 configs × 2 directions) × seeds
-      total += numPairs * 8 * seedCount;
+      total += numPairs * 8 * effectiveSeedCount;
     }
     if (runDecrypto) {
       // 4 matchups per pair × seeds
-      total += numPairs * 4 * seedCount;
+      total += numPairs * 4 * effectiveSeedCount;
     }
     if (runHanabi) {
       // Each model × seeds
-      total += selectedModels.length * seedCount;
+      total += selectedModels.length * effectiveSeedCount;
     }
     return total;
-  }, [selectedModels, seedCount, runCodenames, runDecrypto, runHanabi]);
+  }, [
+    effectiveSeedCount,
+    matrixMode,
+    runCodenames,
+    runDecrypto,
+    runHanabi,
+    selectedModels,
+    sparseMatrixPairs,
+  ]);
 
   // Estimate cost when config changes
   useEffect(() => {
@@ -265,7 +343,7 @@ export default function BenchmarkMonitor({ models }: Props) {
       setCostLoading(true);
       try {
         // Use a simplified estimation: per-model, per-game-type, scaled by seed count
-        const estimate = await estimateBenchmarkCost(selectedModels, gameTypes, seedCount);
+        const estimate = await estimateBenchmarkCost(selectedModels, gameTypes, effectiveSeedCount);
         setCostEstimate(estimate);
       } catch (e) {
         console.warn("Cost estimation failed:", e);
@@ -284,7 +362,7 @@ export default function BenchmarkMonitor({ models }: Props) {
     // Debounce the estimation
     const timer = setTimeout(estimateCost, 300);
     return () => clearTimeout(timer);
-  }, [selectedModels, seedCount, runCodenames, runDecrypto, runHanabi, totalGames]);
+  }, [effectiveSeedCount, selectedModels, runCodenames, runDecrypto, runHanabi, totalGames]);
 
   const handleStart = async () => {
     if (selectedModels.length < 2) {
@@ -302,7 +380,10 @@ export default function BenchmarkMonitor({ models }: Props) {
       await startBenchmark({
         experiment_name: experimentName,
         model_ids: selectedModels,
-        seed_count: seedCount,
+        seed_count: effectiveSeedCount,
+        seed_policy: seedPolicy,
+        condition_name: conditionName,
+        matrix_mode: matrixMode,
         run_codenames: runCodenames,
         run_decrypto: runDecrypto,
         run_hanabi: runHanabi,
@@ -359,7 +440,10 @@ export default function BenchmarkMonitor({ models }: Props) {
       await startBenchmark({
         experiment_name: status.experiment_name,
         model_ids: selectedModels.length >= 2 ? selectedModels : [], // Will use existing config
-        seed_count: seedCount,
+        seed_count: effectiveSeedCount,
+        seed_policy: seedPolicy,
+        condition_name: conditionName,
+        matrix_mode: matrixMode,
         run_codenames: runCodenames,
         run_decrypto: runDecrypto,
         run_hanabi: runHanabi,
@@ -424,7 +508,7 @@ export default function BenchmarkMonitor({ models }: Props) {
   };
 
   const isRunning = status.status === "running";
-  const canStart = !isRunning && selectedModels.length >= 2 && experimentName.trim();
+  const canStart = !isRunning && selectedModels.length >= 2 && experimentName.trim() && totalGames > 0;
   const costEstimateDisplay = costEstimate ?? {
     estimated_cost_usd: 0,
     estimated_cost_display: "N/A",
@@ -454,16 +538,83 @@ export default function BenchmarkMonitor({ models }: Props) {
           </div>
 
           <div className="form-row">
-            <label>Seeds</label>
+            <label>Condition</label>
+            <select
+              value={conditionName}
+              onChange={(e) => setConditionName(e.target.value as BenchmarkConditionName)}
+              disabled={isRunning}
+            >
+              <option value="human_table_scratchpad">Human Table + Scratchpad</option>
+              <option value="raw_chat">Raw Chat</option>
+              <option value="structured_output">Structured Output</option>
+            </select>
+          </div>
+
+          <div className="protocol-note">
+            Human Table + Scratchpad is the default observational condition: private notes are enabled, table-style moderation keeps games moving, and every intervention is logged as a penalty.
+          </div>
+
+          <div className="form-row">
+            <label>Seed Policy</label>
+            <select
+              value={seedPolicy}
+              onChange={(e) => setSeedPolicy(e.target.value as SeedPolicy)}
+              disabled={isRunning}
+            >
+              <option value="main">Main preset (30 seeds)</option>
+              <option value="pilot">Pilot preset (5 seeds)</option>
+              <option value="custom">Custom count</option>
+            </select>
+          </div>
+
+          <div className="form-row">
+            <label>{seedPolicy === "custom" ? "Seeds" : "Effective Seeds"}</label>
             <input
               type="number"
-              value={seedCount}
+              value={seedPolicy === "custom" ? seedCount : effectiveSeedCount}
               min={1}
               max={100}
               onChange={(e) => setSeedCount(Math.max(1, Math.min(100, Number(e.target.value))))}
-              disabled={isRunning}
+              disabled={isRunning || seedPolicy !== "custom"}
             />
           </div>
+
+          <div className="form-row">
+            <label>Model Matrix</label>
+            <select
+              value={matrixMode}
+              onChange={(e) => setMatrixMode(e.target.value as MatrixMode)}
+              disabled={isRunning}
+            >
+              <option value="round_robin">Homogeneous / Round Robin</option>
+              <option value="sparse_family">Sparse Cross-Family</option>
+            </select>
+          </div>
+
+          {matrixMode === "sparse_family" && (
+            <div className="matrix-preview">
+              <div className="matrix-preview-title">
+                Sparse pairs: {sparseMatrixPairs.length}
+              </div>
+              {sparseMatrixPairs.length > 0 ? (
+                <div className="matrix-pair-list">
+                  {sparseMatrixPairs.map((pair) => (
+                    <div
+                      className="matrix-pair"
+                      key={`${pair.familyA}:${pair.familyB}`}
+                      title={`${pair.modelA} vs ${pair.modelB}`}
+                    >
+                      {familyLabel(pair.familyA)} / {familyLabel(pair.familyB)}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="matrix-preview-empty">
+                  Select representatives from OpenAI, Anthropic, Google, or open-weight families to form sparse pairs.
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="form-row">
             <label>Games</label>
@@ -994,7 +1145,10 @@ export default function BenchmarkMonitor({ models }: Props) {
                             startBenchmark({
                               experiment_name: exp.experiment_name,
                               model_ids: selectedModels.length >= 2 ? selectedModels : [],
-                              seed_count: seedCount,
+                              seed_count: effectiveSeedCount,
+                              seed_policy: seedPolicy,
+                              condition_name: conditionName,
+                              matrix_mode: matrixMode,
                               run_codenames: runCodenames,
                               run_decrypto: runDecrypto,
                               run_hanabi: runHanabi,

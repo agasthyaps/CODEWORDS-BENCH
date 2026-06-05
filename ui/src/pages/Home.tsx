@@ -119,11 +119,11 @@ export default function Home({ onNavigate }: Props) {
         </div>
       </section>
 
-      {/* Leaderboard Section */}
+      {/* Behavior Summary Section */}
       <section className="leaderboard-section">
         <div className="leaderboard-header">
           <div className="leaderboard-title">
-            <h2>Model Leaderboard</h2>
+            <h2>Model Behavior Summary</h2>
             {leaderboard && (
               <span className="leaderboard-meta">
                 {totalGames} games analyzed
@@ -164,7 +164,7 @@ export default function Home({ onNavigate }: Props) {
         ) : (
           <div className="leaderboard-empty">
             <p>No games recorded yet.</p>
-            <p className="hint">Run some games to see the leaderboard!</p>
+            <p className="hint">Run games to compare behavior across conditions.</p>
           </div>
         )}
       </section>

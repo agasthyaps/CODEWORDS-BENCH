@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from copy import deepcopy
-from typing import Any
+from typing import Any, Literal
 
 from .models import (
     Action,
@@ -298,6 +298,7 @@ def apply_action(
     player_id: str,
     action: Action,
     rationale: str = "",
+    invalid_policy: Literal["no_op", "human_table"] = "no_op",
 ) -> tuple[HanabiState, ActionResult, TurnLog]:
     """
     Apply an action to the game state.
@@ -355,6 +356,8 @@ def apply_action(
         )
     
     if not result.success:
+        if invalid_policy == "human_table":
+            return _consume_invalid_turn(state, player_id, action, result, rationale)
         return state, result, TurnLog(
             turn_number=state.turn_number,
             player_id=player_id,
@@ -391,6 +394,40 @@ def apply_action(
         new_state.current_player_idx = (new_state.current_player_idx + 1) % len(new_state.player_order)
         new_state.turn_number += 1
     
+    return new_state, result, turn_log
+
+
+def _consume_invalid_turn(
+    state: HanabiState,
+    player_id: str,
+    action: Action,
+    result: ActionResult,
+    rationale: str,
+) -> tuple[HanabiState, ActionResult, TurnLog]:
+    """Human-table policy: record the illegal proposal and move to next player."""
+    new_state = state.model_copy(deep=True)
+    turn_log = TurnLog(
+        turn_number=new_state.turn_number,
+        player_id=player_id,
+        action=action,
+        result=result,
+        rationale=rationale,
+        hint_tokens_after=new_state.hint_tokens,
+        fuse_tokens_after=new_state.fuse_tokens,
+        score_after=new_state.score,
+    )
+    new_state.action_history.append(turn_log)
+
+    game_over, reason = check_terminal(new_state)
+    if game_over:
+        new_state.game_over = True
+        new_state.game_over_reason = reason
+    else:
+        new_state.current_player_idx = (
+            new_state.current_player_idx + 1
+        ) % len(new_state.player_order)
+        new_state.turn_number += 1
+
     return new_state, result, turn_log
 
 

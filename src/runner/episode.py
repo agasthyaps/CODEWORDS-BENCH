@@ -15,6 +15,16 @@ from src.engine import (
     create_game, Phase,
 )
 from src.core.state import AgentStateManager
+from src.core.benchmarking import (
+    BenchmarkCondition,
+    BenchmarkPenalty,
+    HarnessEvent,
+    RunManifest,
+    build_run_manifest,
+    default_benchmark_condition,
+    resolve_condition,
+    sha256_text,
+)
 from .orchestrator import run_turn, TurnTraces
 from .teams import TeamAgents
 
@@ -32,6 +42,9 @@ class ExtendedEpisodeRecord(BaseModel):
     total_turns: int = 0
     agent_scratchpads: dict[str, str] = Field(default_factory=dict)  # Final scratchpad contents
     metadata: dict[str, Any] = Field(default_factory=dict)
+    run_manifest: RunManifest | None = None
+    harness_events: list[HarnessEvent] = Field(default_factory=list)
+    benchmark_penalties: list[BenchmarkPenalty] = Field(default_factory=list)
 
     def to_filename(self) -> str:
         """Generate filename for this episode."""
@@ -74,6 +87,8 @@ async def run_episode(
     max_turns: int = 50,
     max_discussion_rounds: int = 3,
     emit_fn: Callable[[str, dict[str, Any]], None] | None = None,
+    condition: BenchmarkCondition | str | None = None,
+    run_manifest: RunManifest | None = None,
 ) -> ExtendedEpisodeRecord:
     """
     Run a complete Codenames episode.
@@ -91,6 +106,7 @@ async def run_episode(
     """
     episode_id = str(uuid.uuid4())[:8]
     start_time = datetime.utcnow()
+    condition_obj = resolve_condition(condition)
 
     def emit(event_type: str, data: dict[str, Any]) -> None:
         if emit_fn:
@@ -99,9 +115,11 @@ async def run_episode(
     # Initialize game
     state = create_game(config=config)
     all_traces: list[TurnTraces] = []
+    harness_events: list[HarnessEvent] = []
+    benchmark_penalties: list[BenchmarkPenalty] = []
 
     # Initialize agent state manager for scratchpads
-    agent_states = AgentStateManager()
+    agent_states = AgentStateManager() if condition_obj.scratchpad_enabled else None
 
     # Determine if we should skip discussion (SINGLE_GUESSER mode)
     skip_discussion = config.mode == GameMode.SINGLE_GUESSER
@@ -124,6 +142,12 @@ async def run_episode(
             team_agents, state, max_discussion_rounds, skip_discussion, agent_states
         )
         all_traces.append(turn_traces)
+        _record_turn_harness_events(
+            episode_id=episode_id,
+            turn_traces=turn_traces,
+            harness_events=harness_events,
+            benchmark_penalties=benchmark_penalties,
+        )
 
         # Emit turn complete - extract clue info from trace if available
         clue_info = None
@@ -139,17 +163,53 @@ async def run_episode(
             "team": team.value,
             "clue": clue_info,
         })
+        harness_events.append(
+            HarnessEvent(
+                event_type="turn_completed",
+                game_type="codenames",
+                episode_id=episode_id,
+                turn_number=turn_count,
+                team=team.value,
+                payload={"clue": clue_info},
+            )
+        )
 
         # Check for game over
         if state.phase == Phase.GAME_OVER:
             break
 
     # Extract final scratchpad contents
-    agent_scratchpads = {
-        agent_id: agent_state.scratchpad
-        for agent_id, agent_state in agent_states.get_all_states().items()
-        if agent_state.scratchpad
-    }
+    agent_scratchpads = {}
+    if agent_states is not None:
+        agent_scratchpads = {
+            agent_id: agent_state.scratchpad
+            for agent_id, agent_state in agent_states.get_all_states().items()
+            if agent_state.scratchpad
+        }
+
+    harness_events.append(
+        HarnessEvent(
+            event_type="game_completed",
+            game_type="codenames",
+            episode_id=episode_id,
+            payload={"winner": state.winner.value if state.winner else None},
+        )
+    )
+
+    manifest = run_manifest or build_run_manifest(
+        game_type="codenames",
+        condition=condition_obj,
+        models={
+            "red_team": _extract_team_metadata(red_team),
+            "blue_team": _extract_team_metadata(blue_team),
+        },
+        provider_parameters={
+            "max_discussion_rounds": max_discussion_rounds,
+            "max_turns": max_turns,
+        },
+        seed_schedule=[state.board_seed],
+        game_rules_version=config.mode.value,
+    )
 
     # Build episode record
     episode = ExtendedEpisodeRecord(
@@ -167,10 +227,215 @@ async def run_episode(
             "red_team": _extract_team_metadata(red_team),
             "blue_team": _extract_team_metadata(blue_team),
             "max_discussion_rounds": max_discussion_rounds,
+            "condition": condition_obj.model_dump(mode="json"),
         },
+        run_manifest=manifest,
+        harness_events=harness_events,
+        benchmark_penalties=benchmark_penalties,
     )
 
     return episode
+
+
+def _trace_role(agent_id: str) -> str:
+    if "cluer" in agent_id:
+        return "cluer"
+    if "guesser" in agent_id:
+        return "guesser"
+    return "agent"
+
+
+def _trace_team(agent_id: str) -> str | None:
+    if agent_id.startswith("red_"):
+        return "RED"
+    if agent_id.startswith("blue_"):
+        return "BLUE"
+    return None
+
+
+def _record_trace_events(
+    *,
+    episode_id: str,
+    trace: Any | None,
+    harness_events: list[HarnessEvent],
+    benchmark_penalties: list[BenchmarkPenalty],
+) -> None:
+    if trace is None:
+        return
+
+    role = _trace_role(trace.agent_id)
+    team = _trace_team(trace.agent_id)
+    prompt = trace.prompt_sent or ""
+    response = trace.raw_response or ""
+    payload_base = {
+        "model": trace.model,
+        "temperature": trace.temperature,
+        "input_tokens": trace.input_tokens,
+        "output_tokens": trace.output_tokens,
+    }
+    harness_events.append(
+        HarnessEvent(
+            event_type="model_prompt_sent",
+            game_type="codenames",
+            episode_id=episode_id,
+            turn_number=trace.turn_number,
+            team=team,
+            agent_id=trace.agent_id,
+            role=role,
+            payload={
+                **payload_base,
+                "prompt_hash": sha256_text(prompt),
+                "prompt_chars": len(prompt),
+            },
+        )
+    )
+    harness_events.append(
+        HarnessEvent(
+            event_type="raw_model_response_received",
+            game_type="codenames",
+            episode_id=episode_id,
+            turn_number=trace.turn_number,
+            team=team,
+            agent_id=trace.agent_id,
+            role=role,
+            payload={
+                **payload_base,
+                "response_hash": sha256_text(response),
+                "response_chars": len(response),
+                "latency_ms": trace.latency_ms,
+            },
+        )
+    )
+
+    parse_failed = any("parse" in e.lower() or "could not" in e.lower() for e in trace.validation_errors)
+    harness_events.append(
+        HarnessEvent(
+            event_type="parse_failed" if parse_failed else "parse_succeeded",
+            game_type="codenames",
+            episode_id=episode_id,
+            turn_number=trace.turn_number,
+            team=team,
+            agent_id=trace.agent_id,
+            role=role,
+            payload={"validation_errors": trace.validation_errors},
+        )
+    )
+    if parse_failed:
+        benchmark_penalties.append(
+            BenchmarkPenalty(
+                penalty_type="parse_failure",
+                game_type="codenames",
+                episode_id=episode_id,
+                turn_number=trace.turn_number,
+                team=team,
+                agent_id=trace.agent_id,
+                description="Model response failed parsing or validation.",
+                metadata={"validation_errors": trace.validation_errors},
+            )
+        )
+
+    if trace.retry_count:
+        harness_events.append(
+            HarnessEvent(
+                event_type="repair_prompt_issued",
+                game_type="codenames",
+                episode_id=episode_id,
+                turn_number=trace.turn_number,
+                team=team,
+                agent_id=trace.agent_id,
+                role=role,
+                payload={"retry_count": trace.retry_count},
+            )
+        )
+        benchmark_penalties.append(
+            BenchmarkPenalty(
+                penalty_type="repair_prompt",
+                game_type="codenames",
+                episode_id=episode_id,
+                turn_number=trace.turn_number,
+                team=team,
+                agent_id=trace.agent_id,
+                points=float(trace.retry_count),
+                description="Neutral repair prompt was issued before accepting an action.",
+            )
+        )
+
+    parsed = trace.parsed_result or {}
+    fallback = parsed.get("fallback") or any("fallback" in e.lower() for e in trace.validation_errors)
+    if fallback:
+        harness_events.append(
+            HarnessEvent(
+                event_type="fallback_action_used",
+                game_type="codenames",
+                episode_id=episode_id,
+                turn_number=trace.turn_number,
+                team=team,
+                agent_id=trace.agent_id,
+                role=role,
+                payload={"parsed_result": parsed},
+            )
+        )
+        benchmark_penalties.append(
+            BenchmarkPenalty(
+                penalty_type="fallback_action",
+                game_type="codenames",
+                episode_id=episode_id,
+                turn_number=trace.turn_number,
+                team=team,
+                agent_id=trace.agent_id,
+                description="Harness fallback action was used.",
+                metadata={"parsed_result": parsed},
+            )
+        )
+
+
+def _record_turn_harness_events(
+    *,
+    episode_id: str,
+    turn_traces: TurnTraces,
+    harness_events: list[HarnessEvent],
+    benchmark_penalties: list[BenchmarkPenalty],
+) -> None:
+    _record_trace_events(
+        episode_id=episode_id,
+        trace=turn_traces.clue_trace,
+        harness_events=harness_events,
+        benchmark_penalties=benchmark_penalties,
+    )
+    for trace in turn_traces.discussion_traces:
+        _record_trace_events(
+            episode_id=episode_id,
+            trace=trace,
+            harness_events=harness_events,
+            benchmark_penalties=benchmark_penalties,
+        )
+    _record_trace_events(
+        episode_id=episode_id,
+        trace=turn_traces.guess_trace,
+        harness_events=harness_events,
+        benchmark_penalties=benchmark_penalties,
+    )
+    harness_events.append(
+        HarnessEvent(
+            event_type="final_accepted_game_action",
+            game_type="codenames",
+            episode_id=episode_id,
+            turn_number=turn_traces.turn_number,
+            team=turn_traces.team.value,
+            payload={
+                "clue": (
+                    turn_traces.clue_trace.parsed_result
+                    if turn_traces.clue_trace is not None
+                    else None
+                ),
+                "guess": (
+                    turn_traces.guess_trace.parsed_result
+                    if turn_traces.guess_trace is not None
+                    else None
+                ),
+            },
+        )
+    )
 
 
 def _extract_team_metadata(team: TeamAgents) -> dict[str, Any]:

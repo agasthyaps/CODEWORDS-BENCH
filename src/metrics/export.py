@@ -37,6 +37,13 @@ def export_episodes_csv(metrics_list: list[EpisodeMetrics]) -> str:
         "episode_id",
         "winner",
         "turns_to_win",
+        "benchmark_penalty_count",
+        "benchmark_penalty_points",
+        "parse_failures",
+        "repair_prompts",
+        "fallback_actions",
+        "invalid_actions",
+        "moderator_corrections",
         # Red team
         "red_words_cleared",
         "red_assassin_hit",
@@ -72,6 +79,13 @@ def export_episodes_csv(metrics_list: list[EpisodeMetrics]) -> str:
             m.episode_id,
             m.winner.value if m.winner else "DRAW",
             m.turns_to_win,
+            m.benchmark_penalty_count,
+            f"{m.benchmark_penalty_points:.2f}",
+            m.parse_failures,
+            m.repair_prompts,
+            m.fallback_actions,
+            m.invalid_actions,
+            m.moderator_corrections,
             # Red
             m.red_metrics.words_cleared,
             m.red_metrics.assassin_hit,
@@ -123,6 +137,13 @@ def export_aggregate_csv(metrics: AggregateMetrics) -> str:
         "avg_clue_efficiency_blue",
         "avg_guess_accuracy_red",
         "avg_guess_accuracy_blue",
+        "avg_benchmark_penalty_count",
+        "avg_benchmark_penalty_points",
+        "avg_parse_failures",
+        "avg_repair_prompts",
+        "avg_fallback_actions",
+        "avg_invalid_actions",
+        "avg_moderator_corrections",
     ]
     writer.writerow(headers)
 
@@ -140,6 +161,13 @@ def export_aggregate_csv(metrics: AggregateMetrics) -> str:
         f"{metrics.avg_clue_efficiency_blue:.3f}",
         f"{metrics.avg_guess_accuracy_red:.3f}",
         f"{metrics.avg_guess_accuracy_blue:.3f}",
+        f"{metrics.avg_benchmark_penalty_count:.2f}",
+        f"{metrics.avg_benchmark_penalty_points:.2f}",
+        f"{metrics.avg_parse_failures:.2f}",
+        f"{metrics.avg_repair_prompts:.2f}",
+        f"{metrics.avg_fallback_actions:.2f}",
+        f"{metrics.avg_invalid_actions:.2f}",
+        f"{metrics.avg_moderator_corrections:.2f}",
     ]
     writer.writerow(row)
 
@@ -153,6 +181,7 @@ def export_episode_markdown(metrics: EpisodeMetrics) -> str:
         "",
         f"**Winner:** {metrics.winner.value if metrics.winner else 'Draw'}",
         f"**Turns:** {metrics.turns_to_win}",
+        f"**Benchmark Penalties:** {metrics.benchmark_penalty_count} ({metrics.benchmark_penalty_points:.2f} pts)",
         "",
         "## Team Comparison",
         "",
@@ -169,6 +198,16 @@ def export_episode_markdown(metrics: EpisodeMetrics) -> str:
         f"| Avg Discussion Rounds | {metrics.red_metrics.avg_discussion_rounds:.2f} | {metrics.blue_metrics.avg_discussion_rounds:.2f} |",
         f"| Consensus Rate | {metrics.red_metrics.consensus_rate:.3f} | {metrics.blue_metrics.consensus_rate:.3f} |",
         f"| **Coordination Score** | **{metrics.red_coordination_score:.3f}** | **{metrics.blue_coordination_score:.3f}** |",
+        "",
+        "## Benchmark Performance",
+        "",
+        "| Penalty | Count |",
+        "|---------|-------|",
+        f"| Parse failures | {metrics.parse_failures} |",
+        f"| Repair prompts | {metrics.repair_prompts} |",
+        f"| Fallback actions | {metrics.fallback_actions} |",
+        f"| Invalid actions | {metrics.invalid_actions} |",
+        f"| Moderator corrections | {metrics.moderator_corrections} |",
         "",
     ]
     return "\n".join(lines)
@@ -203,6 +242,16 @@ def export_aggregate_markdown(metrics: AggregateMetrics) -> str:
         f"| Avg Clue Efficiency | {metrics.avg_clue_efficiency_red:.3f} | {metrics.avg_clue_efficiency_blue:.3f} |",
         f"| Avg Guess Accuracy | {metrics.avg_guess_accuracy_red:.3f} | {metrics.avg_guess_accuracy_blue:.3f} |",
         f"| Avg Consensus Rate | {metrics.avg_consensus_rate_red:.3f} | {metrics.avg_consensus_rate_blue:.3f} |",
+        "",
+        "## Benchmark Performance",
+        "",
+        f"- **Avg Penalties / Episode:** {metrics.avg_benchmark_penalty_count:.2f}",
+        f"- **Avg Penalty Points / Episode:** {metrics.avg_benchmark_penalty_points:.2f}",
+        f"- **Avg Parse Failures:** {metrics.avg_parse_failures:.2f}",
+        f"- **Avg Repair Prompts:** {metrics.avg_repair_prompts:.2f}",
+        f"- **Avg Fallback Actions:** {metrics.avg_fallback_actions:.2f}",
+        f"- **Avg Invalid Actions:** {metrics.avg_invalid_actions:.2f}",
+        f"- **Avg Moderator Corrections:** {metrics.avg_moderator_corrections:.2f}",
         "",
     ]
     return "\n".join(lines)

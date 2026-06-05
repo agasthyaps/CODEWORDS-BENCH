@@ -8,6 +8,18 @@ from .config import (
     ExperimentConfig,
     generate_matchups,
     count_total_games,
+    select_family_representatives,
+    sparse_family_matchup_subset,
+)
+from .protocol import (
+    BenchmarkCondition,
+    BenchmarkConditionName,
+    HarnessEvent,
+    BenchmarkPenalty,
+    RunManifest,
+    default_benchmark_condition,
+    resolve_condition,
+    build_run_manifest,
 )
 from .model_farm import (
     ModelFarmFile,
@@ -44,6 +56,16 @@ __all__ = [
     "ExperimentConfig",
     "generate_matchups",
     "count_total_games",
+    "select_family_representatives",
+    "sparse_family_matchup_subset",
+    "BenchmarkCondition",
+    "BenchmarkConditionName",
+    "HarnessEvent",
+    "BenchmarkPenalty",
+    "RunManifest",
+    "default_benchmark_condition",
+    "resolve_condition",
+    "build_run_manifest",
     # Model farm
     "ModelFarmFile",
     "load_model_farm",

@@ -11,7 +11,7 @@ import {
 import CodenamesBoard from "../components/CodenamesBoard";
 import ChatPanel from "../components/ChatPanel";
 import ScratchpadPanel from "../components/ScratchpadPanel";
-import { ModelInfo, TeamRoleConfig, TeamSelection, ScratchpadEntry } from "../types";
+import { BenchmarkConditionName, ModelInfo, TeamRoleConfig, TeamSelection, ScratchpadEntry } from "../types";
 
 type Props = {
   models: ModelInfo[];
@@ -32,6 +32,7 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
   const [red, setRed] = useState<TeamRoleConfig>(baseTeam);
   const [blue, setBlue] = useState<TeamRoleConfig>(baseTeam);
   const [mode, setMode] = useState("STANDARD");
+  const [conditionName, setConditionName] = useState<BenchmarkConditionName>("human_table_scratchpad");
   const [seed, setSeed] = useState<number | undefined>(undefined);
   const [eventDelay, setEventDelay] = useState(0);
   const [boardWords, setBoardWords] = useState<string[]>([]);
@@ -116,6 +117,7 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
       team_selection: buildSelection(),
       mode,
       seed,
+      condition_name: conditionName,
       max_discussion_rounds: 3,
       max_turns: 50,
       event_delay_ms: eventDelay,
@@ -247,6 +249,14 @@ export default function CodenamesViewer({ models, defaultModel }: Props) {
                   <option value="STANDARD">Standard</option>
                   <option value="NO_ASSASSIN">No Assassin</option>
                   <option value="SINGLE_GUESSER">Single Guesser</option>
+                </select>
+              </div>
+              <div className="form-row-compact">
+                <label>Condition</label>
+                <select value={conditionName} onChange={(e) => setConditionName(e.target.value as BenchmarkConditionName)}>
+                  <option value="human_table_scratchpad">Human table</option>
+                  <option value="raw_chat">Raw chat</option>
+                  <option value="structured_output">Structured</option>
                 </select>
               </div>
               <div className="form-row-compact">

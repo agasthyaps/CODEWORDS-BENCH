@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.core.benchmarking import BenchmarkConditionName
 from src.engine import GameMode
 
 
@@ -12,6 +13,7 @@ class ModelInfo(BaseModel):
     id: str
     short_name: str | None = None
     provider: str = "openrouter"
+    family: str | None = None
 
 
 class TeamRoleConfig(BaseModel):
@@ -29,6 +31,7 @@ class CodenamesStartRequest(BaseModel):
     team_selection: TeamSelection
     mode: GameMode = GameMode.STANDARD
     seed: int | None = None
+    condition_name: BenchmarkConditionName = BenchmarkConditionName.HUMAN_TABLE_SCRATCHPAD
     max_discussion_rounds: int = 3
     max_turns: int = 50
     event_delay_ms: int = 0
@@ -37,6 +40,7 @@ class CodenamesStartRequest(BaseModel):
 class DecryptoStartRequest(BaseModel):
     team_selection: TeamSelection
     seed: int | None = None
+    condition_name: BenchmarkConditionName = BenchmarkConditionName.HUMAN_TABLE_SCRATCHPAD
     max_rounds: int = 8
     max_discussion_turns_per_guesser: int = 2
     event_delay_ms: int = 0
@@ -59,6 +63,8 @@ class BatchStartRequest(BaseModel):
     """
     game_type: Literal["codenames", "decrypto", "hanabi", "both"]
     team_selection: TeamSelection | None = None  # For codenames/decrypto
+    condition_name: BenchmarkConditionName = BenchmarkConditionName.HUMAN_TABLE_SCRATCHPAD
+    seed_policy: Literal["custom", "pilot", "main"] = "custom"
     
     # Seed configuration
     seed_mode: Literal["random", "fixed", "list"] = "random"
@@ -87,6 +93,7 @@ class HanabiStartRequest(BaseModel):
     """Request to start a Hanabi game with 3 players."""
     player_models: list[str]  # 3 model IDs for the players
     seed: int | None = None
+    condition_name: BenchmarkConditionName = BenchmarkConditionName.HUMAN_TABLE_SCRATCHPAD
     event_delay_ms: int = 0
 
 
@@ -110,6 +117,9 @@ class BenchmarkStartRequest(BaseModel):
     # Seeds
     seed_count: int = 30
     seed_list: list[int] | None = None
+    seed_policy: Literal["custom", "pilot", "main"] = "custom"
+    condition_name: BenchmarkConditionName = BenchmarkConditionName.HUMAN_TABLE_SCRATCHPAD
+    matrix_mode: Literal["round_robin", "sparse_family"] = "round_robin"
 
     # Game type toggles
     run_codenames: bool = True

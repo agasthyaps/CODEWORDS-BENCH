@@ -33,6 +33,7 @@ def compute_episode_metrics(episode: HanabiEpisodeRecord) -> dict[str, Any]:
     - per_player: Per-player breakdown
     """
     turns = episode.turns
+    penalties = episode.benchmark_penalties
     
     # Count action types
     hints_given = 0
@@ -97,6 +98,11 @@ def compute_episode_metrics(episode: HanabiEpisodeRecord) -> dict[str, Any]:
         "hint_efficiency": round(hint_efficiency, 3),
         "play_success_rate": round(play_success_rate, 3),
         "fuses_lost": plays_failed,
+        "benchmark_penalty_count": len(penalties),
+        "benchmark_penalty_points": sum(p.points for p in penalties),
+        "invalid_actions": sum(1 for p in penalties if p.penalty_type == "invalid_action"),
+        "moderator_corrections": sum(1 for p in penalties if p.penalty_type == "moderator_correction"),
+        "fallback_actions": sum(1 for p in penalties if p.penalty_type == "fallback_action"),
         
         # Per-color breakdown
         "stacks_completed": sum(1 for v in episode.final_played_cards.values() if v == 5),

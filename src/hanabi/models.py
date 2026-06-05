@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from src.core.benchmarking import BenchmarkPenalty, HarnessEvent, RunManifest
+
 
 # Card colors and numbers
 Color = Literal["red", "yellow", "green", "blue", "white"]
@@ -205,6 +207,9 @@ class HanabiEpisodeRecord(BaseModel):
     
     # Metadata
     metadata: dict[str, Any] = Field(default_factory=dict)
+    run_manifest: RunManifest | None = None
+    harness_events: list[HarnessEvent] = Field(default_factory=list)
+    benchmark_penalties: list[BenchmarkPenalty] = Field(default_factory=list)
 
     def to_filename(self) -> str:
         ts = self.timestamp.strftime("%Y%m%d_%H%M%S")

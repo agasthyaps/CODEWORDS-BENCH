@@ -52,6 +52,15 @@ class EpisodeMetrics(BaseModel):
     red_coordination_score: float
     blue_coordination_score: float
 
+    # Benchmark-performance penalties, separate from game outcome
+    benchmark_penalty_count: int = 0
+    benchmark_penalty_points: float = 0.0
+    parse_failures: int = 0
+    repair_prompts: int = 0
+    fallback_actions: int = 0
+    invalid_actions: int = 0
+    moderator_corrections: int = 0
+
 
 class AggregateMetrics(BaseModel):
     """Aggregate metrics across multiple episodes."""
@@ -77,3 +86,12 @@ class AggregateMetrics(BaseModel):
     avg_guess_accuracy_blue: float = 0.0
     avg_consensus_rate_red: float = 0.0
     avg_consensus_rate_blue: float = 0.0
+
+    # Benchmark-performance averages, separate from game outcome
+    avg_benchmark_penalty_count: float = 0.0
+    avg_benchmark_penalty_points: float = 0.0
+    avg_parse_failures: float = 0.0
+    avg_repair_prompts: float = 0.0
+    avg_fallback_actions: float = 0.0
+    avg_invalid_actions: float = 0.0
+    avg_moderator_corrections: float = 0.0

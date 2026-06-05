@@ -5,7 +5,7 @@ import { fetchStats, openEventStream, startHanabi, estimateGameCost, CostEstimat
 import HanabiBoard from "../components/HanabiBoard";
 import ChatPanel from "../components/ChatPanel";
 import ScratchpadPanel from "../components/ScratchpadPanel";
-import { ModelInfo, HanabiCard, HanabiCardKnowledge, HanabiTurnPayload, ScratchpadEntry } from "../types";
+import { BenchmarkConditionName, ModelInfo, HanabiCard, HanabiCardKnowledge, HanabiTurnPayload, ScratchpadEntry } from "../types";
 
 type Props = {
   models: ModelInfo[];
@@ -44,6 +44,7 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
     defaultModel,
     defaultModel,
   ]);
+  const [conditionName, setConditionName] = useState<BenchmarkConditionName>("human_table_scratchpad");
   const [seed, setSeed] = useState<number | undefined>(undefined);
   const [eventDelay, setEventDelay] = useState(500);
   const [status, setStatus] = useState("idle");
@@ -122,6 +123,7 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
     try {
       const { job_id } = await startHanabi({
         player_models: playerModels,
+        condition_name: conditionName,
         seed,
         event_delay_ms: eventDelay,
       });
@@ -302,6 +304,17 @@ export default function HanabiViewer({ models, defaultModel }: Props) {
           <div className="settings-content">
             <div className="settings-section">
               <h4 data-label="CONFIG">Game Settings</h4>
+              <div className="form-row-compact">
+                <label>Condition</label>
+                <select
+                  value={conditionName}
+                  onChange={(e) => setConditionName(e.target.value as BenchmarkConditionName)}
+                >
+                  <option value="human_table_scratchpad">Human Table + Scratchpad</option>
+                  <option value="raw_chat">Raw Chat</option>
+                  <option value="structured_output">Structured Output</option>
+                </select>
+              </div>
               <div className="form-row-compact">
                 <label>Seed</label>
                 <input

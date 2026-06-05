@@ -3,6 +3,16 @@
 from .state import AgentState, AgentStateManager
 from .trace import AgentTrace
 from .parsing import extract_scratchpad, remove_scratchpad_from_response
+from .benchmarking import (
+    BenchmarkCondition,
+    BenchmarkConditionName,
+    HarnessEvent,
+    BenchmarkPenalty,
+    RunManifest,
+    default_benchmark_condition,
+    resolve_condition,
+    build_run_manifest,
+)
 from .llm import (
     LLMProvider,
     LLMResponse,
@@ -22,6 +32,15 @@ __all__ = [
     # Parsing
     "extract_scratchpad",
     "remove_scratchpad_from_response",
+    # Benchmark protocol
+    "BenchmarkCondition",
+    "BenchmarkConditionName",
+    "HarnessEvent",
+    "BenchmarkPenalty",
+    "RunManifest",
+    "default_benchmark_condition",
+    "resolve_condition",
+    "build_run_manifest",
     # LLM providers
     "LLMProvider",
     "LLMResponse",

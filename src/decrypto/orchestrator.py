@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Awaitable, Callable
 
+from src.core.benchmarking import BenchmarkPenalty, HarnessEvent, RunManifest
+
 from .game import (
     check_winner,
     initial_counters,
@@ -215,6 +217,9 @@ async def run_episode(
     timestamp: datetime | None = None,
     metadata: dict[str, Any] | None = None,
     emit_fn: Callable[[str, dict[str, Any]], None] | None = None,
+    run_manifest: RunManifest | None = None,
+    harness_events: list[HarnessEvent] | None = None,
+    benchmark_penalties: list[BenchmarkPenalty] | None = None,
 ) -> DecryptoEpisodeRecord:
     """
     Run a full Decrypto episode using strict snapshot semantics.
@@ -222,6 +227,8 @@ async def run_episode(
     ts = timestamp or datetime.utcnow()
     counters = initial_counters()
     history: list[RoundLog] = []
+    events = harness_events if harness_events is not None else []
+    penalties = benchmark_penalties if benchmark_penalties is not None else []
 
     def emit(event_type: str, data: dict[str, Any]) -> None:
         if emit_fn:
@@ -265,6 +272,20 @@ async def run_episode(
         )
 
         history.append(round_log)
+        events.append(
+            HarnessEvent(
+                event_type="round_completed",
+                game_type="decrypto",
+                episode_id=episode_id,
+                round_number=r,
+                payload={
+                    "red_intercepts": counters["red"].own_interceptions,
+                    "red_miscommunications": counters["red"].own_miscommunications,
+                    "blue_intercepts": counters["blue"].own_interceptions,
+                    "blue_miscommunications": counters["blue"].own_miscommunications,
+                },
+            )
+        )
 
         # Emit round complete event
         emit("round_complete", {
@@ -283,6 +304,15 @@ async def run_episode(
         if reason is not None:
             break
 
+    events.append(
+        HarnessEvent(
+            event_type="game_completed",
+            game_type="decrypto",
+            episode_id=episode_id,
+            payload={"winner": winner, "result_reason": reason},
+        )
+    )
+
     episode = DecryptoEpisodeRecord(
         episode_id=episode_id,
         timestamp=ts,
@@ -296,6 +326,9 @@ async def run_episode(
         result_reason=reason,  # type: ignore[arg-type]
         scores={},
         metadata=metadata or {},
+        run_manifest=run_manifest,
+        harness_events=events,
+        benchmark_penalties=penalties,
     )
 
     # Metrics are computed after the episode is fully constructed.

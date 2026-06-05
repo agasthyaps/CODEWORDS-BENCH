@@ -4,9 +4,16 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from src.core.benchmarking import (
+    BenchmarkCondition,
+    MAIN_HOMOGENEOUS_SEEDS,
+    PILOT_HOMOGENEOUS_SEEDS,
+    default_benchmark_condition,
+)
 from src.engine import GameMode
 
 
@@ -24,6 +31,7 @@ class CloudBenchmarkConfig(BaseModel):
     model_config = {"protected_namespaces": ()}
 
     experiment_name: str
+    condition: BenchmarkCondition = Field(default_factory=default_benchmark_condition)
 
     # Models to benchmark (by model_id from models.json)
     model_ids: list[str]
@@ -31,6 +39,8 @@ class CloudBenchmarkConfig(BaseModel):
     # Seeds
     seed_count: int = 30
     seed_list: list[int] | None = None  # Override with specific seeds
+    seed_policy: Literal["custom", "pilot", "main"] = "custom"
+    matrix_mode: Literal["round_robin", "sparse_family"] = "round_robin"
 
     # Game type toggles
     run_codenames: bool = True
@@ -64,6 +74,10 @@ class CloudBenchmarkConfig(BaseModel):
 
     def get_seeds(self) -> list[int]:
         """Get list of seeds to use."""
+        if self.seed_policy == "pilot":
+            return list(PILOT_HOMOGENEOUS_SEEDS)
+        if self.seed_policy == "main":
+            return list(MAIN_HOMOGENEOUS_SEEDS)
         if self.seed_list:
             return self.seed_list
         return list(range(self.seed_count))

@@ -491,6 +491,7 @@ async def run_discussion(
     guessers: list[GuesserAgent],
     state: GameState,
     max_rounds: int = 3,
+    agent_states: Any | None = None,
 ) -> tuple[list[DiscussionMessage], list[AgentTrace], GameState]:
     """
     Run the discussion phase between guessers.
@@ -517,9 +518,18 @@ async def run_discussion(
     for i in range(max_messages):
         guesser = guessers[i % 2]
 
-        # Generate discussion message (note: scratchpad not used in run_discussion for simplicity)
-        message, trace, _ = await guesser.discuss(current_state, messages)
+        scratchpad = ""
+        if agent_states is not None:
+            scratchpad = agent_states.get_scratchpad(guesser.config.agent_id)
+
+        message, trace, scratchpad_addition = await guesser.discuss(
+            current_state, messages, scratchpad
+        )
         traces.append(trace)
+
+        if agent_states is not None and scratchpad_addition:
+            agent_state = agent_states.get_or_create(guesser.config.agent_id)
+            agent_state.append_to_scratchpad(current_state.turn_number, scratchpad_addition)
 
         # Add message to state transcript
         current_state = add_discussion_message(
